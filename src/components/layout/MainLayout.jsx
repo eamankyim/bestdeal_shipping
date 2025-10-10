@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout, Button, Space, Avatar, Dropdown, Menu, Badge } from 'antd';
 import { 
   MenuFoldOutlined, 
@@ -17,11 +17,25 @@ const { Header, Content } = Layout;
 
 const MainLayout = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
 
   // Mock notification count - in real app this would come from API
   const notificationCount = 3;
+
+  // Detect mobile devices and handle resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Function to generate initials from user name
   const getUserInitials = (name) => {
@@ -47,6 +61,20 @@ const MainLayout = () => {
     navigate('/login');
   };
 
+  const handleSidebarToggle = () => {
+    if (isMobile) {
+      setMobileMenuOpen(!mobileMenuOpen);
+    } else {
+      setCollapsed(!collapsed);
+    }
+  };
+
+  const handleSidebarClose = () => {
+    if (isMobile) {
+      setMobileMenuOpen(false);
+    }
+  };
+
   const userMenu = (
     <Menu>
       <Menu.Item key="profile" icon={<UserOutlined />} onClick={() => navigate('/admin')}>
@@ -64,20 +92,33 @@ const MainLayout = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sidebar collapsed={collapsed} />
+      {/* Mobile backdrop overlay */}
+      {isMobile && mobileMenuOpen && (
+        <div 
+          className="mobile-backdrop"
+          onClick={handleSidebarClose}
+        />
+      )}
       
-      <Layout className={`content-layout ${collapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
+      <Sidebar 
+        collapsed={isMobile ? mobileMenuOpen : collapsed} 
+        isMobile={isMobile}
+        onClose={handleSidebarClose}
+      />
+      
+      <Layout className={`content-layout ${collapsed ? 'sidebar-collapsed' : 'sidebar-expanded'} ${isMobile ? 'mobile' : ''}`}>
         <Header className="main-header">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
             <Button
               type="text"
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed(!collapsed)}
+              icon={isMobile ? (mobileMenuOpen ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />) : (collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />)}
+              onClick={handleSidebarToggle}
               style={{
                 fontSize: '16px',
                 width: 64,
                 height: 64,
               }}
+              className="sidebar-trigger"
             />
             
             <Space size="large">
@@ -112,9 +153,11 @@ const MainLayout = () => {
                   >
                     {currentUser?.avatar ? undefined : getUserInitials(currentUser?.name)}
                   </Avatar>
-                  <span style={{ color: '#fff', fontWeight: 500 }}>
-                    {currentUser?.name || 'User'}
-                  </span>
+                  {!isMobile && (
+                    <span style={{ color: '#fff', fontWeight: 500 }}>
+                      {currentUser?.name || 'User'}
+                    </span>
+                  )}
                 </Space>
               </Dropdown>
             </Space>

@@ -159,7 +159,7 @@ const PublicTrackingPage = () => {
 
           {/* Search Section */}
           <Card style={{ marginBottom: '24px' }}>
-            <Space.Compact style={{ width: '100%' }}>
+            <Space.Compact style={{ width: '100%' }} className="search-compact">
               <Input
                 size="large"
                 placeholder="Enter tracking number (e.g., TRK001)"

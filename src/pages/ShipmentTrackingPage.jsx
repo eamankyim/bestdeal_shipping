@@ -130,7 +130,7 @@ const ShipmentTrackingPage = () => {
 
       {/* Search Section */}
       <Card style={{ marginBottom: '24px' }}>
-        <Row gutter={16} align="middle">
+        <Row gutter={16} align="middle" className="search-row-container">
           <Col flex="auto">
             <Search
               placeholder="Enter tracking ID (e.g., CN001234)"

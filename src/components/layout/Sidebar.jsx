@@ -1,6 +1,7 @@
-import React from 'react';
-import { Layout, Menu } from 'antd';
+import React, { useEffect } from 'react';
+import { Layout, Menu, Button } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { CloseOutlined } from '@ant-design/icons';
 import {
   DashboardOutlined,
   ShoppingOutlined,
@@ -18,12 +19,23 @@ import './Sidebar.css';
 
 const { Sider } = Layout;
 
-const Sidebar = ({ collapsed }) => {
+const Sidebar = ({ collapsed, isMobile, onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Auto-hide sidebar on mobile when location changes
+  useEffect(() => {
+    if (isMobile && onClose) {
+      onClose();
+    }
+  }, [location.pathname, isMobile, onClose]);
+
   const handleMenuClick = (e) => {
     navigate(e.key);
+    // Close sidebar on mobile after navigation
+    if (isMobile && onClose) {
+      onClose();
+    }
   };
 
   const menuItems = [
@@ -89,13 +101,14 @@ const Sidebar = ({ collapsed }) => {
       trigger={null}
       collapsible
       collapsed={collapsed}
-      className="sidebar"
-      width={250}
+      className={`sidebar ${isMobile ? 'mobile-sidebar' : ''}`}
+      width={isMobile ? '100vw' : 250}
+      collapsedWidth={isMobile ? 0 : 80}
     >
       <div className="sidebar-container">
         {/* Logo Section */}
         <div className="sidebar-logo">
-          {collapsed ? (
+          {collapsed && !isMobile ? (
             <img 
               src="/AppLogo.png" 
               alt="ShipEASE" 
@@ -107,7 +120,7 @@ const Sidebar = ({ collapsed }) => {
               }} 
             />
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
               <img 
                 src="/AppLogo.png" 
                 alt="ShipEASE" 
@@ -122,10 +135,29 @@ const Sidebar = ({ collapsed }) => {
                 color: 'white', 
                 fontSize: '18px', 
                 fontWeight: 'bold',
-                whiteSpace: 'nowrap'
+                whiteSpace: 'nowrap',
+                flex: 1
               }}>
                 ShipEASE
               </span>
+              {/* Close button for mobile */}
+              {isMobile && (
+                <Button
+                  type="text"
+                  icon={<CloseOutlined />}
+                  onClick={onClose}
+                  className="sidebar-close-button"
+                  style={{
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px',
+                    minWidth: '40px',
+                    height: '40px',
+                    fontSize: '18px',
+                    borderRadius: '6px'
+                  }}
+                />
+              )}
             </div>
           )}
         </div>

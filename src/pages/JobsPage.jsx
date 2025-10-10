@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { 
-  Table, 
   Button, 
   Modal, 
   Form, 
@@ -46,6 +45,7 @@ import {
   SettingOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import ResponsiveTable from '../components/common/ResponsiveTable';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -365,28 +365,33 @@ const JobsPage = () => {
       dataIndex: 'jobId',
       key: 'jobId',
       render: (text) => <Text strong>{text}</Text>,
+      mobile: true, // Always show on mobile
     },
     {
       title: 'Customer',
       dataIndex: 'customer',
       key: 'customer',
+      mobile: true, // Always show on mobile
     },
     {
       title: 'Pickup Address',
       dataIndex: 'pickupAddress',
       key: 'pickupAddress',
       ellipsis: true,
+      mobile: false, // Hide on mobile (too long)
     },
     {
       title: 'Delivery Address',
       dataIndex: 'deliveryAddress',
       key: 'deliveryAddress',
       ellipsis: true,
+      mobile: false, // Hide on mobile (too long)
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
+      mobile: true, // Always show on mobile
       render: (status) => {
         let color = 'default';
         switch (status) {
@@ -412,6 +417,7 @@ const JobsPage = () => {
       title: 'Priority',
       dataIndex: 'priority',
       key: 'priority',
+      mobile: true, // Always show on mobile
       render: (priority) => {
         let color = 'default';
         switch (priority) {
@@ -434,15 +440,18 @@ const JobsPage = () => {
       title: 'Assigned To',
       dataIndex: 'assignedTo',
       key: 'assignedTo',
+      mobile: false, // Hide on mobile (less important)
     },
     {
       title: 'ETA',
       dataIndex: 'eta',
       key: 'eta',
+      mobile: false, // Hide on mobile (less important)
     },
     {
       title: 'Actions',
       key: 'actions',
+      mobile: true, // Always show on mobile
       render: (_, record) => (
         <Button 
           size="small"
@@ -552,7 +561,7 @@ const JobsPage = () => {
 
       {/* Actions Bar */}
       <Card style={{ marginBottom: '24px' }}>
-        <Row justify="space-between" align="middle">
+        <Row justify="space-between" align="middle" className="search-filter-container">
           <Col>
             <Space>
               <Input
@@ -580,7 +589,7 @@ const JobsPage = () => {
 
       {/* Jobs Table */}
       <Card>
-        <Table
+        <ResponsiveTable
           columns={columns}
           dataSource={jobs}
           pagination={{
@@ -591,7 +600,9 @@ const JobsPage = () => {
             showTotal: (total, range) =>
               `${range[0]}-${range[1]} of ${total} jobs`,
           }}
-          scroll={{ x: 1200 }}
+          mobileCardView={true}
+          mobileBreakpoint={768}
+          rowKey="jobId"
         />
       </Card>
 
