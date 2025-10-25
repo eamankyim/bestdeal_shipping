@@ -12,3 +12,6 @@ code {
     monospace;
 }
 
+/* Import responsive utilities */
+@import './styles/responsive.css';
+

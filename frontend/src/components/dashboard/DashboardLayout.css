@@ -1,0 +1,60 @@
+.dashboard-layout {
+  padding: 24px;
+  min-height: calc(100vh - 64px);
+  background: #f0f2f5;
+}
+
+.dashboard-header {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.stats-card {
+  height: 100%;
+  transition: all 0.3s ease;
+}
+
+.stats-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.activity-feed-card,
+.quick-actions-card {
+  height: 100%;
+}
+
+.activity-feed-card .ant-list-item {
+  transition: background-color 0.3s ease;
+}
+
+.activity-feed-card .ant-list-item:hover {
+  background-color: #fafafa;
+}
+
+.quick-actions-card .ant-btn {
+  transition: all 0.3s ease;
+}
+
+.quick-actions-card .ant-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .dashboard-layout {
+    padding: 16px;
+  }
+  
+  .dashboard-header {
+    margin-bottom: 16px;
+  }
+  
+  .dashboard-header h2 {
+    font-size: 20px !important;
+  }
+}
+
+
