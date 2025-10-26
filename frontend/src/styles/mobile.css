@@ -1,4 +1,398 @@
-/* Mobile Responsiveness Styles */
+/* Mobile Card Layout for Tables */
+@media (max-width: 768px) {
+  /* Mobile table cards */
+  .mobile-table-cards .ant-card {
+    margin-bottom: 12px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .mobile-table-cards .ant-card-body {
+    padding: 16px;
+  }
+  
+  .mobile-table-cards .ant-card-actions {
+    background: #fafafa;
+    border-top: 1px solid #f0f0f0;
+  }
+  
+  .mobile-table-cards .ant-card-actions > li {
+    margin: 8px 0;
+  }
+  
+  .mobile-table-cards .ant-card-actions .ant-btn {
+    border: none;
+    background: transparent;
+    color: #1890ff;
+  }
+  
+  .mobile-table-cards .ant-card-actions .ant-btn:hover {
+    background: rgba(24, 144, 255, 0.1);
+  }
+  
+  /* Mobile card content */
+  .mobile-card-primary {
+    margin-bottom: 12px;
+  }
+  
+  .mobile-card-primary .ant-typography {
+    margin-bottom: 8px;
+  }
+  
+  .mobile-card-secondary {
+    margin-top: 8px;
+  }
+  
+  .mobile-card-secondary .ant-row {
+    margin-bottom: 4px;
+  }
+  
+  /* Mobile card tags */
+  .mobile-table-cards .ant-tag {
+    margin: 2px 4px 2px 0;
+    font-size: 11px;
+    padding: 2px 6px;
+  }
+  
+  /* Mobile card buttons */
+  .mobile-table-cards .ant-btn-link {
+    padding: 0;
+    height: auto;
+    font-size: 12px;
+    color: #1890ff;
+  }
+  
+  /* Mobile card dividers */
+  .mobile-table-cards .ant-divider {
+    margin: 8px 0;
+    border-color: #f0f0f0;
+  }
+  
+  /* Mobile card loading state */
+  .mobile-table-cards-loading {
+    text-align: center;
+    padding: 40px 20px;
+  }
+  
+  .mobile-table-cards-loading .ant-spin {
+    margin-bottom: 16px;
+  }
+  
+  /* Mobile card empty state */
+  .mobile-table-cards-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #999;
+  }
+  
+  .mobile-table-cards-empty .ant-empty-description {
+    color: #999;
+    font-size: 14px;
+  }
+  
+  /* Mobile card actions */
+  .mobile-card-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #f0f0f0;
+  }
+  
+  .mobile-card-actions .ant-btn {
+    flex: 1;
+    margin: 0 4px;
+  }
+  
+  /* Mobile card status indicators */
+  .mobile-card-status {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  
+  .mobile-card-status .ant-tag {
+    margin-right: 8px;
+  }
+  
+  /* Mobile card metadata */
+  .mobile-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  
+  .mobile-card-meta-item {
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    color: #666;
+  }
+  
+  .mobile-card-meta-item .anticon {
+    margin-right: 4px;
+  }
+  
+  /* Mobile card priority indicators */
+  .mobile-card-priority {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  
+  .mobile-card-priority.urgent {
+    background: #fff2f0;
+    color: #ff4d4f;
+    border: 1px solid #ffccc7;
+  }
+  
+  .mobile-card-priority.express {
+    background: #fff7e6;
+    color: #fa8c16;
+    border: 1px solid #ffd591;
+  }
+  
+  .mobile-card-priority.standard {
+    background: #f6ffed;
+    color: #52c41a;
+    border: 1px solid #b7eb8f;
+  }
+  
+  /* Mobile card customer info */
+  .mobile-card-customer {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  
+  .mobile-card-customer .ant-avatar {
+    margin-right: 8px;
+  }
+  
+  .mobile-card-customer-info {
+    flex: 1;
+  }
+  
+  .mobile-card-customer-name {
+    font-weight: 500;
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+  
+  .mobile-card-customer-contact {
+    font-size: 12px;
+    color: #666;
+  }
+  
+  /* Mobile card addresses */
+  .mobile-card-address {
+    margin-bottom: 8px;
+  }
+  
+  .mobile-card-address-label {
+    font-size: 11px;
+    color: #999;
+    margin-bottom: 2px;
+  }
+  
+  .mobile-card-address-text {
+    font-size: 13px;
+    color: #333;
+    line-height: 1.4;
+  }
+  
+  /* Mobile card timestamps */
+  .mobile-card-timestamp {
+    font-size: 11px;
+    color: #999;
+    margin-top: 4px;
+  }
+  
+  /* Mobile card progress */
+  .mobile-card-progress {
+    margin-top: 8px;
+  }
+  
+  .mobile-card-progress .ant-progress-text {
+    font-size: 11px;
+  }
+  
+  /* Mobile card expandable content */
+  .mobile-card-expandable {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #f0f0f0;
+  }
+  
+  .mobile-card-expandable-toggle {
+    width: 100%;
+    text-align: left;
+    padding: 4px 0;
+    font-size: 12px;
+    color: #1890ff;
+  }
+  
+  /* Mobile card hover effects */
+  .mobile-table-cards .ant-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transform: translateY(-1px);
+    transition: all 0.2s ease;
+  }
+  
+  /* Mobile card selection */
+  .mobile-table-cards .ant-card.selected {
+    border-color: #1890ff;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+  }
+  
+  /* Mobile card animations */
+  .mobile-table-cards .ant-card {
+    animation: fadeInUp 0.3s ease;
+  }
+  
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Mobile card responsive grid */
+  .mobile-cards-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  /* Mobile card compact mode */
+  .mobile-table-cards.compact .ant-card-body {
+    padding: 12px;
+  }
+  
+  .mobile-table-cards.compact .ant-card-actions {
+    padding: 8px 12px;
+  }
+  
+  /* Mobile card full-width mode */
+  .mobile-table-cards.full-width .ant-card {
+    margin: 0 -16px 12px -16px;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+  
+  /* Mobile card with images */
+  .mobile-card-with-image {
+    display: flex;
+    align-items: flex-start;
+  }
+  
+  .mobile-card-image {
+    width: 60px;
+    height: 60px;
+    margin-right: 12px;
+    border-radius: 6px;
+    object-fit: cover;
+  }
+  
+  .mobile-card-content {
+    flex: 1;
+  }
+  
+  /* Simplified mobile cards */
+  .mobile-table-cards .ant-card-actions {
+    background: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+    padding: 8px 16px;
+  }
+  
+  .mobile-table-cards .ant-card-actions .ant-btn {
+    width: 100%;
+    height: 40px;
+    border-radius: 6px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  
+  .mobile-table-cards .ant-card-actions .ant-btn:hover {
+    background: rgba(24, 144, 255, 0.1);
+    transform: translateY(-1px);
+  }
+  
+  /* Card content styling */
+  .mobile-table-cards .ant-card-body {
+    padding: 16px;
+  }
+  
+  /* Job ID styling */
+  .mobile-table-cards .ant-typography {
+    margin-bottom: 0;
+  }
+  
+  /* Status and Priority row */
+  .mobile-table-cards .status-priority-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin: 8px 0;
+  }
+  
+  .mobile-table-cards .status-priority-row > div {
+    flex: 1;
+    margin-right: 8px;
+  }
+  
+  .mobile-table-cards .status-priority-row > div:last-child {
+    margin-right: 0;
+  }
+  
+  /* Enhanced drawer styling */
+  .ant-drawer-body {
+    padding: 20px !important;
+  }
+  
+  .mobile-details-grid {
+    display: grid;
+    gap: 12px;
+  }
+  
+  .mobile-details-item {
+    padding: 12px;
+    background: #fafafa;
+    border-radius: 6px;
+    border: 1px solid #f0f0f0;
+  }
+  
+  .mobile-details-item .ant-typography {
+    margin-bottom: 4px;
+  }
+  
+  .mobile-details-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #f0f0f0;
+  }
+  
+  .mobile-details-actions .ant-btn {
+    flex: 1;
+    max-width: 120px;
+  }
+}
 
 /* Global Mobile Styles */
 @media (max-width: 768px) {
