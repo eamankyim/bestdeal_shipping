@@ -8,6 +8,12 @@ node_modules/
 /.pnp
 .pnp.js
 
+# cache files
+.cache/
+**/.cache/
+frontend/node_modules/.cache/
+backend/node_modules/.cache/
+
 # testing
 /coverage
 
