@@ -1,0 +1,27 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Fix permissions
+RUN chmod +x node_modules/.bin/*
+
+# Build the app
+RUN npm run build
+
+# Remove development files
+RUN rm -rf *.md test/ tests/ __tests__/ src/dev-tools/
+
+# Expose port
+EXPOSE 3000
+
+# Start command
+CMD ["npm", "start"]
