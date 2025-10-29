@@ -61,4 +61,3 @@ jobs:
           docker-compose -f docker-compose.prod.yml ps
 
           echo "Production deployment completed successfully!"
-EOF
