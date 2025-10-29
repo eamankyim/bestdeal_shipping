@@ -27,6 +27,7 @@ jobs:
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
           echo "JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}" >> .env
           echo "REACT_APP_API_URL=http://localhost:5000" >> .env
+          echo "CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}" >> .env
           
           # Backup database
           echo "Creating database backup..."

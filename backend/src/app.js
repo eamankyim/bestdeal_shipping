@@ -47,7 +47,11 @@ app.use(
 
 // CORS - Read allowed origins from environment variable
 const getAllowedOrigins = () => {
-  const corsOrigins = process.env.CORS_ORIGINS || 'http://localhost:3000';
+  // Get CORS origins from environment variable
+  const corsOrigins = process.env.CORS_ORIGINS ? 
+    process.env.CORS_ORIGINS : 
+    'http://localhost:3000';
+  
   // Split by comma and trim whitespace
   return corsOrigins.split(',').map(origin => origin.trim());
 };
