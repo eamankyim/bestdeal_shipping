@@ -2,7 +2,6 @@
 # Press Ctrl + X, then N
 
 # Recreate the workflow file
-cat > .github/workflows/deploy-production.yml << 'EOF'
 name: Deploy to Production
 
 on:
