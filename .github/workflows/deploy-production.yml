@@ -7,7 +7,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    
     steps:
     - name: Deploy to Production Server
       uses: appleboy/ssh-action@v0.1.5
@@ -17,43 +17,43 @@ jobs:
         key: ${{ secrets.PRODUCTION_SSH_KEY }}
         script: |
           echo "Starting production deployment..."
-
+          
           # Navigate to project directory
           cd /root/bestdeal_shipping
-
+          
           # Create environment file from GitHub Secrets
           echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" > .env
           echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
           echo "JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}" >> .env
           echo "REACT_APP_API_URL=http://localhost:5000" >> .env
-
+          
           # Backup database
           echo "Creating database backup..."
           docker exec bestdeal_postgres pg_dump -U bestdeal_user bestdeal_shipping > backup-$(date +%Y%m%d-%H%M%S).sql
-
+          
           # Pull latest changes
           echo "Pulling latest changes..."
           git pull origin production
-
+          
           # Use production compose file
           echo "Building and starting containers..."
           docker-compose -f docker-compose.prod.yml down
-
+          
           # Remove existing containers
           docker rm -f bestdeal_postgres bestdeal_backend bestdeal_frontend 2>/dev/null || true
-
+          
           docker-compose -f docker-compose.prod.yml up -d --build
-
+          
           # Wait for services to start
           echo "Waiting for services to start..."
           sleep 30
-
+          
           # Run migrations
           echo "Running database migrations..."
           docker-compose -f docker-compose.prod.yml exec -T backend npx prisma db push
-
+          
           # Check service health
           echo "Checking service health..."
           docker-compose -f docker-compose.prod.yml ps
-
-          echo "Production deployment completed successfully!!!"
+          
+          echo "Production deployment completed successfully!"
