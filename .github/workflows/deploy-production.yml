@@ -7,7 +7,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Deploy to Production Server
       uses: appleboy/ssh-action@v0.1.5
@@ -17,21 +17,49 @@ jobs:
         key: ${{ secrets.PRODUCTION_SSH_KEY }}
         script: |
           echo "íº€ Starting production deployment..."
-          
+
           # Navigate to project directory
           cd /root/bestdeal_shipping
-          
+
           # Backup database
           docker exec bestdeal_postgres pg_dump -U bestdeal_user bestdeal_shipping > backup-$(date +%Y%m%d-%H%M%S).sql
-          
+
           # Pull latest changes
           git pull origin production
-          
+
           # Use production compose file
           docker-compose -f docker-compose.prod.yml down
+   # Remove existing containers
+   docker rm -f bestdeal_postgres bestdeal_backend bestdeal_frontend 2>/dev/null || true
+   ```
+3. Save and exit (`Ctrl + X`, `Y`, `Enter`)
+
+**Why:** This forcefully removes any existing containers before starting new ones.
+
+---
+
+## íº€ **Quick Fix**:
+
+**Just run:**
+```bash
+nano .github/workflows/deploy-production.yml
+```
+
+**Add this line after the `docker-compose down` command:**
+```yaml
+# Remove existing containers
+docker rm -f bestdeal_postgres bestdeal_backend bestdeal_frontend 2>/dev/null || true
+```
+
+**Then deploy again:**
+```bash
+./deploy-production.sh
+```
+
+**This will fix the container conflict and complete the deployment!** íº€
           docker-compose -f docker-compose.prod.yml up -d --build
-          
+
           # Run migrations
           docker-compose -f docker-compose.prod.yml exec -T backend npx prisma db push
-          
+
           echo "âœ… Production deployment completed!"
