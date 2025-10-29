@@ -1,58 +1,59 @@
-echo "name: Deploy to Production" > .github/workflows/deploy-production.yml
-echo "" >> .github/workflows/deploy-production.yml
-echo "on:" >> .github/workflows/deploy-production.yml
-echo "  push:" >> .github/workflows/deploy-production.yml
-echo "    branches: [ production ]" >> .github/workflows/deploy-production.yml
-echo "" >> .github/workflows/deploy-production.yml
-echo "jobs:" >> .github/workflows/deploy-production.yml
-echo "  deploy:" >> .github/workflows/deploy-production.yml
-echo "    runs-on: ubuntu-latest" >> .github/workflows/deploy-production.yml
-echo "    " >> .github/workflows/deploy-production.yml
-echo "    steps:" >> .github/workflows/deploy-production.yml
-echo "    - name: Deploy to Production Server" >> .github/workflows/deploy-production.yml
-echo "      uses: appleboy/ssh-action@v0.1.5" >> .github/workflows/deploy-production.yml
-echo "      with:" >> .github/workflows/deploy-production.yml
-echo "        host: \${{ secrets.PRODUCTION_HOST }}" >> .github/workflows/deploy-production.yml
-echo "        username: \${{ secrets.PRODUCTION_USERNAME }}" >> .github/workflows/deploy-production.yml
-echo "        key: \${{ secrets.PRODUCTION_SSH_KEY }}" >> .github/workflows/deploy-production.yml
-echo "        script: |" >> .github/workflows/deploy-production.yml
-echo "          echo \"Starting production deployment...\"" >> .github/workflows/deploy-production.yml
-echo "          " >> .github/workflows/deploy-production.yml
-echo "          # Navigate to project directory" >> .github/workflows/deploy-production.yml
-echo "          cd /root/bestdeal_shipping" >> .github/workflows/deploy-production.yml
-echo "          " >> .github/workflows/deploy-production.yml
-echo "          # Create environment file from GitHub Secrets" >> .github/workflows/deploy-production.yml
-echo "          echo \"DB_PASSWORD=\${{ secrets.DB_PASSWORD }}\" > .env" >> .github/workflows/deploy-production.yml
-echo "          echo \"JWT_SECRET=\${{ secrets.JWT_SECRET }}\" >> .env" >> .github/workflows/deploy-production.yml
-echo "          echo \"JWT_REFRESH_SECRET=\${{ secrets.JWT_REFRESH_SECRET }}\" >> .env" >> .github/workflows/deploy-production.yml
-echo "          echo \"REACT_APP_API_URL=http://localhost:5000\" >> .env" >> .github/workflows/deploy-production.yml
-echo "          " >> .github/workflows/deploy-production.yml
-echo "          # Backup database" >> .github/workflows/deploy-production.yml
-echo "          echo \"Creating database backup...\"" >> .github/workflows/deploy-production.yml
-echo "          docker exec bestdeal_postgres pg_dump -U bestdeal_user bestdeal_shipping > backup-\$(date +%Y%m%d-%H%M%S).sql" >> .github/workflows/deploy-production.yml
-echo "          " >> .github/workflows/deploy-production.yml
-echo "          # Pull latest changes" >> .github/workflows/deploy-production.yml
-echo "          echo \"Pulling latest changes...\"" >> .github/workflows/deploy-production.yml
-echo "          git pull origin production" >> .github/workflows/deploy-production.yml
-echo "          " >> .github/workflows/deploy-production.yml
-echo "          # Use production compose file" >> .github/workflows/deploy-production.yml
-echo "          echo \"Building and starting containers...\"" >> .github/workflows/deploy-production.yml
-echo "          docker-compose -f docker-compose.prod.yml down" >> .github/workflows/deploy-production.yml
-echo "          " >> .github/workflows/deploy-production.yml
-echo "          # Remove existing containers" >> .github/workflows/deploy-production.yml
-echo "          docker rm -f bestdeal_postgres bestdeal_backend bestdeal_frontend 2>/dev/null || true" >> .github/workflows/deploy-production.yml
-echo "          " >> .github/workflows/deploy-production.yml
-echo "          docker-compose -f docker-compose.prod.yml up -d --build" >> .github/workflows/deploy-production.yml
-echo "          " >> .github/workflows/deploy-production.yml
-echo "          # Wait for services to start" >> .github/workflows/deploy-production.yml
-echo "          echo \"Waiting for services to start...\"" >> .github/workflows/deploy-production.yml
-echo "          sleep 30" >> .github/workflows/deploy-production.yml echo "          " >> .github/workflows/deploy-production.yml
-echo "          # Run migrations" >> .github/workflows/deploy-production.yml
-echo "          echo \"Running database migrations...\"" >> .github/workflows/deploy-production.yml
-echo "          docker-compose -f docker-compose.prod.yml exec -T backend npx prisma db push" >> .github/workflows/deploy-production.yml
-echo "          " >> .github/workflows/deploy-production.yml
-echo "          # Check service health" >> .github/workflows/deploy-production.yml
-echo "          echo \"Checking service health...\"" >> .github/workflows/deploy-production.yml
-echo "          docker-compose -f docker-compose.prod.yml ps" >> .github/workflows/deploy-production.yml
-echo "          " >> .github/workflows/deploy-production.yml
-echo "          echo \"Production deployment completed successfully!\"" >> .github/workflows/deploy-production.yml
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ production ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Deploy to Production Server
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.PRODUCTION_HOST }}
+        username: ${{ secrets.PRODUCTION_USERNAME }}
+        key: ${{ secrets.PRODUCTION_SSH_KEY }}
+        script: |
+          echo "Starting production deployment..."
+          
+          # Navigate to project directory
+          cd /root/bestdeal_shipping
+          
+          # Create environment file from GitHub Secrets
+          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" > .env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+          echo "JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}" >> .env
+          echo "REACT_APP_API_URL=http://localhost:5000" >> .env
+          
+          # Backup database
+          echo "Creating database backup..."
+          docker exec bestdeal_postgres pg_dump -U bestdeal_user bestdeal_shipping > backup-$(date +%Y%m%d-%H%M%S).sql
+          
+          # Pull latest changes
+          echo "Pulling latest changes..."
+          git pull origin production
+          
+          # Use production compose file
+          echo "Building and starting containers..."
+          docker-compose -f docker-compose.prod.yml down
+          
+          # Remove existing containers
+          docker rm -f bestdeal_postgres bestdeal_backend bestdeal_frontend 2>/dev/null || true
+          
+          docker-compose -f docker-compose.prod.yml up -d --build
+          
+          # Wait for services to start
+          echo "Waiting for services to start..."
+          sleep 30
+          
+          # Run migrations
+          echo "Running database migrations..."
+          docker-compose -f docker-compose.prod.yml exec -T backend npx prisma db push
+          
+          # Check service health
+          echo "Checking service health..."
+          docker-compose -f docker-compose.prod.yml ps
+          
+          echo "Production deployment completed successfully!"
