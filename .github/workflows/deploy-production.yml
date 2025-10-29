@@ -1,7 +1,3 @@
-# Exit nano without saving
-# Press Ctrl + X, then N
-
-# Recreate the workflow file
 name: Deploy to Production
 
 on:
