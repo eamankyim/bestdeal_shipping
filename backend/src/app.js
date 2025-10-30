@@ -35,11 +35,11 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https:"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        imgSrc: ["'self'", "data:", "https:", "blob:"],
-        fontSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'", "https:"],
+        styleSrc: ["'self'", "'unsafe-inline'", "http:", "https:"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "http:", "https:"],
+        imgSrc: ["'self'", "data:", "http:", "https:", "blob:"],
+        fontSrc: ["'self'", "data:", "http:", "https:"],
+        connectSrc: ["'self'", "http:", "https:", "wss:"],
       },
     },
   })
@@ -156,7 +156,16 @@ const enhancedSwaggerOptions = {
   swaggerOptions: {
     persistAuthorization: true,
     displayRequestDuration: true,
+    deepLinking: true,
+    displayOperationId: false,
+    defaultModelsExpandDepth: 1,
+    defaultModelExpandDepth: 1,
+    // Fix API URL to use current domain instead of localhost
+    url: '/api/docs.json',
+    validatorUrl: null,
   },
+  customJs: '/swagger-static/swagger-ui-bundle.js',
+  customCssUrl: '/swagger-static/swagger-ui.css',
 };
 
 // Setup Swagger UI with proper asset serving
