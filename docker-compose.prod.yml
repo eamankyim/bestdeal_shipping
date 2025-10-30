@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: bestdeal_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bestdeal_shipping
+      POSTGRES_USER: bestdeal_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - bestdeal_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: bestdeal_backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://bestdeal_user:${DB_PASSWORD}@postgres:5432/bestdeal_shipping?schema=public
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - PORT=5000
+    ports:
+      - "5000:5000"
+    depends_on:
+      - postgres
+    networks:
+      - bestdeal_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: bestdeal_frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - REACT_APP_API_URL=http://localhost:5000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - bestdeal_network
+
+volumes:
+  postgres_data:
+
+networks:
+  bestdeal_network:
+    driver: bridge
