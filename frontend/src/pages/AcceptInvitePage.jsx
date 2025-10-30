@@ -181,7 +181,7 @@ const AcceptInvitePage = () => {
 
             {fetchingInvite ? (
               <div style={{ textAlign: 'center', padding: '40px' }}>
-                <Text>Loading invitation details...</Text>
+                <Text>Loading invitation detai...</Text>
               </div>
             ) : !error && (
               <>
