@@ -163,6 +163,17 @@ const enhancedSwaggerOptions = {
     // Fix API URL to use current domain instead of localhost
     url: '/api/docs.json',
     validatorUrl: null,
+    // Add server selection
+    urls: [
+      {
+        url: '/api/docs.json',
+        name: 'Production Server'
+      },
+      {
+        url: 'http://localhost:5000/api/docs.json',
+        name: 'Local Development'
+      }
+    ],
   },
   customJs: '/swagger-static/swagger-ui-bundle.js',
   customCssUrl: '/swagger-static/swagger-ui.css',
