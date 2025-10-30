@@ -40,11 +40,6 @@ const LoginPage = () => {
     }
   }, [location.state]);
 
-  // Test function to verify messages work
-  const testMessage = () => {
-    console.log('🧪 Testing message display');
-    message.error('This is a test error message!');
-  };
 
   const handleLogin = async (values) => {
     setLoading(true);
@@ -223,16 +218,6 @@ const LoginPage = () => {
                 </Button>
               </Form.Item>
 
-              {/* Temporary test button - Remove after testing */}
-              <Form.Item>
-                <Button 
-                  type="dashed" 
-                  onClick={testMessage}
-                  style={{ width: '100%' }}
-                >
-                  🧪 Test Error Message
-                </Button>
-              </Form.Item>
             </Form>
 
             {/* Footer */}
