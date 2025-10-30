@@ -2,18 +2,20 @@ name: Deploy to Production
 
 on:
   push:
-    branches: [ production ]
+    branches:
+      - production
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v0.1.5
+        uses: appleboy/ssh-action@v0.1.8
         with:
           host: ${{ secrets.PRODUCTION_HOST }}
           username: ${{ secrets.PRODUCTION_USERNAME }}
           key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          script_stop: true
           script: |
             set -e
             cd /root/bestdeal_shipping
@@ -21,11 +23,12 @@ jobs:
             git checkout production
             git reset --hard origin/production
             git clean -fd
-            echo DB_PASSWORD=${{ secrets.DB_PASSWORD }} > .env
-            echo JWT_SECRET=${{ secrets.JWT_SECRET }} >> .env
-            echo JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }} >> .env
-            echo REACT_APP_API_URL=http://localhost:5000 >> .env
-            echo CORS_ORIGINS=${{ secrets.CORS_ORIGINS }} >> .env
+            : > .env
+            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+            echo "JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}" >> .env
+            echo "REACT_APP_API_URL=http://localhost:5000" >> .env
+            echo "CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}" >> .env
             docker-compose -f docker-compose.prod.yml down --remove-orphans || true
             docker system prune -af || true
             docker-compose -f docker-compose.prod.yml build --no-cache --pull
