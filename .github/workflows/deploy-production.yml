@@ -16,12 +16,14 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
           CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
+          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+
         with:
           host: ${{ secrets.PRODUCTION_HOST }}
           username: ${{ secrets.PRODUCTION_USERNAME }}
           key: ${{ secrets.PRODUCTION_SSH_KEY }}
           script_stop: true
-          envs: DB_PASSWORD,JWT_SECRET,JWT_REFRESH_SECRET,CORS_ORIGINS
+          envs: DB_PASSWORD,JWT_SECRET,JWT_REFRESH_SECRET,CORS_ORIGINS,PRODUCTION_URL
           script: |
             set -e
             cd /root/bestdeal_shipping
@@ -35,6 +37,7 @@ jobs:
             echo "JWT_REFRESH_SECRET=$JWT_REFRESH_SECRET" >> .env
             echo "REACT_APP_API_URL=http://localhost:5000" >> .env
             echo "CORS_ORIGINS=$CORS_ORIGINS" >> .env
+            echo "PRODUCTION_URL=$PRODUCTION_URL" >> .env
             docker-compose -f docker-compose.prod.yml down --remove-orphans || true
             docker system prune -af || true
             docker-compose -f docker-compose.prod.yml build --no-cache --pull
