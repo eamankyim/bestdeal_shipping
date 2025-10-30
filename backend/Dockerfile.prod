@@ -2,17 +2,12 @@ FROM node:18-bullseye
 
 WORKDIR /app
 
-# Copy package files and prisma
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install production deps
 RUN npm ci --omit=dev
 
-# Copy source
 COPY . .
-
-# Generate Prisma client
 RUN npx prisma generate
 
 EXPOSE 5000
