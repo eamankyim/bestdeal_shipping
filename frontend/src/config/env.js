@@ -4,16 +4,23 @@
  * All environment variables must be prefixed with REACT_APP_ to be accessible in React
  */
 
+// Derive origin for environments where REACT_APP_API_URL isn't provided
+const runtimeOrigin =
+  typeof window !== 'undefined' && window.location && window.location.origin
+    ? window.location.origin
+    : (process.env.REACT_APP_PUBLIC_URL || 'http://localhost:3000');
+
 const config = {
   // Application Info
   app: {
-    name: process.env.REACT_APP_NAME || 'ShipEASE',
+    name: process.env.REACT_APP_NAME || 'Best Deal Shipping app',
     logoPath: process.env.REACT_APP_LOGO_PATH || '/AppLogo.png',
   },
 
   // API Configuration
   api: {
-    baseUrl: process.env.REACT_APP_API_URL || 'http://localhost:5000',
+    // Prefer explicit env, otherwise use current origin
+    baseUrl: process.env.REACT_APP_API_URL || runtimeOrigin,
     basePath: process.env.REACT_APP_API_BASE_PATH || '/api',
     get fullUrl() {
       return `${this.baseUrl}${this.basePath}`;
