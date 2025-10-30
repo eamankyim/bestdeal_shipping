@@ -2,8 +2,7 @@ name: Deploy to Production
 
 on:
   push:
-    branches:
-      - production
+    branches: [ production ]
 
 jobs:
   deploy:
@@ -16,27 +15,21 @@ jobs:
           username: ${{ secrets.PRODUCTION_USERNAME }}
           key: ${{ secrets.PRODUCTION_SSH_KEY }}
           script: |
-            set -euo pipefail
-
+            set -e
             cd /root/bestdeal_shipping
-
             git fetch origin
             git checkout production
             git reset --hard origin/production
             git clean -fd
-
-            echo "DB_PASSWORD='${{ secrets.DB_PASSWORD }}'" > .env
-            echo "JWT_SECRET='${{ secrets.JWT_SECRET }}'" >> .env
-            echo "JWT_REFRESH_SECRET='${{ secrets.JWT_REFRESH_SECRET }}'" >> .env
-            echo "REACT_APP_API_URL='http://localhost:5000'" >> .env
-            echo "CORS_ORIGINS='${{ secrets.CORS_ORIGINS }}'" >> .env
-
+            echo DB_PASSWORD=${{ secrets.DB_PASSWORD }} > .env
+            echo JWT_SECRET=${{ secrets.JWT_SECRET }} >> .env
+            echo JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }} >> .env
+            echo REACT_APP_API_URL=http://localhost:5000 >> .env
+            echo CORS_ORIGINS=${{ secrets.CORS_ORIGINS }} >> .env
             docker-compose -f docker-compose.prod.yml down --remove-orphans || true
             docker system prune -af || true
-
             docker-compose -f docker-compose.prod.yml build --no-cache --pull
             docker-compose -f docker-compose.prod.yml up -d
-
-            sleep 30
+            sleep 25
             docker-compose -f docker-compose.prod.yml exec -T backend npx prisma db push
             docker-compose -f docker-compose.prod.yml ps
