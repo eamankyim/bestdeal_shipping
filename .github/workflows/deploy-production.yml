@@ -31,13 +31,11 @@ jobs:
           git clean -fd
 
           echo "Writing env file from secrets..."
-          cat > .env <<'EOF'
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}
-          REACT_APP_API_URL=http://localhost:5000
-          CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}
-          EOF
+          printf "DB_PASSWORD=%s\nJWT_SECRET=%s\nJWT_REFRESH_SECRET=%s\nREACT_APP_API_URL=http://localhost:5000\nCORS_ORIGINS=%s\n" \
+            "${{ secrets.DB_PASSWORD }}" \
+            "${{ secrets.JWT_SECRET }}" \
+            "${{ secrets.JWT_REFRESH_SECRET }}" \
+            "${{ secrets.CORS_ORIGINS }}" > .env
 
           echo "Creating database backup..."
           docker exec bestdeal_postgres pg_dump -U bestdeal_user bestdeal_shipping > backup-$(date +%Y%m%d-%H%M%S).sql || true
@@ -63,5 +61,4 @@ jobs:
 
           echo "Checking service health..."
           docker-compose -f docker-compose.prod.yml ps
-
           echo "Production deployment completed successfully!"
