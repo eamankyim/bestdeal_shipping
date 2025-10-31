@@ -29,6 +29,7 @@ import { getStatusColor } from '../constants/jobStatuses';
 import { jobAPI, customerAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import FinanceDashboard from './FinanceDashboard';
+import { hasPermission } from '../utils/permissions';
 
 const { Title, Text } = Typography;
 
@@ -73,8 +74,17 @@ const DashboardPage = () => {
 
   // Redirect warehouse users to their dedicated dashboard
   useEffect(() => {
-    if (currentUser?.role === 'warehouse') {
-      navigate('/warehouse', { replace: true });
+    if (!currentUser) {
+      return; // Wait for user to load
+    }
+    
+    if (currentUser.role === 'warehouse') {
+      // If user has Ghana Warehouse location, redirect to Ghana Warehouse dashboard
+      if (currentUser.warehouseLocation === 'Ghana Warehouse') {
+        navigate('/ghana-warehouse', { replace: true });
+      } else {
+        navigate('/warehouse-dashboard', { replace: true });
+      }
     }
   }, [currentUser, navigate]);
 
@@ -102,18 +112,20 @@ const DashboardPage = () => {
     fetchDashboardData();
   }, []);
 
-  // Auto-refresh dashboard every 60 seconds
+  // Auto-refresh dashboard every 120 seconds (2 minutes) to reduce API load
   useEffect(() => {
     const interval = setInterval(() => {
       console.log('🔄 Auto-refreshing dashboard...');
-      fetchDashboardData();
-    }, 60000); // 60 seconds
+      fetchDashboardData(true); // Silent refresh
+    }, 120000); // 120 seconds = 2 minutes
 
     return () => clearInterval(interval);
   }, []);
 
-  const fetchDashboardData = async () => {
-    setLoading(true);
+  const fetchDashboardData = async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       // Fetch jobs and customers in parallel
       const [jobsResponse, customersResponse] = await Promise.all([
@@ -132,19 +144,8 @@ const DashboardPage = () => {
           !['delivered', 'cancelled'].includes(j.status)
         ).length;
         
-        // Calculate revenue (sum of all delivered job values this month)
-        const currentMonth = new Date().getMonth();
-        const currentYear = new Date().getFullYear();
-        const revenue = rawJobs
-          .filter(j => {
-            if (j.status !== 'delivered' || !j.actualDelivery) return false;
-            const deliveryDate = new Date(j.actualDelivery);
-            return deliveryDate.getMonth() === currentMonth && 
-                   deliveryDate.getFullYear() === currentYear;
-          })
-          .reduce((sum, j) => sum + (parseFloat(j.value) || 0), 0);
-
-        setStats([
+        // Build stats array conditionally based on permissions
+        const baseStats = [
           {
             title: 'Total Jobs',
             value: total,
@@ -165,15 +166,34 @@ const DashboardPage = () => {
             prefix: <UserOutlined />,
             color: '#52c41a',
             suffix: ''
-          },
-          {
+          }
+        ];
+
+        // Only calculate and show revenue if user has financial:view permission
+        const canViewRevenue = hasPermission(currentUser, 'financial:view');
+        if (canViewRevenue) {
+          // Calculate revenue (sum of all delivered job values this month)
+          const currentMonth = new Date().getMonth();
+          const currentYear = new Date().getFullYear();
+          const revenue = rawJobs
+            .filter(j => {
+              if (j.status !== 'delivered' || !j.actualDelivery) return false;
+              const deliveryDate = new Date(j.actualDelivery);
+              return deliveryDate.getMonth() === currentMonth && 
+                     deliveryDate.getFullYear() === currentYear;
+            })
+            .reduce((sum, j) => sum + (parseFloat(j.value) || 0), 0);
+
+          baseStats.push({
             title: 'Revenue This Month',
             value: revenue.toFixed(2),
             prefix: <DollarOutlined />,
             color: '#722ed1',
             suffix: '£'
-          }
-        ]);
+          });
+        }
+
+        setStats(baseStats);
       }
 
       // Process customers
@@ -192,7 +212,9 @@ const DashboardPage = () => {
     } catch (error) {
       console.error('❌ Failed to fetch dashboard data:', error);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -275,7 +297,7 @@ const DashboardPage = () => {
   }
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div style={{ padding: '24px' }} className="dashboard-page-container">
       {/* Header */}
       <Row justify="space-between" align="middle" style={{ marginBottom: '24px' }} gutter={[16, 16]}>
         <Col xs={24} md={16}>
@@ -286,12 +308,14 @@ const DashboardPage = () => {
             Welcome to your delivery management dashboard
           </Text>
         </Col>
-        <Col xs={24} md={8} style={{ textAlign: 'right' }}>
+        <Col xs={24} md={8} style={{ textAlign: 'right' }} className="mobile-full-width">
           <Button 
             type="primary" 
             icon={<PlusOutlined />}
             size="large"
+            className="mobile-full-width"
             onClick={() => navigate('/jobs', { state: { openNewJobModal: true } })}
+            style={{ width: 'auto' }}
           >
             New Job
           </Button>
@@ -300,19 +324,26 @@ const DashboardPage = () => {
 
       {/* Statistics */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-        {stats.map((stat, index) => (
-          <Col xs={12} sm={12} md={6} key={index}>
-            <Card>
-              <Statistic
-                title={stat.title}
-                value={stat.value}
-                prefix={stat.prefix}
-                suffix={stat.suffix}
-                valueStyle={{ color: stat.color }}
-              />
-            </Card>
-          </Col>
-        ))}
+        {stats.map((stat, index) => {
+          // Calculate column span dynamically based on number of cards
+          // For 3 cards: 24/3 = 8, For 4 cards: 24/4 = 6
+          const totalCards = stats.length;
+          const colSpan = Math.floor(24 / totalCards);
+          
+          return (
+            <Col xs={24} sm={12} md={colSpan} key={index}>
+              <Card>
+                <Statistic
+                  title={stat.title}
+                  value={stat.value}
+                  prefix={stat.prefix}
+                  suffix={stat.suffix}
+                  valueStyle={{ color: stat.color }}
+                />
+              </Card>
+            </Col>
+          );
+        })}
       </Row>
 
       {/* Main Content */}

@@ -35,31 +35,33 @@ const NotificationSettings = () => {
     }>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <div>
-          <Title level={4}>Sound Notifications</Title>
-          <Text type="secondary">
+          <Text type="secondary" style={{ display: 'block', marginBottom: '16px', fontSize: '14px' }}>
             Enable or disable sound notifications for new alerts
           </Text>
           
-          <div style={{ marginTop: '16px' }}>
-            <Space size="large" align="center">
-              <Space>
-                <SoundOutlined />
-                <Text>Sound Notifications</Text>
-              </Space>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '150px', flex: '1 1 auto' }}>
+              <SoundOutlined style={{ fontSize: '16px' }} />
+              <Text style={{ whiteSpace: 'nowrap', fontSize: '14px' }}>Sound Notifications</Text>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, height: '24px' }}>
               <Switch 
                 checked={soundEnabled} 
                 onChange={handleSoundToggle}
                 size="default"
+                style={{ minWidth: '44px' }}
+                className="notification-switch-fixed"
               />
-              <Button 
-                type="link" 
-                onClick={handleTestSound}
-                disabled={!soundEnabled}
-                icon={<BellOutlined />}
-              >
-                Test Sound
-              </Button>
-            </Space>
+            </div>
+            <Button 
+              type="link" 
+              onClick={handleTestSound}
+              disabled={!soundEnabled}
+              icon={<BellOutlined />}
+              style={{ padding: '0', whiteSpace: 'nowrap', flexShrink: 0, minHeight: '32px' }}
+            >
+              Test Sound
+            </Button>
           </div>
         </div>
 

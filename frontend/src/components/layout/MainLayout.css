@@ -134,25 +134,46 @@
   width: 100%;
 }
 
+/* Ensure avatar and username align on mobile */
+.main-header .ant-dropdown-trigger {
+  display: flex;
+  align-items: center;
+}
+
+.main-header .ant-dropdown-trigger .ant-space {
+  display: flex;
+  align-items: center;
+  line-height: 1;
+}
+
+.main-header .ant-dropdown-trigger .ant-space-item {
+  display: flex;
+  align-items: center;
+}
+
+.main-header .ant-dropdown-trigger .ant-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.main-header .ant-dropdown-trigger span {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
+/* Dashboard page container */
+.dashboard-page-container {
+  padding: 24px;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .main-header {
-    padding: 0 16px;
-  }
-  
-  .main-content {
-    margin: 16px;
-    padding: 16px;
-  }
-  
   .content-layout.sidebar-collapsed,
   .content-layout.sidebar-expanded {
     margin-left: 0;
-  }
-  
-  /* Mobile header adjustments */
-  .main-header .ant-space {
-    gap: 12px !important;
   }
   
   /* Mobile content adjustments */
@@ -161,20 +182,75 @@
     padding: 16px;
     border-radius: 6px;
   }
+  
+  /* Dashboard page mobile adjustments */
+  .dashboard-page-container {
+    padding: 12px !important;
+  }
+  
+  /* Ensure avatar and username are aligned on mobile */
+  .main-header .ant-dropdown-trigger {
+    display: flex !important;
+    align-items: center !important;
+  }
+  
+  .main-header .ant-dropdown-trigger .ant-space {
+    display: flex !important;
+    align-items: center !important;
+    line-height: 1;
+  }
+  
+  .main-header .ant-dropdown-trigger .ant-space-item {
+    display: flex !important;
+    align-items: center !important;
+  }
+  
+  .main-header .ant-dropdown-trigger .ant-avatar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0;
+  }
+  
+  .main-header .ant-dropdown-trigger span {
+    display: inline-flex !important;
+    align-items: center !important;
+    line-height: 1;
+    vertical-align: middle;
+  }
 }
 
 @media (max-width: 480px) {
-  .main-header {
-    padding: 0 12px;
-  }
-  
   .main-content {
     margin: 8px;
     padding: 12px;
   }
   
-  .sidebar-trigger {
-    width: 48px !important;
-    height: 48px !important;
+  /* Dashboard page small mobile adjustments */
+  .dashboard-page-container {
+    padding: 8px !important;
+  }
+  
+  /* Ensure avatar and username are aligned on small mobile */
+  .main-header .ant-dropdown-trigger .ant-space {
+    display: flex !important;
+    align-items: center !important;
+  }
+  
+  .main-header .ant-dropdown-trigger .ant-space-item {
+    display: flex !important;
+    align-items: center !important;
+  }
+  
+  .main-header .ant-dropdown-trigger .ant-avatar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  
+  .main-header .ant-dropdown-trigger span {
+    display: inline-flex !important;
+    align-items: center !important;
+    line-height: 1;
   }
 }

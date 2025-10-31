@@ -4,16 +4,15 @@ import {
   Row, 
   Col, 
   Statistic, 
-  Table, 
   Tag, 
   Typography,
-  Timeline,
   Space,
   Button,
   Progress,
   Empty,
   Spin,
-  Alert
+  Alert,
+  message
 } from 'antd';
 import { 
   InboxOutlined,
@@ -24,45 +23,24 @@ import {
   DollarOutlined,
   BoxPlotOutlined,
   CarOutlined,
-  EyeOutlined
+  EyeOutlined,
+  FlagOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { dashboardAPI, jobAPI, batchAPI } from '../utils/api';
 import ResponsiveTable from '../components/common/ResponsiveTable';
-import { useAuth } from '../contexts/AuthContext';
 
 const { Title, Text } = Typography;
 
-const WarehouseDashboard = () => {
+const GhanaWarehouseDashboardPage = () => {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
   const [error, setError] = useState(null);
 
-  // Redirect warehouse users with specific location to their dedicated dashboard
-  // Wait for currentUser to load before making decisions
   useEffect(() => {
-    // If currentUser is not loaded yet, wait
-    if (!currentUser) {
-      return;
-    }
-
-    // If user has Ghana Warehouse location, redirect immediately (don't fetch data)
-    if (currentUser.role === 'warehouse' && currentUser.warehouseLocation === 'Ghana Warehouse') {
-      navigate('/ghana-warehouse', { replace: true });
-      return;
-    }
-
-    // Only fetch dashboard if user doesn't have a specific location
-    if (currentUser.role === 'warehouse' && !currentUser.warehouseLocation) {
-      fetchWarehouseDashboard();
-    } else if (currentUser.role !== 'warehouse') {
-      // Admin/superadmin can access
-      fetchWarehouseDashboard();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, navigate]);
+    fetchGhanaWarehouseDashboard();
+  }, []);
 
   // Auto-refresh every 120 seconds (2 minutes) to reduce API load
   // Only refresh if there's no error and component is mounted
@@ -71,42 +49,32 @@ const WarehouseDashboard = () => {
     
     const interval = setInterval(() => {
       if (!error) { // Double-check error state before refresh
-        fetchWarehouseDashboard();
+        fetchGhanaWarehouseDashboard();
       }
     }, 120000); // 120 seconds = 2 minutes
     return () => clearInterval(interval);
   }, [error]);
 
-  const fetchWarehouseDashboard = async () => {
-    // Prevent API call if user has Ghana Warehouse location
-    if (currentUser?.role === 'warehouse' && currentUser?.warehouseLocation === 'Ghana Warehouse') {
-      navigate('/ghana-warehouse', { replace: true });
-      return;
-    }
-
+  const fetchGhanaWarehouseDashboard = async () => {
     try {
       setLoading(true);
       setError(null); // Clear previous errors
-      const response = await dashboardAPI.getWarehouse();
+      const response = await dashboardAPI.getGhanaWarehouse();
 
       if (response.success) {
         setDashboardData(response.data);
       } else {
         setError(response.message || 'Failed to load dashboard data');
+        message.error(response.message || 'Failed to load dashboard data');
       }
     } catch (error) {
-      console.error('Failed to fetch warehouse dashboard:', error);
+      console.error('Failed to fetch Ghana Warehouse dashboard:', error);
       
       // Extract error message
-      let errorMessage = 'Failed to load warehouse dashboard data';
+      let errorMessage = 'Failed to load Ghana Warehouse dashboard data';
       
       if (error?.status === 403) {
-        errorMessage = error?.message || 'Access denied. Please use your assigned warehouse dashboard.';
-        // If user is assigned to Ghana Warehouse, redirect them immediately
-        if (currentUser?.warehouseLocation === 'Ghana Warehouse') {
-          navigate('/ghana-warehouse', { replace: true });
-          return; // Don't set error state, just redirect
-        }
+        errorMessage = error?.message || 'Access denied. This dashboard is only for Ghana Warehouse staff.';
       } else if (error?.status === 401) {
         errorMessage = 'Unauthorized. Please login again.';
       } else if (error?.status === 500) {
@@ -116,6 +84,7 @@ const WarehouseDashboard = () => {
       }
       
       setError(errorMessage);
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -125,7 +94,7 @@ const WarehouseDashboard = () => {
     return (
       <div style={{ padding: '24px', textAlign: 'center' }}>
         <Spin size="large" />
-        <p style={{ marginTop: 16 }}>Loading warehouse dashboard...</p>
+        <p style={{ marginTop: 16 }}>Loading Ghana Warehouse dashboard...</p>
       </div>
     );
   }
@@ -140,19 +109,20 @@ const WarehouseDashboard = () => {
             type="error"
             showIcon
             action={
-              <Button size="small" onClick={fetchWarehouseDashboard}>
+              <Button size="small" onClick={fetchGhanaWarehouseDashboard}>
                 Retry
               </Button>
             }
           />
         ) : (
-          <Empty description="Failed to load dashboard data" />
+          <Empty description="Failed to load Ghana Warehouse dashboard data" />
         )}
       </div>
     );
   }
 
   const { 
+    warehouseLocation,
     jobStats, 
     batchStats, 
     jobsReadyForBatching, 
@@ -172,7 +142,7 @@ const WarehouseDashboard = () => {
       color: '#1890ff',
     },
     {
-      title: 'Jobs at Warehouse',
+      title: 'Jobs at Ghana Warehouse',
       value: jobStats?.atWarehouse || 0,
       prefix: <BoxPlotOutlined />,
       color: '#52c41a',
@@ -350,12 +320,17 @@ const WarehouseDashboard = () => {
       {/* Header */}
       <Row justify="space-between" align="middle" style={{ marginBottom: '24px' }}>
         <Col>
-          <Title level={2} style={{ margin: 0 }}>
-            <BoxPlotOutlined /> Warehouse Dashboard
-          </Title>
-          <Text type="secondary" style={{ fontSize: '16px' }}>
-            Manage warehouse operations and batching
-          </Text>
+          <Space align="center">
+            <FlagOutlined style={{ fontSize: '24px', color: '#ff9800' }} />
+            <div>
+              <Title level={2} style={{ margin: 0 }}>
+                <BoxPlotOutlined /> Ghana Warehouse Dashboard
+              </Title>
+              <Text type="secondary" style={{ fontSize: '16px' }}>
+                Manage Ghana Warehouse operations and batching
+              </Text>
+            </div>
+          </Space>
         </Col>
         <Col>
           <Space>
@@ -388,7 +363,7 @@ const WarehouseDashboard = () => {
       {/* Job Status Overview */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         <Col xs={24} md={12}>
-          <Card title="Job Status Overview">
+          <Card title="Job Status Overview - Ghana Warehouse">
             <Space direction="vertical" style={{ width: '100%' }} size="middle">
               <div>
                 <Text>Pending Collection</Text>
@@ -406,7 +381,7 @@ const WarehouseDashboard = () => {
                 />
               </div>
               <div>
-                <Text>At Warehouse</Text>
+                <Text>At Ghana Warehouse</Text>
                 <Progress 
                   percent={((jobStats?.atWarehouse || 0) / (jobStats?.total || 1)) * 100}
                   strokeColor="#52c41a"
@@ -426,7 +401,7 @@ const WarehouseDashboard = () => {
         </Col>
 
         <Col xs={24} md={12}>
-          <Card title="Batch Status Overview">
+          <Card title="Batch Status Overview - Ghana Warehouse">
             <Space direction="vertical" style={{ width: '100%' }} size="middle">
               <div>
                 <Text>In Preparation</Text>
@@ -472,7 +447,7 @@ const WarehouseDashboard = () => {
             title={
               <Space>
                 <InboxOutlined />
-                <span>Jobs Ready for Batching</span>
+                <span>Jobs Ready for Batching - Ghana Warehouse</span>
                 <Tag color="blue">{jobsReadyForBatching?.count || 0}</Tag>
               </Space>
             }
@@ -491,7 +466,7 @@ const WarehouseDashboard = () => {
               pagination={false}
               size="small"
               locale={{
-                emptyText: 'No jobs ready for batching'
+                emptyText: 'No jobs ready for batching at Ghana Warehouse'
               }}
               onCardClick={handleViewJob}
             />
@@ -499,10 +474,10 @@ const WarehouseDashboard = () => {
         </Col>
       </Row>
 
-      {/* Jobs at Warehouse */}
+      {/* Jobs at Ghana Warehouse */}
       <Row gutter={[16, 16]}>
         <Col xs={24}>
-          <Card title="Jobs at Warehouse">
+          <Card title="Jobs at Ghana Warehouse">
             <ResponsiveTable
               columns={warehouseColumns}
               dataSource={jobsAtWarehouse || []}
@@ -511,7 +486,7 @@ const WarehouseDashboard = () => {
               pagination={false}
               size="small"
               locale={{
-                emptyText: 'No jobs at warehouse'
+                emptyText: 'No jobs at Ghana Warehouse'
               }}
               onCardClick={handleViewJob}
             />
@@ -522,5 +497,5 @@ const WarehouseDashboard = () => {
   );
 };
 
-export default WarehouseDashboard;
+export default GhanaWarehouseDashboardPage;
 

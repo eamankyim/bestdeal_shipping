@@ -39,6 +39,7 @@ import {
 import InviteManagement from '../components/admin/InviteManagement';
 import RoleManagement from '../components/admin/RoleManagement';
 import NotificationSettings from '../components/settings/NotificationSettings';
+import ResponsiveTable from '../components/common/ResponsiveTable';
 import { useAuth } from '../contexts/AuthContext';
 import { authAPI } from '../utils/api';
 
@@ -61,6 +62,8 @@ const AdminDashboardPage = () => {
   const [profileForm] = Form.useForm();
   const [organisationForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
+  const [editUserModalVisible, setEditUserModalVisible] = useState(false);
+  const [editUserForm] = Form.useForm();
 
   // Set initial profile form values from current user
   useEffect(() => {
@@ -228,6 +231,7 @@ const AdminDashboardPage = () => {
           email: user.email,
           role: user.role,
           phone: user.phone || 'N/A',
+          warehouseLocation: user.warehouseLocation || null, // Include warehouse location
           department: getRoleDepartment(user.role),
           status: user.status || 'active',
           joinedDate: new Date(user.createdAt).toLocaleDateString(),
@@ -271,6 +275,8 @@ const AdminDashboardPage = () => {
     {
       title: 'User',
       key: 'user',
+      dataIndex: 'name',
+      mobile: true,
       render: (_, record) => (
         <Space>
           <Avatar 
@@ -297,6 +303,7 @@ const AdminDashboardPage = () => {
       title: 'Role',
       dataIndex: 'role',
       key: 'role',
+      mobile: true,
       render: (role) => {
         const roleColors = {
           superadmin: 'red',
@@ -314,11 +321,32 @@ const AdminDashboardPage = () => {
       title: 'Department',
       dataIndex: 'department',
       key: 'department',
+      mobile: false,
+    },
+    {
+      title: 'Warehouse Location',
+      dataIndex: 'warehouseLocation',
+      key: 'warehouseLocation',
+      mobile: true,
+      render: (location) => {
+        if (!location) return <Text type="secondary">—</Text>;
+        return <Tag color="blue">{location}</Tag>;
+      },
+      filters: [
+        { text: 'Ghana Warehouse', value: 'Ghana Warehouse' },
+        { text: 'UK Warehouse', value: 'UK Warehouse' },
+        { text: 'No Location', value: null },
+      ],
+      onFilter: (value, record) => {
+        if (value === null) return !record.warehouseLocation;
+        return record.warehouseLocation === value;
+      },
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
+      mobile: true,
       render: (status) => (
         <Tag color={status === 'active' ? 'success' : 'error'}>
           {status.toUpperCase()}
@@ -329,16 +357,21 @@ const AdminDashboardPage = () => {
       title: 'Joined Date',
       dataIndex: 'joinedDate',
       key: 'joinedDate',
+      mobile: false,
     },
     {
       title: 'Actions',
       key: 'actions',
+      mobile: false,
       render: (_, record) => (
         <Space>
           <Button 
             size="small"
             icon={<EyeOutlined />}
-            onClick={() => handleViewUser(record)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleViewUser(record);
+            }}
           >
             View
           </Button>
@@ -350,6 +383,38 @@ const AdminDashboardPage = () => {
   const handleViewUser = (user) => {
     setSelectedUser(user);
     setIsDetailsDrawerVisible(true);
+  };
+
+  const handleEditUser = () => {
+    if (selectedUser) {
+      editUserForm.setFieldsValue({
+        name: selectedUser.name,
+        phone: selectedUser.phone || '',
+        role: selectedUser.role,
+        warehouseLocation: selectedUser.warehouseLocation || undefined,
+      });
+      setEditUserModalVisible(true);
+    }
+  };
+
+  const handleUpdateUser = async (values) => {
+    if (!selectedUser) return;
+    
+    try {
+      const response = await authAPI.updateUser(selectedUser.id, values);
+      
+      if (response.success) {
+        message.success('User updated successfully');
+        setEditUserModalVisible(false);
+        fetchUsers(); // Refresh user list
+        setIsDetailsDrawerVisible(false); // Close drawer
+      } else {
+        message.error(response.message || 'Failed to update user');
+      }
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      message.error(error.message || 'Failed to update user');
+    }
   };
 
   const handleInviteTeamMember = () => {
@@ -538,7 +603,7 @@ const AdminDashboardPage = () => {
               layout="vertical"
               onFinish={handleUpdateOrganisation}
               initialValues={{
-                companyName: 'ShipEASE',
+                companyName: 'Best Deal',
                 industry: 'logistics'
               }}
             >
@@ -546,7 +611,7 @@ const AdminDashboardPage = () => {
                 <Col xs={24} md={12}>
                   <Form.Item label="Company Name" name="companyName">
                     <Input 
-                      placeholder="ShipEASE Ltd" 
+                      placeholder="Best Deal Ltd" 
                       size="large"
                       disabled={!isEditingOrganisation}
                     />
@@ -660,15 +725,17 @@ const AdminDashboardPage = () => {
               </Button>
             </div>
           )}
-          <Table
+          <ResponsiveTable
             columns={userColumns}
             dataSource={users}
             loading={loadingUsers}
             pagination={false}
             size="small"
+            rowKey="id"
             locale={{
               emptyText: 'No team members yet. Users who accept invitations will appear here.'
             }}
+            onCardClick={handleViewUser}
           />
         </div>
       ),
@@ -734,79 +801,209 @@ const AdminDashboardPage = () => {
         onClose={() => setIsDetailsDrawerVisible(false)}
         open={isDetailsDrawerVisible}
         width={600}
+        className="user-details-drawer"
       >
         {selectedUser && (
           <div>
-            {/* User Overview */}
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-              <Col span={8}>
-                <div style={{ textAlign: 'center' }}>
-                  <Avatar 
-                    src={selectedUser.avatar} 
-                    size={64}
-                    style={{
-                      backgroundColor: selectedUser.avatar ? undefined : '#1890ff',
-                      color: selectedUser.avatar ? undefined : '#fff',
-                      fontWeight: 'bold',
-                      fontSize: '24px'
-                    }}
+            {/* User Overview - Mobile Optimized */}
+            <div className="user-details-header" style={{ textAlign: 'center', marginBottom: 24, padding: '16px 0' }}>
+              <Avatar 
+                src={selectedUser.avatar} 
+                size={64}
+                className="user-details-avatar"
+                style={{
+                  backgroundColor: selectedUser.avatar ? undefined : '#1890ff',
+                  color: selectedUser.avatar ? undefined : '#fff',
+                  fontWeight: 'bold',
+                  fontSize: '24px',
+                  marginBottom: 16
+                }}
+              >
+                {selectedUser.avatar ? undefined : getUserInitials(selectedUser.name)}
+              </Avatar>
+              <Title level={3} className="user-details-name" style={{ margin: '8px 0 8px' }}>
+                {selectedUser.name}
+              </Title>
+              <div style={{ marginBottom: 12 }}>
+                <Tag color="blue" className="user-details-role-tag" style={{ padding: '4px 12px' }}>
+                  {selectedUser.role.replace('-', ' ').toUpperCase()}
+                </Tag>
+              </div>
+              <Tag 
+                color={selectedUser.status === 'active' ? 'success' : 'error'} 
+                className="user-details-status-tag" 
+                style={{ padding: '4px 12px' }}
+              >
+                {selectedUser.status.toUpperCase()}
+              </Tag>
+              {(currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && (
+                <div style={{ marginTop: 16 }}>
+                  <Button
+                    type="primary"
+                    icon={<EditOutlined />}
+                    onClick={handleEditUser}
                   >
-                    {selectedUser.avatar ? undefined : getUserInitials(selectedUser.name)}
-                  </Avatar>
-                  <Title level={4} style={{ margin: '8px 0 0' }}>
-                    {selectedUser.name}
-                  </Title>
-                  <Text type="secondary">{selectedUser.role}</Text>
+                    Edit User
+                  </Button>
                 </div>
-              </Col>
-              <Col span={16}>
-                <div style={{ textAlign: 'center' }}>
-                  <Text strong>Status</Text>
-                  <br />
-                  <Tag color="success" style={{ fontSize: '16px' }}>
-                    {selectedUser.status.toUpperCase()}
-                  </Tag>
-                </div>
-              </Col>
-            </Row>
-            <Divider />
+              )}
+            </div>
+            <Divider style={{ margin: '24px 0' }} />
 
-            {/* User Details */}
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-              <Col span={24}>
-                <Card size="small" title="User Information">
-                  <Descriptions column={2} size="small">
-                    <Descriptions.Item label="Email">
-                      <Space>
-                        <MailOutlined />
-                        {selectedUser.email}
-                      </Space>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Phone">
-                      <Space>
-                        <PhoneOutlined />
-                        {selectedUser.phone}
-                      </Space>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Department">
-                      {selectedUser.department}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Role">
-                      <Tag color="blue">{selectedUser.role.replace('-', ' ').toUpperCase()}</Tag>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Joined Date">
-                      {selectedUser.joinedDate}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Last Login">
-                      {selectedUser.lastLogin}
-                    </Descriptions.Item>
-                  </Descriptions>
-                </Card>
-              </Col>
-            </Row>
+            {/* User Details - Mobile Optimized */}
+            <div style={{ marginBottom: 24 }}>
+              <Card 
+                size="small" 
+                title={<span className="user-info-title">User Information</span>}
+                className="user-info-card"
+                style={{ 
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  borderRadius: 8
+                }}
+              >
+                <div className="user-info-list">
+                  {/* Email */}
+                  <div className="user-info-item">
+                    <div className="user-info-label">Email</div>
+                    <div className="user-info-value">
+                      <MailOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                      <Text>{selectedUser.email}</Text>
+                    </div>
+                  </div>
+                  
+                  {/* Phone */}
+                  <div className="user-info-item">
+                    <div className="user-info-label">Phone</div>
+                    <div className="user-info-value">
+                      <PhoneOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                      <Text>{selectedUser.phone}</Text>
+                    </div>
+                  </div>
+                  
+                  {/* Department */}
+                  <div className="user-info-item">
+                    <div className="user-info-label">Department</div>
+                    <div className="user-info-value">
+                      <Text>{selectedUser.department}</Text>
+                    </div>
+                  </div>
+                  
+                  {/* Role */}
+                  <div className="user-info-item">
+                    <div className="user-info-label">Role</div>
+                    <div className="user-info-value">
+                      <Tag color="blue">
+                        {selectedUser.role.replace('-', ' ').toUpperCase()}
+                      </Tag>
+                    </div>
+                  </div>
+                  
+                  {/* Warehouse Location */}
+                  <div className="user-info-item">
+                    <div className="user-info-label">Warehouse Location</div>
+                    <div className="user-info-value">
+                      {selectedUser.warehouseLocation ? (
+                        <Tag color="blue">{selectedUser.warehouseLocation}</Tag>
+                      ) : (
+                        <Text type="secondary">Not assigned</Text>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Joined Date */}
+                  <div className="user-info-item">
+                    <div className="user-info-label">Joined Date</div>
+                    <div className="user-info-value">
+                      <Text>{selectedUser.joinedDate}</Text>
+                    </div>
+                  </div>
+                  
+                  {/* Last Login */}
+                  <div className="user-info-item">
+                    <div className="user-info-label">Last Login</div>
+                    <div className="user-info-value">
+                      <Text>{selectedUser.lastLogin}</Text>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
           </div>
         )}
       </Drawer>
+
+      {/* Edit User Modal */}
+      <Modal
+        title="Edit User"
+        open={editUserModalVisible}
+        onCancel={() => {
+          setEditUserModalVisible(false);
+          editUserForm.resetFields();
+        }}
+        onOk={() => editUserForm.submit()}
+        width={600}
+      >
+        <Form
+          form={editUserForm}
+          layout="vertical"
+          onFinish={handleUpdateUser}
+        >
+          <Form.Item
+            name="name"
+            label="Name"
+            rules={[{ required: true, message: 'Please enter name' }]}
+          >
+            <Input size="large" />
+          </Form.Item>
+
+          <Form.Item
+            name="phone"
+            label="Phone"
+          >
+            <Input size="large" />
+          </Form.Item>
+
+          <Form.Item
+            name="role"
+            label="Role"
+            rules={[{ required: true, message: 'Please select role' }]}
+          >
+            <Select size="large">
+              <Option value="admin">Administrator</Option>
+              <Option value="warehouse">Warehouse Staff</Option>
+              <Option value="driver">Driver</Option>
+              <Option value="delivery-agent">Delivery Agent</Option>
+              <Option value="finance">Finance Staff</Option>
+              <Option value="customer-service">Customer Service</Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, currentValues) => prevValues.role !== currentValues.role}
+          >
+            {({ getFieldValue }) => {
+              const role = getFieldValue('role');
+              if (role === 'warehouse') {
+                return (
+                  <Form.Item
+                    name="warehouseLocation"
+                    label="Warehouse Location"
+                    rules={[{ required: false, message: 'Please select warehouse location' }]}
+                    extra="Optional: Assign user to a specific warehouse. Leave blank if user should access all warehouses."
+                  >
+                    <Select size="large" placeholder="Select warehouse location">
+                      <Option value="Ghana Warehouse">Ghana Warehouse</Option>
+                      <Option value="UK Warehouse">UK Warehouse</Option>
+                    </Select>
+                  </Form.Item>
+                );
+              }
+              return null;
+            }}
+          </Form.Item>
+        </Form>
+      </Modal>
 
       {/* Change Password Modal */}
       <Modal

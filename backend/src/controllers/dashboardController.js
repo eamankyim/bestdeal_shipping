@@ -8,6 +8,12 @@ const { asyncHandler } = require('../middleware/errorHandler');
  * @access  Private (Warehouse role)
  */
 exports.getWarehouseDashboard = asyncHandler(async (req, res) => {
+  // Restrict access: users with specific warehouse location should use their specific dashboard
+  // Admin and superadmin can always access
+  if (req.user.role === 'warehouse' && req.user.warehouseLocation) {
+    return sendError(res, 403, `Access denied. You are assigned to ${req.user.warehouseLocation}. Please use your specific warehouse dashboard.`);
+  }
+  
   try {
     // 1. Get Job Statistics
     const totalJobs = await prisma.job.count();
@@ -191,6 +197,278 @@ exports.getWarehouseDashboard = asyncHandler(async (req, res) => {
   } catch (error) {
     console.error('Error fetching warehouse dashboard:', error);
     return sendError(res, 500, 'Failed to fetch warehouse dashboard data', [error.message]);
+  }
+});
+
+/**
+ * @route   GET /api/dashboard/warehouse/ghana
+ * @desc    Get Ghana Warehouse dashboard data (filtered by Ghana Warehouse location)
+ * @access  Private (Warehouse role)
+ */
+exports.getGhanaWarehouseDashboard = asyncHandler(async (req, res) => {
+  // Restrict access to users assigned to Ghana Warehouse
+  // Admin and superadmin can always access
+  if (req.user.role === 'warehouse' && req.user.warehouseLocation !== 'Ghana Warehouse') {
+    if (!req.user.warehouseLocation) {
+      return sendError(res, 403, 'Access denied. You are not assigned to Ghana Warehouse. Please contact an administrator to assign you to Ghana Warehouse in Settings → Team Members.');
+    } else {
+      return sendError(res, 403, `Access denied. You are assigned to ${req.user.warehouseLocation}, not Ghana Warehouse. Please use your assigned warehouse dashboard.`);
+    }
+  }
+  
+  // Filter jobs that are at Ghana Warehouse based on status
+  // These are items that have arrived in Ghana
+  const ghanaWarehouseStatuses = ['At Ghana Warehouse', 'at_ghana_warehouse', 'arrived_at_warehouse'];
+  
+  try {
+    // 1. Get Job Statistics (filtered by status indicating items are at Ghana Warehouse)
+    // Get all jobs that have status indicating they're at Ghana Warehouse
+    const jobsAtGhana = await prisma.job.findMany({
+      where: {
+        status: {
+          in: ghanaWarehouseStatuses,
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    const totalJobs = jobsAtGhana.length;
+    
+    const jobsByStatus = await prisma.job.groupBy({
+      by: ['status'],
+      where: {
+        status: {
+          in: ghanaWarehouseStatuses,
+        },
+      },
+      _count: {
+        id: true,
+      },
+    });
+
+    const jobStats = {
+      total: totalJobs,
+      pendingCollection: jobsByStatus.find(s => s.status === 'Pending Collection')?._count.id || 0,
+      collected: jobsByStatus.find(s => s.status === 'Collected')?._count.id || 0,
+      atWarehouse: (jobsByStatus.find(s => s.status === 'At Warehouse')?._count.id || 0) + 
+                   (jobsByStatus.find(s => s.status === 'arrived_at_warehouse')?._count.id || 0),
+      arrivedAtWarehouse: jobsByStatus.find(s => s.status === 'arrived_at_warehouse')?._count.id || 0,
+      batched: jobsByStatus.find(s => s.status === 'batched')?._count.id || 0,
+      shipped: jobsByStatus.find(s => s.status === 'shipped')?._count.id || 0,
+      inTransit: jobsByStatus.find(s => s.status === 'In Transit')?._count.id || 0,
+      outForDelivery: jobsByStatus.find(s => s.status === 'Out for Delivery')?._count.id || 0,
+    };
+
+    // 2. Get Batch Statistics (filtered by batches containing jobs at Ghana Warehouse)
+    const jobsAtGhanaIds = jobsAtGhana.map(j => j.id);
+    
+    const batchesWithGhanaJobs = await prisma.batch.findMany({
+      where: {
+        jobs: {
+          some: {
+            id: {
+              in: jobsAtGhanaIds,
+            },
+          },
+        },
+      },
+    });
+
+    const batchIds = batchesWithGhanaJobs.map(b => b.id);
+
+    const batchesByStatus = await prisma.batch.groupBy({
+      by: ['status'],
+      where: {
+        id: {
+          in: batchIds,
+        },
+      },
+      _count: {
+        id: true,
+      },
+    });
+
+    const batchStats = {
+      total: batchesWithGhanaJobs.length,
+      inPreparation: batchesByStatus.find(s => s.status === 'In Preparation')?._count.id || 0,
+      shipped: batchesByStatus.find(s => s.status === 'Shipped')?._count.id || 0,
+      inTransit: batchesByStatus.find(s => s.status === 'In Transit')?._count.id || 0,
+      arrived: batchesByStatus.find(s => s.status === 'Arrived')?._count.id || 0,
+    };
+
+    // 3. Get Jobs Ready for Batching (arrived at Ghana Warehouse)
+    // These are jobs that have arrived at Ghana warehouse and are ready to be batched for final delivery
+    const jobsReadyForBatching = await prisma.job.findMany({
+      where: {
+        status: {
+          in: ['At Ghana Warehouse', 'at_ghana_warehouse', 'arrived_at_warehouse'],
+        },
+      },
+      include: {
+        customer: {
+          select: {
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+      take: 10,
+    });
+
+    // 4. Get Recent Batches (containing jobs that were at Ghana Warehouse)
+    const recentBatches = await prisma.batch.findMany({
+      where: {
+        jobs: {
+          some: {
+            id: {
+              in: jobsAtGhanaIds,
+            },
+          },
+        },
+      },
+      include: {
+        creator: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+        _count: {
+          select: {
+            jobs: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 5,
+    });
+
+    // 5. Get Jobs At Ghana Warehouse (needing processing)
+    // Show all jobs that are currently at Ghana Warehouse (ready for delivery or batching)
+    const jobsAtWarehouse = await prisma.job.findMany({
+      where: {
+        status: {
+          in: ['At Ghana Warehouse', 'at_ghana_warehouse', 'arrived_at_warehouse'],
+        },
+      },
+      include: {
+        customer: {
+          select: {
+            name: true,
+            phone: true,
+          },
+        },
+        assignedDriver: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+      take: 10,
+    });
+
+    // 6. Get Today's Activity (jobs at Ghana Warehouse updated today)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const todayActivity = await prisma.job.count({
+      where: {
+        status: {
+          in: ghanaWarehouseStatuses,
+        },
+        updatedAt: {
+          gte: today,
+        },
+      },
+    });
+
+    // 7. Get Unassigned Jobs at Ghana Warehouse (no delivery agent assigned)
+    // Jobs at Ghana Warehouse that need delivery agent assignment
+    const unassignedJobs = await prisma.job.count({
+      where: {
+        status: {
+          in: ['At Ghana Warehouse', 'at_ghana_warehouse'],
+        },
+        assignedDeliveryAgentId: null,
+      },
+    });
+
+    // 8. Get Weight and Value Totals for Jobs Ready for Batching at Ghana Warehouse
+    const readyForBatchingAggregates = await prisma.job.aggregate({
+      where: {
+        status: {
+          in: ['At Ghana Warehouse', 'at_ghana_warehouse', 'arrived_at_warehouse'],
+        },
+      },
+      _sum: {
+        weight: true,
+        value: true,
+      },
+      _count: {
+        id: true,
+      },
+    });
+
+    // 9. Get Recent Timeline Activity (last 10 updates for jobs at Ghana Warehouse)
+    const recentActivity = await prisma.jobTimeline.findMany({
+      where: {
+        job: {
+          status: {
+            in: ghanaWarehouseStatuses,
+          },
+        },
+      },
+      include: {
+        job: {
+          select: {
+            trackingId: true,
+          },
+        },
+        updater: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        timestamp: 'desc',
+      },
+      take: 10,
+    });
+
+    // Return all Ghana Warehouse dashboard data
+    return sendSuccess(res, 200, 'Ghana Warehouse dashboard data retrieved successfully', {
+      warehouseLocation: 'Ghana Warehouse',
+      jobStats,
+      batchStats,
+      jobsReadyForBatching: {
+        count: readyForBatchingAggregates._count.id,
+        totalWeight: parseFloat(readyForBatchingAggregates._sum.weight || 0),
+        totalValue: parseFloat(readyForBatchingAggregates._sum.value || 0),
+        jobs: jobsReadyForBatching,
+      },
+      recentBatches,
+      jobsAtWarehouse,
+      todayActivity,
+      unassignedJobs,
+      recentActivity,
+    });
+
+  } catch (error) {
+    console.error('Error fetching Ghana Warehouse dashboard:', error);
+    return sendError(res, 500, 'Failed to fetch Ghana Warehouse dashboard data', [error.message]);
   }
 });
 

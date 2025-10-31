@@ -16,6 +16,7 @@ import ReportsPage from './pages/ReportsPage';
 import ShipmentTrackingPage from './pages/ShipmentTrackingPage';
 import DriverDashboardPage from './pages/DriverDashboardPage';
 import WarehouseDashboardPage from './pages/WarehouseDashboardPage';
+import GhanaWarehouseDashboardPage from './pages/GhanaWarehouseDashboardPage';
 import DeliveryAgentDashboardPage from './pages/DeliveryAgentDashboardPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import BatchManagementPage from './pages/BatchManagementPage';
@@ -69,6 +70,8 @@ function App() {
                 <Route path="driver-dashboard" element={<DriverDashboardPage />} />
                 <Route path="warehouse" element={<WarehouseDashboardPage />} />
                 <Route path="warehouse-dashboard" element={<WarehouseDashboardPage />} />
+                <Route path="ghana-warehouse" element={<GhanaWarehouseDashboardPage />} />
+                <Route path="ghana-warehouse-dashboard" element={<GhanaWarehouseDashboardPage />} />
                 <Route path="batch-management" element={<BatchManagementPage />} />
                 <Route path="invoice-management" element={<InvoiceManagementPage />} />
                 <Route path="delivery-agent" element={<DeliveryAgentDashboardPage />} />

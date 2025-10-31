@@ -17,7 +17,6 @@ import {
   Progress,
   Badge,
   Drawer,
-  Descriptions,
   Divider,
   Tabs,
   Transfer,
@@ -37,11 +36,17 @@ import {
   DeleteOutlined,
   ExportOutlined,
   ImportOutlined,
-  SendOutlined
+  SendOutlined,
+  InboxOutlined,
+  DollarOutlined,
+  ApartmentOutlined,
+  CalendarOutlined
 } from '@ant-design/icons';
 import { JOB_STATUSES, BATCH_STATUSES, getBatchStatusColor } from '../constants/jobStatuses';
 import { jobAPI, batchAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
+import ResponsiveTable from '../components/common/ResponsiveTable';
+import { hasPermission } from '../utils/permissions';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -49,6 +54,7 @@ const { TextArea } = Input;
 
 const BatchManagementPage = () => {
   const { currentUser } = useAuth();
+  const canViewRevenue = hasPermission(currentUser, 'financial:view');
   const [batchModalVisible, setBatchModalVisible] = useState(false);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(null);
@@ -201,16 +207,19 @@ const BatchManagementPage = () => {
       dataIndex: 'batchId',
       key: 'batchId',
       render: (text) => <Text strong>{text}</Text>,
+      mobile: true,
     },
     {
       title: 'Batch Name',
       dataIndex: 'name',
       key: 'name',
+      mobile: true,
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
+      mobile: true,
       render: (status) => (
         <Tag color={getBatchStatusColor(status)}>
           {status}
@@ -222,16 +231,19 @@ const BatchManagementPage = () => {
       dataIndex: 'totalParcels',
       key: 'totalParcels',
       render: (count) => <Badge count={count} style={{ backgroundColor: '#1890ff' }} />,
+      mobile: true,
     },
     {
       title: 'Total Weight',
       dataIndex: 'totalWeight',
       key: 'totalWeight',
+      mobile: false,
     },
     {
       title: 'Vessel/Flight',
       dataIndex: 'vessel',
       key: 'vessel',
+      mobile: false,
                            render: (vessel) => (
           <Space>
             {vessel?.includes('Flight') ? <RocketOutlined /> : <CarOutlined />}
@@ -243,26 +255,33 @@ const BatchManagementPage = () => {
       title: 'Departure',
       dataIndex: 'departureDate',
       key: 'departureDate',
+      mobile: false,
     },
     {
       title: 'ETA',
       dataIndex: 'eta',
       key: 'eta',
+      mobile: false,
     },
     {
       title: 'Progress',
       dataIndex: 'progress',
       key: 'progress',
+      mobile: false,
       render: (progress) => <Progress percent={progress} size="small" />,
     },
     {
       title: 'Actions',
       key: 'actions',
+      mobile: true,
       render: (_, record) => (
         <Button 
           size="small"
           icon={<EyeOutlined />}
-          onClick={() => handleViewBatch(record)}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewBatch(record);
+          }}
         >
           View
         </Button>
@@ -497,20 +516,22 @@ const BatchManagementPage = () => {
       label: 'Batch Management',
       children: (
         <div>
-          <div style={{ marginBottom: '16px', textAlign: 'right' }}>
+          <div style={{ marginBottom: '16px', textAlign: 'right' }} className="create-batch-button-container">
             <Button 
               type="primary" 
               icon={<PlusOutlined />}
               onClick={handleCreateBatch}
               size="large"
+              className="create-batch-button-mobile"
             >
               Create New Batch
             </Button>
           </div>
-          <Table
+          <ResponsiveTable
             columns={batchColumns}
             dataSource={batches}
             loading={loadingBatches}
+            rowKey="id"
             pagination={{
               pageSize: 10,
               showTotal: (total) => `Total ${total} batches`
@@ -519,6 +540,7 @@ const BatchManagementPage = () => {
               emptyText: 'No batches created yet'
             }}
             size="small"
+            onCardClick={handleViewBatch}
           />
         </div>
       ),
@@ -733,6 +755,7 @@ const BatchManagementPage = () => {
         onClose={() => setIsDetailsDrawerVisible(false)}
         open={isDetailsDrawerVisible}
         width={800}
+        className="user-details-drawer"
         extra={
           selectedBatch && (
             <Space>
@@ -846,21 +869,47 @@ const BatchManagementPage = () => {
             {/* Batch Details */}
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
               <Col span={24}>
-                <Card size="small" title="Batch Information">
-                  <Descriptions column={2} size="small">
-                    <Descriptions.Item label="Total Parcels">
+                <Card 
+                  size="small" 
+                  title={<span className="user-info-title">Batch Information</span>}
+                  className="user-info-card"
+                  style={{ 
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    borderRadius: 8,
+                    marginBottom: 24
+                  }}
+                >
+                  <div className="user-info-list">
+                    <div className="user-info-item">
+                      <div className="user-info-label">Total Parcels</div>
+                      <div className="user-info-value">
+                        <InboxOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
                       <Badge count={selectedBatch.totalParcels} style={{ backgroundColor: '#1890ff' }} />
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Total Weight">
+                      </div>
+                    </div>
+                    <div className="user-info-item">
+                      <div className="user-info-label">Total Weight</div>
+                      <div className="user-info-value">
                       <Text strong>{selectedBatch.totalWeight}</Text>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Total Value">
+                      </div>
+                    </div>
+                    {canViewRevenue && (
+                      <div className="user-info-item">
+                        <div className="user-info-label">Total Value</div>
+                        <div className="user-info-value">
+                          <DollarOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
                       <Text strong>£{selectedBatch.totalValue}</Text>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Route">
-                      {selectedBatch.route}
-                    </Descriptions.Item>
-                  </Descriptions>
+                        </div>
+                      </div>
+                    )}
+                    <div className="user-info-item">
+                      <div className="user-info-label">Route</div>
+                      <div className="user-info-value">
+                        <ApartmentOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                        <Text>{selectedBatch.route}</Text>
+                      </div>
+                    </div>
+                  </div>
                 </Card>
               </Col>
             </Row>
@@ -868,21 +917,43 @@ const BatchManagementPage = () => {
             {/* Vessel/Flight Details */}
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
               <Col span={24}>
-                <Card size="small" title="Transportation Details">
-                  <Descriptions column={2} size="small">
-                                                               <Descriptions.Item label="Vessel/Flight">
-                        <Space>
-                          {selectedBatch.vessel?.includes('Flight') ? <RocketOutlined /> : <CarOutlined />}
-                          {selectedBatch.vessel || 'N/A'}
-                        </Space>
-                      </Descriptions.Item>
-                    <Descriptions.Item label="Departure Date">
-                      {selectedBatch.departureDate}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="ETA">
-                      {selectedBatch.eta}
-                    </Descriptions.Item>
-                  </Descriptions>
+                <Card 
+                  size="small" 
+                  title={<span className="user-info-title">Transportation Details</span>}
+                  className="user-info-card"
+                  style={{ 
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    borderRadius: 8,
+                    marginBottom: 24
+                  }}
+                >
+                  <div className="user-info-list">
+                    <div className="user-info-item">
+                      <div className="user-info-label">Vessel/Flight</div>
+                      <div className="user-info-value">
+                        {selectedBatch.vessel?.includes('Flight') ? (
+                          <RocketOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                        ) : (
+                          <CarOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                        )}
+                        <Text>{selectedBatch.vessel || 'N/A'}</Text>
+                      </div>
+                    </div>
+                    <div className="user-info-item">
+                      <div className="user-info-label">Departure Date</div>
+                      <div className="user-info-value">
+                        <CalendarOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                        <Text>{selectedBatch.departureDate}</Text>
+                      </div>
+                    </div>
+                    <div className="user-info-item">
+                      <div className="user-info-label">ETA</div>
+                      <div className="user-info-value">
+                        <ClockCircleOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                        <Text>{selectedBatch.eta}</Text>
+                      </div>
+                    </div>
+                  </div>
                 </Card>
               </Col>
             </Row>

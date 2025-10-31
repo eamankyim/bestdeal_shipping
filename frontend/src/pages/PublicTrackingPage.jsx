@@ -8,7 +8,6 @@ import {
   Tag, 
   Row, 
   Col, 
-  Descriptions, 
   Timeline,
   Spin,
   Empty,
@@ -99,7 +98,8 @@ const PublicTrackingPage = () => {
 
           {/* Search Section */}
           <Card style={{ marginBottom: '24px' }}>
-            <Space.Compact style={{ width: '100%' }} className="search-compact">
+            <Row gutter={[8, 8]} align="middle">
+              <Col xs={24} md="auto" style={{ flex: 'auto' }}>
               <Input
                 size="large"
                 placeholder="Enter job ID (e.g., SHIP-20251025-VSJO5)"
@@ -108,15 +108,19 @@ const PublicTrackingPage = () => {
                 onPressEnter={handleSearch}
                 prefix={<SearchOutlined />}
               />
+              </Col>
+              <Col xs={24} md="auto">
               <Button 
                 type="primary" 
                 size="large"
                 onClick={handleSearch}
                 loading={loading}
+                  className="track-button-mobile"
               >
                 Track
               </Button>
-            </Space.Compact>
+              </Col>
+            </Row>
           </Card>
 
           {/* Results Section */}
@@ -148,62 +152,73 @@ const PublicTrackingPage = () => {
                   </div>
 
                   {/* Package Details */}
-                  <Card size="small" title="Package Details" style={{ marginBottom: '24px' }}>
-                    <Row gutter={[16, 16]}>
-                      <Col xs={24} md={12}>
-                        <Descriptions column={1} size="small">
-                          <Descriptions.Item label="Customer">
-                            <Space>
-                              <UserOutlined />
-                              {trackingResult.customer?.name || 'N/A'}
-                            </Space>
-                          </Descriptions.Item>
-                          <Descriptions.Item label="Service">
+                  <Card 
+                    size="small" 
+                    title={<span className="user-info-title">Package Details</span>}
+                    className="user-info-card"
+                    style={{ 
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                      borderRadius: 8,
+                      marginBottom: 24
+                    }}
+                  >
+                    <div className="user-info-list">
+                      <div className="user-info-item">
+                        <div className="user-info-label">Customer</div>
+                        <div className="user-info-value">
+                          <UserOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                          <Text>{trackingResult.customer?.name || 'N/A'}</Text>
+                        </div>
+                      </div>
+                      <div className="user-info-item">
+                        <div className="user-info-label">Service</div>
+                        <div className="user-info-value">
                             <Tag color="blue">{trackingResult.priority || 'Standard'}</Tag>
-                          </Descriptions.Item>
-                          <Descriptions.Item label="Weight">
-                            <Space>
-                              <InboxOutlined />
-                              {trackingResult.weight ? `${trackingResult.weight}kg` : 'N/A'}
-                            </Space>
-                          </Descriptions.Item>
-                          <Descriptions.Item label="Declared Value">
-                            {trackingResult.value ? `£${trackingResult.value}` : 'N/A'}
-                          </Descriptions.Item>
-                          <Descriptions.Item label="Quantity">
-                            {trackingResult.quantity || 1}
-                          </Descriptions.Item>
-                        </Descriptions>
-                      </Col>
-                      <Col xs={24} md={12}>
-                        <Descriptions column={1} size="small">
-                          <Descriptions.Item label="Origin">
-                            <Space>
-                              <EnvironmentOutlined />
-                              {trackingResult.pickupAddress || 'N/A'}
-                            </Space>
-                          </Descriptions.Item>
-                          <Descriptions.Item label="Destination">
-                            <Space>
-                              <EnvironmentOutlined />
-                              {trackingResult.deliveryAddress || 'N/A'}
-                            </Space>
-                          </Descriptions.Item>
-                          <Descriptions.Item label="Collection Date">
-                            <Space>
-                              <CalendarOutlined />
-                              {trackingResult.createdAt ? new Date(trackingResult.createdAt).toLocaleDateString() : 'N/A'}
-                            </Space>
-                          </Descriptions.Item>
-                          <Descriptions.Item label="Estimated Delivery">
-                            <Space>
-                              <CalendarOutlined />
-                              {trackingResult.estimatedDelivery ? new Date(trackingResult.estimatedDelivery).toLocaleDateString() : 'N/A'}
-                            </Space>
-                          </Descriptions.Item>
-                        </Descriptions>
-                      </Col>
-                    </Row>
+                        </div>
+                      </div>
+                      <div className="user-info-item">
+                        <div className="user-info-label">Weight</div>
+                        <div className="user-info-value">
+                          <InboxOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                          <Text>{trackingResult.weight ? `${trackingResult.weight}kg` : 'N/A'}</Text>
+                        </div>
+                      </div>
+                      {/* Value hidden on public tracking page for privacy */}
+                      <div className="user-info-item">
+                        <div className="user-info-label">Quantity</div>
+                        <div className="user-info-value">
+                          <Text>{trackingResult.quantity || 1}</Text>
+                        </div>
+                      </div>
+                      <div className="user-info-item">
+                        <div className="user-info-label">Origin</div>
+                        <div className="user-info-value">
+                          <EnvironmentOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                          <Text>{trackingResult.pickupAddress || 'N/A'}</Text>
+                        </div>
+                      </div>
+                      <div className="user-info-item">
+                        <div className="user-info-label">Destination</div>
+                        <div className="user-info-value">
+                          <EnvironmentOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                          <Text>{trackingResult.deliveryAddress || 'N/A'}</Text>
+                        </div>
+                      </div>
+                      <div className="user-info-item">
+                        <div className="user-info-label">Collection Date</div>
+                        <div className="user-info-value">
+                          <CalendarOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                          <Text>{trackingResult.createdAt ? new Date(trackingResult.createdAt).toLocaleDateString() : 'N/A'}</Text>
+                        </div>
+                      </div>
+                      <div className="user-info-item">
+                        <div className="user-info-label">Estimated Delivery</div>
+                        <div className="user-info-value">
+                          <CalendarOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                          <Text>{trackingResult.estimatedDelivery ? new Date(trackingResult.estimatedDelivery).toLocaleDateString() : 'N/A'}</Text>
+                        </div>
+                      </div>
+                    </div>
                   </Card>
 
                   {/* Current Status */}

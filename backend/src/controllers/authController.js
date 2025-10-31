@@ -3,6 +3,7 @@ const { hashPassword, comparePassword } = require('../utils/passwordUtils');
 const { generateToken, generateRefreshToken, verifyRefreshToken } = require('../utils/tokenUtils');
 const { sendSuccess, sendError } = require('../utils/responseUtils');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { autoSeedIfNeeded } = require('../utils/seedUtils');
 const crypto = require('crypto');
 
 /**
@@ -32,6 +33,8 @@ exports.register = asyncHandler(async (req, res) => {
       passwordHash,
       name,
       role,
+      active: true, // User is active by default
+      emailVerified: true, // Auto-verify emails by default
     },
     select: {
       id: true,
@@ -70,49 +73,127 @@ exports.register = asyncHandler(async (req, res) => {
 exports.login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  console.log('🔐 Login attempt for:', email);
+  // Normalize email to lowercase for consistency
+  const normalizedEmail = email?.toLowerCase().trim();
 
-  // Find user
-  const user = await prisma.user.findUnique({
-    where: { email },
+  console.log('═══════════════════════════════════════════════');
+  console.log('🔐 LOGIN ATTEMPT');
+  console.log('═══════════════════════════════════════════════');
+  console.log('📧 Email (original):', email);
+  console.log('📧 Email (normalized):', normalizedEmail);
+  console.log('📋 Password provided:', password ? 'Yes' : 'No');
+  console.log('📋 Password length:', password?.length || 0);
+  console.log('═══════════════════════════════════════════════');
+
+  // Find user with case-insensitive email search
+  console.log('🔍 Searching for user with normalized email:', normalizedEmail);
+  console.log('🔍 Using case-insensitive search...');
+  
+  // Use findMany with case-insensitive mode since Prisma doesn't support case-insensitive findUnique
+  const users = await prisma.user.findMany({
+    where: {
+      email: {
+        equals: normalizedEmail,
+        mode: 'insensitive',
+      },
+    },
+    select: {
+      id: true,
+      email: true,
+      passwordHash: true,
+      name: true,
+      role: true,
+      avatarUrl: true,
+      warehouseLocation: true, // Include warehouse location
+      active: true,
+      emailVerified: true,
+      createdAt: true,
+      lastLogin: true,
+    },
+    take: 1,
   });
+  
+  const user = users.length > 0 ? users[0] : null;
+  
+  if (user) {
+    console.log('✅ User found with case-insensitive search');
+  }
 
   if (!user) {
-    console.log('❌ User not found:', email);
+    console.log('❌ USER NOT FOUND');
+    console.log('   Searched email (normalized):', normalizedEmail);
+    console.log('   Original email:', email);
+    console.log('═══════════════════════════════════════════════');
+    
+    // Try to find any user with similar email for debugging
+    const allUsers = await prisma.user.findMany({
+      select: { email: true },
+      take: 5,
+    });
+    console.log('📋 Sample emails in database (first 5):');
+    allUsers.forEach(u => console.log('   -', u.email));
+    
     return sendError(res, 401, 'Invalid email or password');
   }
 
-  console.log('✅ User found:', user.name);
+  console.log('✅ USER FOUND:');
+  console.log('   ID:', user.id);
+  console.log('   Name:', user.name);
+  console.log('   Email in DB:', user.email);
+  console.log('   Email match:', user.email.toLowerCase() === normalizedEmail ? '✅ Exact' : '⚠️ Case mismatch');
+  console.log('   Role:', user.role);
+  console.log('   Active:', user.active);
+  console.log('   EmailVerified:', user.emailVerified);
+  console.log('   PasswordHash exists:', !!user.passwordHash);
+  console.log('   PasswordHash length:', user.passwordHash?.length || 0);
+  console.log('   Created:', user.createdAt);
+  console.log('   Last Login:', user.lastLogin || 'Never');
 
   // Check if user is active
   if (!user.active) {
-    console.log('❌ User inactive:', email);
+    console.log('❌ USER IS INACTIVE');
+    console.log('   Active status:', user.active);
+    console.log('═══════════════════════════════════════════════');
     return sendError(res, 403, 'Your account has been deactivated');
   }
 
+  console.log('✅ User is active');
+
   // Verify password
+  console.log('🔐 Verifying password...');
+  console.log('   Password provided length:', password?.length || 0);
+  console.log('   Stored hash length:', user.passwordHash?.length || 0);
+  console.log('   Comparing provided password with stored hash...');
   const isPasswordValid = await comparePassword(password, user.passwordHash);
+  console.log('   Password validation result:', isPasswordValid ? '✅ Valid' : '❌ Invalid');
 
   if (!isPasswordValid) {
-    console.log('❌ Invalid password for:', email);
+    console.log('❌ PASSWORD VALIDATION FAILED');
+    console.log('   Password mismatch for:', email);
+    console.log('═══════════════════════════════════════════════');
     return sendError(res, 401, 'Invalid email or password');
   }
 
-  console.log('✅ Password validated for:', email);
+  console.log('✅ Password validated successfully');
 
   // Update last login
+  console.log('🔄 Updating last login timestamp...');
   await prisma.user.update({
     where: { id: user.id },
     data: { lastLogin: new Date() },
   });
+  console.log('✅ Last login updated');
 
   // Generate tokens
+  console.log('🔑 Generating tokens...');
   const token = generateToken({ id: user.id, email: user.email, role: user.role });
   const refreshToken = generateRefreshToken({ id: user.id });
-
-  console.log('🔑 Tokens generated for:', email);
+  console.log('✅ Tokens generated');
+  console.log('   Token length:', token.length);
+  console.log('   RefreshToken length:', refreshToken.length);
 
   // Save refresh token
+  console.log('💾 Saving refresh token...');
   await prisma.refreshToken.create({
     data: {
       userId: user.id,
@@ -120,8 +201,13 @@ exports.login = asyncHandler(async (req, res) => {
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
     },
   });
+  console.log('✅ Refresh token saved');
 
-  console.log('✅ Login successful for:', user.name, '| Role:', user.role);
+  console.log('═══════════════════════════════════════════════');
+  console.log('✅ LOGIN SUCCESSFUL');
+  console.log('   User:', user.name);
+  console.log('   Role:', user.role);
+  console.log('═══════════════════════════════════════════════');
 
   return sendSuccess(res, 200, 'Login successful', {
     user: {
@@ -130,6 +216,7 @@ exports.login = asyncHandler(async (req, res) => {
       name: user.name,
       role: user.role,
       avatarUrl: user.avatarUrl,
+      warehouseLocation: user.warehouseLocation || null, // Include warehouse location
     },
     token,
     refreshToken,
@@ -243,6 +330,7 @@ exports.getCurrentUser = asyncHandler(async (req, res) => {
       role: true,
       avatarUrl: true,
       phone: true,
+      warehouseLocation: true, // Include warehouse location
       active: true,
       emailVerified: true,
       createdAt: true,
@@ -263,7 +351,7 @@ exports.getCurrentUser = asyncHandler(async (req, res) => {
  * @access  Admin
  */
 exports.sendInvite = asyncHandler(async (req, res) => {
-  const { email, role } = req.body;
+  const { email, role, warehouseLocation } = req.body;
 
   // Check if user already exists
   const existingUser = await prisma.user.findUnique({
@@ -290,11 +378,12 @@ exports.sendInvite = asyncHandler(async (req, res) => {
   // Generate invitation token
   const token = crypto.randomBytes(32).toString('hex');
 
-  // Create invitation
+  // Create invitation (store warehouseLocation if provided)
   const invitation = await prisma.invitation.create({
     data: {
       email,
       role,
+      warehouseLocation: warehouseLocation || null, // Store warehouse location
       invitedBy: req.user.id,
       token,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
@@ -332,7 +421,17 @@ exports.acceptInvite = asyncHandler(async (req, res) => {
   const { token } = req.params;
   const { password, name } = req.body;
 
+  console.log('═══════════════════════════════════════════════');
+  console.log('🎫 ACCEPT INVITATION PROCESS STARTING');
+  console.log('═══════════════════════════════════════════════');
+  console.log('📋 Token:', token);
+  console.log('📋 Name:', name);
+  console.log('📋 Password provided:', password ? 'Yes' : 'No');
+  console.log('📋 Password length:', password?.length || 0);
+  console.log('═══════════════════════════════════════════════');
+
   // Find invitation
+  console.log('🔍 Searching for invitation with token...');
   const invitation = await prisma.invitation.findFirst({
     where: {
       token,
@@ -342,38 +441,81 @@ exports.acceptInvite = asyncHandler(async (req, res) => {
   });
 
   if (!invitation) {
+    console.log('❌ Invitation not found or expired');
     return sendError(res, 400, 'Invalid or expired invitation');
   }
 
-  // Check if user already exists
+  // Normalize email to lowercase for consistency
+  const normalizedEmail = invitation.email?.toLowerCase().trim();
+
+  console.log('✅ Invitation found:');
+  console.log('   Email (original):', invitation.email);
+  console.log('   Email (normalized):', normalizedEmail);
+  console.log('   Role:', invitation.role);
+  console.log('   Status:', invitation.status);
+  console.log('   Expires:', invitation.expiresAt);
+
+  // Check if user already exists (use normalized email)
+  console.log('🔍 Checking if user already exists with normalized email:', normalizedEmail);
   const existingUser = await prisma.user.findUnique({
-    where: { email: invitation.email },
+    where: { email: normalizedEmail },
   });
 
   if (existingUser) {
+    console.log('❌ User already exists:', existingUser.email);
+    console.log('   User ID:', existingUser.id);
+    console.log('   User Active:', existingUser.active);
+    console.log('   User Verified:', existingUser.emailVerified);
     return sendError(res, 400, 'User already exists');
   }
 
-  // Hash password
-  const passwordHash = await hashPassword(password);
+  console.log('✅ User does not exist, proceeding with creation...');
 
-  // Create user
+  // Hash password
+  console.log('🔐 Hashing password...');
+  const passwordHash = await hashPassword(password);
+  console.log('✅ Password hashed successfully');
+  console.log('   Hash length:', passwordHash.length);
+
+  // Create user with normalized email
+  console.log('👤 Creating user with data:');
+  console.log('   Email (normalized):', normalizedEmail);
+  console.log('   Name:', name);
+  console.log('   Role:', invitation.role);
+  console.log('   Active: true');
+  console.log('   EmailVerified: true');
+
+  // Create user with warehouseLocation from invitation if provided
   const user = await prisma.user.create({
     data: {
-      email: invitation.email,
+      email: normalizedEmail, // Store email in lowercase
       passwordHash,
       name,
       role: invitation.role,
+      warehouseLocation: invitation.warehouseLocation || null, // Set warehouse location from invitation
+      active: true, // User is active by default
+      emailVerified: true, // Auto-verify emails by default
     },
     select: {
       id: true,
       email: true,
       name: true,
       role: true,
+      active: true,
+      emailVerified: true,
     },
   });
 
+  console.log('✅ User created successfully:');
+  console.log('   ID:', user.id);
+  console.log('   Email:', user.email);
+  console.log('   Name:', user.name);
+  console.log('   Role:', user.role);
+  console.log('   Active:', user.active);
+  console.log('   EmailVerified:', user.emailVerified);
+
   // Update invitation status
+  console.log('🔄 Updating invitation status to accepted...');
   await prisma.invitation.update({
     where: { id: invitation.id },
     data: {
@@ -381,12 +523,16 @@ exports.acceptInvite = asyncHandler(async (req, res) => {
       acceptedAt: new Date(),
     },
   });
+  console.log('✅ Invitation status updated');
 
   // Generate tokens
+  console.log('🔑 Generating tokens...');
   const authToken = generateToken({ id: user.id, email: user.email, role: user.role });
   const refreshToken = generateRefreshToken({ id: user.id });
+  console.log('✅ Tokens generated');
 
   // Save refresh token
+  console.log('💾 Saving refresh token...');
   await prisma.refreshToken.create({
     data: {
       userId: user.id,
@@ -394,11 +540,66 @@ exports.acceptInvite = asyncHandler(async (req, res) => {
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     },
   });
+  console.log('✅ Refresh token saved');
+
+  console.log('═══════════════════════════════════════════════');
+  console.log('✅ ACCOUNT CREATION SUCCESSFUL');
+  console.log('═══════════════════════════════════════════════');
 
   return sendSuccess(res, 201, 'Account created successfully', {
     user,
     token: authToken,
     refreshToken,
+  });
+});
+
+/**
+ * @route   GET /api/auth/invite/:token
+ * @desc    Get invitation details by token
+ * @access  Public
+ */
+exports.getInviteByToken = asyncHandler(async (req, res) => {
+  const { token } = req.params;
+
+  // Find invitation
+  const invitation = await prisma.invitation.findFirst({
+    where: {
+      token,
+    },
+    include: {
+      inviter: {
+        select: {
+          name: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  if (!invitation) {
+    return sendError(res, 404, 'Invitation not found');
+  }
+
+  // Check if invitation is expired
+  if (new Date(invitation.expiresAt) < new Date()) {
+    return sendError(res, 400, 'Invitation has expired');
+  }
+
+  // Check if invitation is already accepted
+  if (invitation.status === 'accepted') {
+    return sendError(res, 400, 'Invitation has already been accepted');
+  }
+
+  // Return invitation details (excluding token for security)
+  return sendSuccess(res, 200, 'Invitation retrieved successfully', {
+    invitation: {
+      id: invitation.id,
+      email: invitation.email,
+      role: invitation.role,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+      invitedBy: invitation.inviter?.name || 'Administrator',
+    },
   });
 });
 
@@ -475,6 +676,7 @@ exports.getUsers = asyncHandler(async (req, res) => {
       name: true,
       role: true,
       phone: true,
+      warehouseLocation: true, // Include warehouse location
       active: true,
       emailVerified: true,
       createdAt: true,
@@ -522,6 +724,12 @@ exports.createSuperAdmin = asyncHandler(async (req, res) => {
 
   if (existingAdmin) {
     return sendError(res, 403, 'Superadmin already exists. This endpoint is disabled.');
+  }
+
+  // Auto-seed roles and settings if they don't exist
+  const seedResult = await autoSeedIfNeeded();
+  if (seedResult.rolesSeeded) {
+    console.log('✅ Auto-seeded roles and settings during superadmin creation');
   }
 
   // Check if user with email exists
@@ -639,6 +847,57 @@ exports.changePassword = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @route   GET /api/auth/roles
+ * @desc    Get all roles with user counts
+ * @access  Private (Admin only)
+ */
+exports.getRoles = asyncHandler(async (req, res) => {
+  try {
+    // Get all roles
+    const roles = await prisma.role.findMany({
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    // Get user counts by role
+    const usersByRole = await prisma.user.groupBy({
+      by: ['role'],
+      _count: {
+        id: true,
+      },
+    });
+
+    // Create a map of role -> user count
+    const userCountMap = {};
+    usersByRole.forEach(item => {
+      userCountMap[item.role] = item._count.id;
+    });
+
+    // Attach user counts to roles
+    const rolesWithCounts = roles.map(role => ({
+      id: role.id,
+      name: role.name,
+      displayName: role.displayName,
+      description: role.description,
+      color: role.color,
+      isSystem: role.isSystem,
+      userCount: userCountMap[role.name] || 0,
+      permissions: role.permissions,
+      createdAt: role.createdAt,
+    }));
+
+    return sendSuccess(res, 200, 'Roles retrieved successfully', {
+      roles: rolesWithCounts,
+    });
+
+  } catch (error) {
+    console.error('Error fetching roles:', error);
+    return sendError(res, 500, 'Failed to fetch roles', [error.message]);
+  }
+});
+
+/**
  * @route   PATCH /api/auth/update-profile
  * @desc    Update user profile (name, phone, avatar)
  * @access  Private
@@ -679,6 +938,56 @@ exports.updateProfile = asyncHandler(async (req, res) => {
   console.log('✅ Profile updated successfully for:', updatedUser.email);
 
   return sendSuccess(res, 200, 'Profile updated successfully', { user: updatedUser });
+});
+
+/**
+ * @route   PATCH /api/auth/users/:id
+ * @desc    Update user (Admin only - for updating warehouse location, role, etc.)
+ * @access  Private (Admin only)
+ */
+exports.updateUser = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { name, phone, role, warehouseLocation, active } = req.body;
+
+  // Check if user exists
+  const existingUser = await prisma.user.findUnique({
+    where: { id },
+  });
+
+  if (!existingUser) {
+    return sendError(res, 404, 'User not found');
+  }
+
+  // Build update data
+  const updateData = {};
+  
+  if (name !== undefined) updateData.name = name;
+  if (phone !== undefined) updateData.phone = phone;
+  if (role !== undefined) updateData.role = role;
+  if (warehouseLocation !== undefined) updateData.warehouseLocation = warehouseLocation || null;
+  if (active !== undefined) updateData.active = active;
+
+  // Update user
+  const updatedUser = await prisma.user.update({
+    where: { id },
+    data: updateData,
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      phone: true,
+      warehouseLocation: true,
+      active: true,
+      emailVerified: true,
+      createdAt: true,
+      lastLogin: true,
+    },
+  });
+
+  console.log('✅ User updated successfully:', updatedUser.email);
+
+  return sendSuccess(res, 200, 'User updated successfully', { user: updatedUser });
 });
 
 

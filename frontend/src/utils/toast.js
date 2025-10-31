@@ -1,25 +1,45 @@
 /**
  * Toast Notification Utility
  * Provides consistent toast messages across the application
+ * Note: This uses the static message API. For components using Ant Design App context,
+ * use App.useApp() hook instead: const { message } = App.useApp();
  */
 
+import React from 'react';
 import { message } from 'antd';
 
 /**
  * Configure global message settings
+ * Enhanced for mobile responsiveness - Top Center positioning
  */
+const isMobile = () => window.innerWidth <= 768;
+
 message.config({
-  top: 80,
+  top: isMobile() ? 16 : 24,
   duration: 4,
   maxCount: 3,
+  rtl: false,
 });
+
+// Reconfigure on window resize for responsive positioning
+if (typeof window !== 'undefined') {
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      message.config({
+        top: isMobile() ? 16 : 24,
+      });
+    }, 150);
+  });
+}
 
 /**
  * Show success toast
  */
 export const showSuccess = (content, duration = 4) => {
   message.success({
-    content: `✅ ${content}`,
+    content,
     duration,
   });
 };
@@ -29,7 +49,7 @@ export const showSuccess = (content, duration = 4) => {
  */
 export const showError = (content, duration = 5) => {
   message.error({
-    content: `❌ ${content}`,
+    content,
     duration,
   });
 };
@@ -39,7 +59,7 @@ export const showError = (content, duration = 5) => {
  */
 export const showWarning = (content, duration = 4) => {
   message.warning({
-    content: `⚠️ ${content}`,
+    content,
     duration,
   });
 };
@@ -49,7 +69,7 @@ export const showWarning = (content, duration = 4) => {
  */
 export const showInfo = (content, duration = 3) => {
   message.info({
-    content: `ℹ️ ${content}`,
+    content,
     duration,
   });
 };
@@ -59,7 +79,7 @@ export const showInfo = (content, duration = 3) => {
  */
 export const showLoading = (content = 'Loading...', duration = 0) => {
   return message.loading({
-    content: `⏳ ${content}`,
+    content,
     duration,
   });
 };
@@ -128,6 +148,42 @@ export const showValidationError = (fieldErrors) => {
   }
 };
 
+/**
+ * Show Alert-style toast with message and description
+ * Converts Alert components to toast notifications
+ */
+export const showAlertToast = (alertMessage, description, type = 'info', duration = 5) => {
+  const content = description 
+    ? (
+        <div>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>{alertMessage}</div>
+          <div style={{ fontSize: '13px', opacity: 0.9 }}>{description}</div>
+        </div>
+      )
+    : alertMessage;
+
+  const toastConfig = {
+    content,
+    duration,
+  };
+
+  switch (type) {
+    case 'success':
+      message.success(toastConfig);
+      break;
+    case 'error':
+      message.error(toastConfig);
+      break;
+    case 'warning':
+      message.warning(toastConfig);
+      break;
+    case 'info':
+    default:
+      message.info(toastConfig);
+      break;
+  }
+};
+
 export default {
   success: showSuccess,
   error: showError,
@@ -137,6 +193,7 @@ export default {
   handleApiError,
   showLoginError,
   showValidationError,
+  showAlertToast,
 };
 
 

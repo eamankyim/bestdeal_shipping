@@ -21,7 +21,8 @@ import {
   EyeOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { dashboardAPI } from '../utils/api';
+import { dashboardAPI, jobAPI } from '../utils/api';
+import ResponsiveTable from '../components/common/ResponsiveTable';
 
 const { Title, Text } = Typography;
 
@@ -29,29 +30,39 @@ const DeliveryDashboard = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchDeliveryDashboard();
   }, []);
 
-  // Auto-refresh every 60 seconds
+  // Auto-refresh every 120 seconds (2 minutes) to reduce API load
+  // Only refresh if there's no error and component is mounted
   useEffect(() => {
+    if (error) return; // Don't auto-refresh if there's an error
+    
     const interval = setInterval(() => {
-      fetchDeliveryDashboard();
-    }, 60000);
+      if (!error) { // Double-check error state before refresh
+        fetchDeliveryDashboard();
+      }
+    }, 120000); // 120 seconds = 2 minutes
     return () => clearInterval(interval);
-  }, []);
+  }, [error]);
 
   const fetchDeliveryDashboard = async () => {
     try {
       setLoading(true);
+      setError(null); // Clear previous errors
       const response = await dashboardAPI.getDelivery();
 
       if (response.success) {
         setDashboardData(response.data);
+      } else {
+        setError(response.message || 'Failed to load dashboard data');
       }
     } catch (error) {
       console.error('Failed to fetch delivery dashboard:', error);
+      setError(error?.message || 'Failed to load delivery dashboard data');
     } finally {
       setLoading(false);
     }
@@ -98,42 +109,66 @@ const DeliveryDashboard = () => {
     },
   ];
 
+  // Handle view delivery/job
+  const handleViewDelivery = async (delivery) => {
+    try {
+      // Navigate to jobs page and open details drawer
+      const response = await jobAPI.getById(delivery.id);
+      if (response.success && response.data) {
+        navigate('/jobs', { state: { selectedJobId: delivery.id } });
+      } else {
+        // Fallback: just navigate to jobs page
+        navigate('/jobs');
+      }
+    } catch (error) {
+      console.error('Failed to fetch delivery details:', error);
+      navigate('/jobs');
+    }
+  };
+
   // Deliveries table columns
   const columns = [
     {
       title: 'Tracking ID',
       dataIndex: 'trackingId',
       key: 'trackingId',
-      render: (text) => <Text strong>{text}</Text>
+      render: (text) => <Text strong>{text}</Text>,
+      mobile: true,
     },
     {
       title: 'Customer',
-      dataIndex: ['customer', 'name'],
+      dataIndex: 'customer',
       key: 'customer',
+      render: (customer) => customer?.name || 'N/A',
+      mobile: true,
     },
     {
       title: 'Phone',
-      dataIndex: ['customer', 'phone'],
+      dataIndex: 'customer',
       key: 'phone',
-      render: (phone) => phone || 'N/A'
+      render: (customer) => customer?.phone || 'N/A',
+      mobile: false,
     },
     {
       title: 'Delivery Address',
-      dataIndex: ['customer', 'address'],
+      dataIndex: 'customer',
       key: 'address',
       ellipsis: true,
-      render: (address) => address || 'N/A'
+      render: (customer) => customer?.address || 'N/A',
+      mobile: false,
     },
     {
       title: 'Estimated Delivery',
       dataIndex: 'estimatedDelivery',
       key: 'estimatedDelivery',
-      render: (date) => date ? new Date(date).toLocaleDateString() : 'N/A'
+      render: (date) => date ? new Date(date).toLocaleDateString() : 'N/A',
+      mobile: false,
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
+      mobile: true,
       render: (status) => {
         const colors = {
           'Out for Delivery': 'blue',
@@ -150,12 +185,16 @@ const DeliveryDashboard = () => {
     {
       title: 'Actions',
       key: 'actions',
+      mobile: true,
       render: (_, record) => (
         <Space>
           <Button 
             size="small" 
             icon={<EyeOutlined />}
-            onClick={() => navigate(`/jobs`)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleViewDelivery(record);
+            }}
           >
             View
           </Button>
@@ -164,6 +203,7 @@ const DeliveryDashboard = () => {
               size="small" 
               icon={<PhoneOutlined />}
               href={`tel:${record.customer.phone}`}
+              onClick={(e) => e.stopPropagation()}
             >
               Call
             </Button>
@@ -174,7 +214,7 @@ const DeliveryDashboard = () => {
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div style={{ padding: '24px' }} className="dashboard-page-container">
       {/* Header */}
       <Row justify="space-between" align="middle" style={{ marginBottom: '24px' }}>
         <Col>
@@ -195,7 +235,7 @@ const DeliveryDashboard = () => {
       {/* Statistics Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         {statsCards.map((stat, index) => (
-          <Col xs={24} sm={8} md={8} key={index}>
+          <Col xs={12} sm={8} md={8} key={index}>
             <Card>
               <Statistic
                 title={stat.title}
@@ -220,9 +260,10 @@ const DeliveryDashboard = () => {
               </Space>
             }
           >
-            <Table
+            <ResponsiveTable
               columns={columns}
               dataSource={assignedDeliveries || []}
+              loading={loading}
               rowKey="id"
               pagination={{
                 pageSize: 10,
@@ -233,6 +274,7 @@ const DeliveryDashboard = () => {
               locale={{
                 emptyText: 'No deliveries assigned'
               }}
+              onCardClick={handleViewDelivery}
             />
           </Card>
         </Col>

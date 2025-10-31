@@ -15,7 +15,13 @@
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio",
     "prisma:seed": "node prisma/seed.js",
+    "seed:roles": "node seed-roles-only.js",
     "db:reset": "prisma migrate reset --force",
+    "check:users": "node check-users.js",
+    "verify:all-users": "node verify-all-users.js",
+    "activate:all-users": "node activate-all-users.js",
+    "normalize:emails": "node normalize-emails.js",
+    "test:warehouse-user": "node create-test-warehouse-user.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

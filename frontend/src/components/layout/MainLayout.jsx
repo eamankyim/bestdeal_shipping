@@ -135,7 +135,7 @@ const MainLayout = () => {
               
               {/* User Profile with initials fallback */}
               <Dropdown overlay={userMenu} trigger={['click']} placement="bottomRight">
-                <Space style={{ cursor: 'pointer' }}>
+                <Space style={{ cursor: 'pointer' }} size={16}>
                   <Avatar 
                     src={currentUser?.avatar} 
                     size="large"
@@ -149,11 +149,9 @@ const MainLayout = () => {
                   >
                     {currentUser?.avatar ? undefined : getUserInitials(currentUser?.name)}
                   </Avatar>
-                  {!isMobile && (
-                    <span style={{ color: '#000', fontWeight: 500 }}>
-                      {currentUser?.name || 'User'}
-                    </span>
-                  )}
+                  <span style={{ color: '#000', fontWeight: 500 }}>
+                    {currentUser?.name || 'User'}
+                  </span>
                 </Space>
               </Dropdown>
             </Space>

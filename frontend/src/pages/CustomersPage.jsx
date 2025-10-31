@@ -35,6 +35,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { customerAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
+import ResponsiveTable from '../components/common/ResponsiveTable';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -279,9 +280,9 @@ const CustomersPage = () => {
 
       {/* Actions Bar */}
       <Card style={{ marginBottom: '24px' }}>
-        <Row justify="space-between" align="middle" gutter={[16, 16]}>
+        <Row justify="space-between" align="middle" gutter={[16, 16]} className="search-filter-container">
           <Col xs={24} lg={16}>
-            <Space wrap style={{ width: '100%' }}>
+            <Space wrap style={{ width: '100%' }} className="mobile-stack">
               <Input
                 placeholder="Search customers..."
                 prefix={<SearchOutlined />}
@@ -293,13 +294,14 @@ const CustomersPage = () => {
               </Button>
             </Space>
           </Col>
-          <Col xs={24} lg={8} style={{ textAlign: 'right' }}>
+          <Col xs={24} lg={8} style={{ textAlign: 'right' }} className="mobile-full-width">
             {(currentUser?.role === 'admin' || currentUser?.role === 'customer-service') && (
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
                 size="large"
                 onClick={handleNewCustomer}
+                className="mobile-full-width"
                 style={{ width: 'auto', minWidth: '160px' }}
               >
                 New Customer
@@ -311,7 +313,7 @@ const CustomersPage = () => {
 
       {/* Customers Table */}
       <Card>
-        <Table
+        <ResponsiveTable
           columns={columns}
           dataSource={customers}
           loading={loading}
@@ -328,6 +330,7 @@ const CustomersPage = () => {
               `${range[0]}-${range[1]} of ${total} customers`,
           }}
           scroll={{ x: 1200 }}
+          onCardClick={handleViewCustomer}
         />
       </Card>
 
@@ -449,6 +452,7 @@ const CustomersPage = () => {
         onClose={() => setIsDetailsModalVisible(false)}
         open={isDetailsModalVisible}
         width={600}
+        className="user-details-drawer"
                extra={[
          <Button 
            key="edit" 
@@ -465,21 +469,29 @@ const CustomersPage = () => {
       >
         {selectedCustomer && (
           <div>
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-              <Col span={24}>
-                <div style={{ textAlign: 'center' }}>
-                  <Avatar size={80} icon={<UserOutlined />} />
-                  <div style={{ marginTop: 8 }}>
-                    <Text strong>{selectedCustomer.name}</Text>
-                  </div>
-                  <div>
-                    <Tag color={selectedCustomer.status === 'Active' ? 'success' : 'default'}>
-                      {selectedCustomer.status}
+            {/* Customer Overview - Mobile Optimized */}
+            <div className="user-details-header" style={{ textAlign: 'center', marginBottom: 24, padding: '16px 0' }}>
+              <Avatar 
+                size={64}
+                className="user-details-avatar"
+                icon={<UserOutlined />}
+                style={{
+                  marginBottom: 16
+                }}
+              />
+              <Title level={3} className="user-details-name" style={{ margin: '8px 0 8px' }}>
+                {selectedCustomer.name}
+              </Title>
+              <div style={{ marginBottom: 12 }}>
+                <Tag 
+                  color={selectedCustomer.status === 'Active' ? 'success' : 'error'} 
+                  className="user-details-status-tag" 
+                  style={{ padding: '4px 12px' }}
+                >
+                  {selectedCustomer.status.toUpperCase()}
                     </Tag>
                   </div>
                 </div>
-              </Col>
-            </Row>
 
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
               <Col span={12}>
@@ -493,47 +505,99 @@ const CustomersPage = () => {
               </Col>
             </Row>
 
-            <Divider />
+            <Divider style={{ margin: '24px 0' }} />
 
-            <Descriptions title="Contact Information" column={1}>
-              <Descriptions.Item label="Email">
-                <Space>
-                  <MailOutlined />
-                  {selectedCustomer.email}
-                </Space>
-              </Descriptions.Item>
-              <Descriptions.Item label="Phone">
-                <Space>
-                  <PhoneOutlined />
-                  {selectedCustomer.phone}
-                </Space>
-              </Descriptions.Item>
-              <Descriptions.Item label="Address">
-                <Space>
-                  <EnvironmentOutlined />
-                  {selectedCustomer.address}
-                </Space>
-              </Descriptions.Item>
-            </Descriptions>
+            {/* Contact Information */}
+            <div style={{ marginBottom: 24 }}>
+              <Card 
+                size="small" 
+                title={<span className="user-info-title">Contact Information</span>}
+                className="user-info-card"
+                style={{ 
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  borderRadius: 8,
+                  marginBottom: 24
+                }}
+              >
+                <div className="user-info-list">
+                  {/* Email */}
+                  <div className="user-info-item">
+                    <div className="user-info-label">Email</div>
+                    <div className="user-info-value">
+                      <MailOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                      <Text>{selectedCustomer.email}</Text>
+                    </div>
+                  </div>
+                  
+                  {/* Phone */}
+                  <div className="user-info-item">
+                    <div className="user-info-label">Phone</div>
+                    <div className="user-info-value">
+                      <PhoneOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                      <Text>{selectedCustomer.phone}</Text>
+                    </div>
+                  </div>
+                  
+                  {/* Address */}
+                  <div className="user-info-item">
+                    <div className="user-info-label">Address</div>
+                    <div className="user-info-value">
+                      <EnvironmentOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                      <Text>{selectedCustomer.address}</Text>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
 
-            <Divider />
-
-            <Descriptions title="Account Information" column={1}>
-              <Descriptions.Item label="Customer ID">
-                {selectedCustomer.customerId}
-              </Descriptions.Item>
-              <Descriptions.Item label="Customer Type">
+            {/* Account Information */}
+            <div style={{ marginBottom: 24 }}>
+              <Card 
+                size="small" 
+                title={<span className="user-info-title">Account Information</span>}
+                className="user-info-card"
+                style={{ 
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  borderRadius: 8
+                }}
+              >
+                <div className="user-info-list">
+                  {/* Customer ID */}
+                  <div className="user-info-item">
+                    <div className="user-info-label">Customer ID</div>
+                    <div className="user-info-value">
+                      <Text>{selectedCustomer.customerId}</Text>
+                    </div>
+                  </div>
+                  
+                  {/* Customer Type */}
+                  <div className="user-info-item">
+                    <div className="user-info-label">Customer Type</div>
+                    <div className="user-info-value">
                 <Tag color={selectedCustomer.customerType === 'Company' ? 'blue' : 'green'}>
                   {selectedCustomer.customerType}
                 </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="Registration Date">
-                {selectedCustomer.registrationDate}
-              </Descriptions.Item>
-              <Descriptions.Item label="Last Job">
-                {selectedCustomer.lastJob}
-              </Descriptions.Item>
-            </Descriptions>
+                    </div>
+                  </div>
+                  
+                  {/* Registration Date */}
+                  <div className="user-info-item">
+                    <div className="user-info-label">Registration Date</div>
+                    <div className="user-info-value">
+                      <Text>{selectedCustomer.registrationDate}</Text>
+                    </div>
+                  </div>
+                  
+                  {/* Last Job */}
+                  <div className="user-info-item">
+                    <div className="user-info-label">Last Job</div>
+                    <div className="user-info-value">
+                      <Text>{selectedCustomer.lastJob}</Text>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
           </div>
         )}
       </Drawer>

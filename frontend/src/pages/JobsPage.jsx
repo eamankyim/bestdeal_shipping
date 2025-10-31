@@ -59,6 +59,7 @@ import ResponsiveTable from '../components/common/ResponsiveTable';
 import { JOB_STATUSES, STATUS_GROUPS, getStatusColor } from '../constants/jobStatuses';
 import { jobAPI, customerAPI, authAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
+import { hasPermission } from '../utils/permissions';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -152,6 +153,7 @@ const JobsPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentUser } = useAuth();
+  const canViewRevenue = hasPermission(currentUser, 'financial:view');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [isStatusUpdateModalVisible, setIsStatusUpdateModalVisible] = useState(false);
@@ -786,7 +788,7 @@ const JobsPage = () => {
       {/* Statistics Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         {stats.map((stat, index) => (
-          <Col xs={24} sm={12} lg={6} key={index}>
+          <Col xs={12} sm={12} lg={6} key={index}>
             <Card>
               <Statistic
                 title={stat.title}
@@ -802,7 +804,7 @@ const JobsPage = () => {
       <Card style={{ marginBottom: '24px' }}>
         <Row justify="space-between" align="middle" className="search-filter-container" gutter={[16, 16]}>
           <Col xs={24} lg={16}>
-            <Space wrap style={{ width: '100%' }}>
+            <Space wrap style={{ width: '100%' }} className="mobile-stack">
               <Input
                 placeholder="Search jobs..."
                 prefix={<SearchOutlined />}
@@ -856,13 +858,14 @@ const JobsPage = () => {
               </Select>
             </Space>
           </Col>
-          <Col xs={24} lg={8} style={{ textAlign: 'right' }}>
+          <Col xs={24} lg={8} style={{ textAlign: 'right' }} className="mobile-full-width">
             {(currentUser?.role === 'admin' || currentUser?.role === 'customer-service') && (
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
                 size="large"
                 onClick={handleNewJob}
+                className="mobile-full-width"
                 style={{ width: 'auto' }}
               >
                 New Job
@@ -892,6 +895,7 @@ const JobsPage = () => {
           }}
           mobileCardView={true}
           mobileBreakpoint={768}
+          onCardClick={handleViewJob}
         />
       </Card>
 
@@ -1241,6 +1245,7 @@ const JobsPage = () => {
         onClose={() => setIsDetailsDrawerVisible(false)}
         open={isDetailsDrawerVisible}
         width={720}
+        className="user-details-drawer"
         extra={
           selectedJob && ['admin', 'driver', 'delivery-agent', 'warehouse'].includes(currentUser?.role) && (
             <Dropdown
@@ -1299,75 +1304,127 @@ const JobsPage = () => {
             <Tabs.TabPane tab="Details" key="details">
 
             {/* Customer Information Card */}
-            <Card size="small" title="Customer Information" style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', padding: '8px 0' }}>
-                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Name</Text>
+            <Card 
+              size="small" 
+              title={<span className="user-info-title">Customer Information</span>}
+              className="user-info-card"
+              style={{ marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 8 }}
+            >
+              <div className="user-info-list">
+                <div className="user-info-item">
+                  <div className="user-info-label">Name</div>
+                  <div className="user-info-value">
                 <Text strong>{selectedJob.customer?.name}</Text>
+                  </div>
               </div>
               {selectedJob.customer?.email && (
-                <div style={{ display: 'flex', padding: '8px 0' }}>
-                  <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Email</Text>
+                  <div className="user-info-item">
+                    <div className="user-info-label">Email</div>
+                    <div className="user-info-value">
+                      <MailOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
                   <Text>{selectedJob.customer.email}</Text>
+                    </div>
                 </div>
               )}
               {selectedJob.customer?.phone && (
-                <div style={{ display: 'flex', padding: '8px 0' }}>
-                  <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Phone</Text>
+                  <div className="user-info-item">
+                    <div className="user-info-label">Phone</div>
+                    <div className="user-info-value">
+                      <PhoneOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
                   <Text>{selectedJob.customer.phone}</Text>
+                    </div>
                 </div>
               )}
-              <div style={{ display: 'flex', padding: '8px 0' }}>
-                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Type</Text>
+                <div className="user-info-item">
+                  <div className="user-info-label">Type</div>
+                  <div className="user-info-value">
                 <Tag color={selectedJob.customer?.customerType === 'Company' ? 'blue' : 'green'}>
                   {selectedJob.customer?.customerType}
                 </Tag>
+                  </div>
+                </div>
               </div>
             </Card>
 
             {/* Address Information Card */}
-            <Card size="small" title="Address Information" style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', padding: '8px 0' }}>
-                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Pickup</Text>
+            <Card 
+              size="small" 
+              title={<span className="user-info-title">Address Information</span>}
+              className="user-info-card"
+              style={{ marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 8 }}
+            >
+              <div className="user-info-list">
+                <div className="user-info-item">
+                  <div className="user-info-label">Pickup</div>
+                  <div className="user-info-value">
+                    <EnvironmentOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
                 <Text>{selectedJob.pickupAddress}</Text>
               </div>
-              <div style={{ display: 'flex', padding: '8px 0' }}>
-                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Delivery</Text>
+                </div>
+                <div className="user-info-item">
+                  <div className="user-info-label">Delivery</div>
+                  <div className="user-info-value">
+                    <EnvironmentOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
                 <Text>{selectedJob.deliveryAddress}</Text>
+                  </div>
+                </div>
               </div>
             </Card>
 
             {/* Package Details Card */}
-            <Card size="small" title="Package Details" style={{ marginBottom: 16 }}>
+            <Card 
+              size="small" 
+              title={<span className="user-info-title">Package Details</span>}
+              className="user-info-card"
+              style={{ marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 8 }}
+            >
+              <div className="user-info-list">
               {selectedJob.description && (
-                <div style={{ display: 'flex', padding: '8px 0' }}>
-                  <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Description</Text>
+                  <div className="user-info-item">
+                    <div className="user-info-label">Description</div>
+                    <div className="user-info-value">
                   <Text>{selectedJob.description}</Text>
+                    </div>
                 </div>
               )}
               {selectedJob.weight && (
-                <div style={{ display: 'flex', padding: '8px 0' }}>
-                  <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Weight</Text>
+                  <div className="user-info-item">
+                    <div className="user-info-label">Weight</div>
+                    <div className="user-info-value">
                   <Text>{selectedJob.weight} kg</Text>
+                    </div>
                 </div>
               )}
-              {selectedJob.value && (
-                <div style={{ display: 'flex', padding: '8px 0' }}>
-                  <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Value</Text>
+                {canViewRevenue && selectedJob.value && (
+                  <div className="user-info-item">
+                    <div className="user-info-label">Value</div>
+                    <div className="user-info-value">
                   <Text>£{selectedJob.value}</Text>
+                    </div>
                 </div>
               )}
               {selectedJob.quantity && (
-                <div style={{ display: 'flex', padding: '8px 0' }}>
-                  <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Quantity</Text>
+                  <div className="user-info-item">
+                    <div className="user-info-label">Quantity</div>
+                    <div className="user-info-value">
                   <Text>{selectedJob.quantity}</Text>
+                    </div>
                 </div>
               )}
+              </div>
             </Card>
 
             {/* Job Information Card */}
-            <Card size="small" title="Job Information" style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', padding: '8px 0' }}>
-                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Status</Text>
+            <Card 
+              size="small" 
+              title={<span className="user-info-title">Job Information</span>}
+              className="user-info-card"
+              style={{ marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 8 }}
+            >
+              <div className="user-info-list">
+                <div className="user-info-item">
+                  <div className="user-info-label">Status</div>
+                  <div className="user-info-value">
                 <Tag color={
                   ['delivered', 'arrived_at_warehouse'].includes(selectedJob.status) ? 'green' :
                   ['in_transit', 'collected', 'out_for_delivery'].includes(selectedJob.status) ? 'blue' :
@@ -1378,23 +1435,33 @@ const JobsPage = () => {
                   {selectedJob.status?.replace(/_/g, ' ').toUpperCase()}
                 </Tag>
               </div>
-              <div style={{ display: 'flex', padding: '8px 0' }}>
-                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Priority</Text>
+                </div>
+                <div className="user-info-item">
+                  <div className="user-info-label">Priority</div>
+                  <div className="user-info-value">
                 <Tag color={selectedJob.priority === 'Urgent' ? 'red' : selectedJob.priority === 'Express' ? 'orange' : 'blue'}>
                   {selectedJob.priority}
                 </Tag>
               </div>
-              <div style={{ display: 'flex', padding: '8px 0' }}>
-                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Assigned To</Text>
+                </div>
+                <div className="user-info-item">
+                  <div className="user-info-label">Assigned To</div>
+                  <div className="user-info-value">
                 <Text>{selectedJob.assignedDriver?.name || 'Unassigned'}</Text>
               </div>
-              <div style={{ display: 'flex', padding: '8px 0' }}>
-                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Pickup Date</Text>
+                </div>
+                <div className="user-info-item">
+                  <div className="user-info-label">Pickup Date</div>
+                  <div className="user-info-value">
                 <Text>{selectedJob.pickupDate ? new Date(selectedJob.pickupDate).toLocaleDateString() : 'Not set'}</Text>
               </div>
-              <div style={{ display: 'flex', padding: '8px 0' }}>
-                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Created</Text>
+                </div>
+                <div className="user-info-item">
+                  <div className="user-info-label">Created</div>
+                  <div className="user-info-value">
                 <Text type="secondary">{new Date(selectedJob.createdAt).toLocaleString()}</Text>
+                  </div>
+                </div>
               </div>
             </Card>
 

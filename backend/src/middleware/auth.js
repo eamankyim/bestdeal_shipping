@@ -27,6 +27,7 @@ const authenticate = async (req, res, next) => {
         email: true,
         name: true,
         role: true,
+        warehouseLocation: true, // Include warehouse location for dashboard filtering
         active: true,
       },
     });

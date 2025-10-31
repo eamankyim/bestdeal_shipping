@@ -5,10 +5,9 @@ import {
   Button, 
   Card, 
   Typography, 
-  Space,
   Row,
   Col,
-  message
+  App
 } from 'antd';
 import { 
   LockOutlined, 
@@ -25,6 +24,7 @@ const { Title, Text } = Typography;
 const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [loginForm] = Form.useForm();
+  const { message } = App.useApp(); // Use App context message API
   
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -50,65 +50,97 @@ const LoginPage = () => {
       
       // Show success message
       message.success({
-        content: '🎉 Login successful! Welcome back!',
+        content: 'Login successful! Welcome back!',
         duration: 3,
       });
       
       // Redirect to role-based dashboard
-      const roleDashboards = {
-        'admin': '/dashboard',
-        'driver': '/driver-dashboard',
-        'warehouse': '/warehouse-dashboard',
-        'delivery-agent': '/delivery-agent-dashboard',
-        'customer-service': '/dashboard',
-        'finance': '/dashboard',
-      };
+      const user = userData?.user || userData;
+      const userRole = user?.role;
+      const warehouseLocation = user?.warehouseLocation;
       
-      const userRole = userData?.user?.role || userData?.role;
-      const dashboardPath = roleDashboards[userRole] || '/dashboard';
+      // Check for warehouse location and redirect accordingly
+      let dashboardPath = '/dashboard';
       
-      console.log('🎯 Redirecting to:', dashboardPath, 'for role:', userRole);
+      if (userRole === 'warehouse') {
+        // If user has Ghana Warehouse location, redirect to Ghana Warehouse dashboard
+        if (warehouseLocation === 'Ghana Warehouse') {
+          dashboardPath = '/ghana-warehouse';
+        } else {
+          dashboardPath = '/warehouse-dashboard';
+        }
+      } else {
+        const roleDashboards = {
+          'admin': '/dashboard',
+          'driver': '/driver-dashboard',
+          'delivery-agent': '/delivery-agent-dashboard',
+          'customer-service': '/dashboard',
+          'finance': '/dashboard',
+        };
+        dashboardPath = roleDashboards[userRole] || '/dashboard';
+      }
+      
+      console.log('🎯 Redirecting to:', dashboardPath, 'for role:', userRole, 'warehouseLocation:', warehouseLocation);
       navigate(dashboardPath, { replace: true });
     } catch (error) {
       console.error('🚨 Login failed, showing error to user:', error);
+      console.error('📊 Error status:', error?.status);
+      console.error('📊 Error message:', error?.message);
+      console.error('📊 Error data:', error?.data);
       
-      // Extract error message
-      const errorMsg = error?.message || error?.data?.message || 'Login failed. Please try again.';
-      
-      console.log('💬 Displaying error message:', errorMsg);
-      console.log('📊 Error object:', error);
+      // Check error status first - 401 means wrong credentials
+      const isUnauthorized = error?.status === 401;
+      const errorMsg = error?.message || error?.data?.message || '';
       
       // ALWAYS show an error message to the user
-      let userMessage = '❌ Login failed. Please try again.';
+      let userMessage = 'Invalid email or password. Please check your credentials.';
       
-      if (errorMsg.includes('Invalid email or password')) {
-        userMessage = '❌ Invalid email or password. Please check your credentials.';
-      } else if (errorMsg.includes('deactivated')) {
-        userMessage = '⚠️ Your account has been deactivated. Contact support.';
-      } else if (errorMsg.includes('Network') || errorMsg.includes('fetch') || errorMsg.includes('Failed to fetch')) {
-        userMessage = '🌐 Network error. Please check your connection and try again.';
+      // Prioritize status code detection
+      if (error?.status === 429) {
+        userMessage = 'Too many login attempts from this IP address. Please try again in 15 minutes.';
+      } else if (isUnauthorized) {
+        userMessage = 'Invalid email or password. Please check your credentials.';
+      } else if (error?.status === 403) {
+        userMessage = 'Access denied. Your account may be deactivated.';
+      } else if (error?.status === 500) {
+        userMessage = 'Server error. Please try again later.';
       } else if (errorMsg) {
-        userMessage = `❌ ${errorMsg}`;
+        // Sanitize error message - remove URLs but keep the message
+        let cleanMsg = errorMsg
+          .replace(/https?:\/\/[^\s]+/gi, '') // Remove URLs
+          .replace(/localhost[^\s]*/gi, '') // Remove localhost references
+          .replace(/127\.0\.0\.1[^\s]*/gi, '') // Remove localhost IP
+          .replace(/\s+/g, ' ') // Clean up extra spaces
+          .trim();
+        
+        // If we have a clean message and it's meaningful
+        if (cleanMsg && cleanMsg.length > 0) {
+          // Check for specific error patterns
+          if (cleanMsg.toLowerCase().includes('invalid') || cleanMsg.toLowerCase().includes('wrong') || cleanMsg.toLowerCase().includes('incorrect')) {
+            userMessage = 'Invalid email or password. Please check your credentials.';
+          } else if (cleanMsg.includes('deactivated')) {
+            userMessage = 'Your account has been deactivated. Contact support.';
+          } else if (cleanMsg.includes('Network') || cleanMsg.includes('fetch') || cleanMsg.includes('Failed to fetch') || cleanMsg.includes('CORS')) {
+            userMessage = 'Network error. Please check your connection and try again.';
+          } else if (cleanMsg.length < 200) { // Only use if not too long
+            userMessage = cleanMsg;
+          }
+        }
       }
       
       console.log('🔔 Showing message to user:', userMessage);
       
-      // FORCE message display
-      message.destroy(); // Clear any existing messages
+      // Clear any existing messages first
+      message.destroy();
       
-      // Show message with maximum visibility
+      // Display error message using App context API
       message.error({
         content: userMessage,
-        duration: 6,
-        className: 'login-error-message',
+        duration: 8,
+        maxCount: 1,
       });
       
-      console.log('✅ message.error() called');
-      
-      // Visual alert as backup
-      alert(`LOGIN ERROR:\n\n${userMessage}\n\n(This alert is temporary - message toast should appear at top of screen)`);
-      
-      console.log('✅ Alert shown as backup');
+      console.log('✅ Error message displayed via App context');
     } finally {
       setLoading(false);
     }
@@ -222,14 +254,12 @@ const LoginPage = () => {
 
             {/* Footer */}
             <div style={{ textAlign: 'center', marginTop: '24px' }}>
-              <Space direction="vertical" size="small">
-                <Text type="secondary" style={{ fontSize: '14px' }}>
-                  Need access? Contact your administrator for an invitation.
-                </Text>
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                  This is an internal company portal. Access is by invitation only.
-                </Text>
-              </Space>
+              <Text type="secondary" style={{ fontSize: '14px' }}>
+                Having issues logging in?{' '}
+                <a href="mailto:support@icreationsglobal.com" style={{ color: '#1890ff' }}>
+                  Contact Administrator
+                </a>
+              </Text>
             </div>
           </Card>
         </Col>

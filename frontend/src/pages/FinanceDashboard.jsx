@@ -23,6 +23,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { dashboardAPI } from '../utils/api';
+import ResponsiveTable from '../components/common/ResponsiveTable';
 
 const { Title, Text } = Typography;
 
@@ -30,29 +31,39 @@ const FinanceDashboard = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchFinanceDashboard();
   }, []);
 
-  // Auto-refresh every 60 seconds
+  // Auto-refresh every 120 seconds (2 minutes) to reduce API load
+  // Only refresh if there's no error and component is mounted
   useEffect(() => {
+    if (error) return; // Don't auto-refresh if there's an error
+    
     const interval = setInterval(() => {
-      fetchFinanceDashboard();
-    }, 60000);
+      if (!error) { // Double-check error state before refresh
+        fetchFinanceDashboard();
+      }
+    }, 120000); // 120 seconds = 2 minutes
     return () => clearInterval(interval);
-  }, []);
+  }, [error]);
 
   const fetchFinanceDashboard = async () => {
     try {
       setLoading(true);
+      setError(null); // Clear previous errors
       const response = await dashboardAPI.getFinance();
 
       if (response.success) {
         setDashboardData(response.data);
+      } else {
+        setError(response.message || 'Failed to load dashboard data');
       }
     } catch (error) {
       console.error('Failed to fetch finance dashboard:', error);
+      setError(error?.message || 'Failed to load finance dashboard data');
     } finally {
       setLoading(false);
     }
@@ -113,41 +124,53 @@ const FinanceDashboard = () => {
     },
   ];
 
+  // Handle view invoice
+  const handleViewInvoice = (invoice) => {
+    navigate('/invoice-management', { state: { selectedInvoiceId: invoice.id } });
+  };
+
   // Invoice columns
   const invoiceColumns = [
     {
       title: 'Invoice #',
       dataIndex: 'invoiceNumber',
       key: 'invoiceNumber',
-      render: (text) => <Text strong>{text}</Text>
+      render: (text) => <Text strong>{text}</Text>,
+      mobile: true,
     },
     {
       title: 'Customer',
-      dataIndex: ['customer', 'name'],
+      dataIndex: 'customer',
       key: 'customer',
+      render: (customer) => customer?.name || 'N/A',
+      mobile: true,
     },
     {
       title: 'Issue Date',
       dataIndex: 'issueDate',
       key: 'issueDate',
-      render: (date) => new Date(date).toLocaleDateString()
+      render: (date) => new Date(date).toLocaleDateString(),
+      mobile: false,
     },
     {
       title: 'Due Date',
       dataIndex: 'dueDate',
       key: 'dueDate',
-      render: (date) => new Date(date).toLocaleDateString()
+      render: (date) => new Date(date).toLocaleDateString(),
+      mobile: false,
     },
     {
       title: 'Amount',
       dataIndex: 'total',
       key: 'total',
-      render: (amount) => `$${parseFloat(amount).toFixed(2)}`
+      render: (amount) => `$${parseFloat(amount).toFixed(2)}`,
+      mobile: true,
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
+      mobile: true,
       render: (status) => {
         const colors = {
           'Paid': 'green',
@@ -161,11 +184,15 @@ const FinanceDashboard = () => {
     {
       title: 'Actions',
       key: 'actions',
+      mobile: true,
       render: (_, record) => (
         <Button 
           size="small" 
           icon={<EyeOutlined />}
-          onClick={() => navigate('/invoice-management')}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewInvoice(record);
+          }}
         >
           View
         </Button>
@@ -179,17 +206,21 @@ const FinanceDashboard = () => {
       title: 'Invoice #',
       dataIndex: 'invoiceNumber',
       key: 'invoiceNumber',
-      render: (text) => <Text strong style={{ color: '#ff4d4f' }}>{text}</Text>
+      render: (text) => <Text strong style={{ color: '#ff4d4f' }}>{text}</Text>,
+      mobile: true,
     },
     {
       title: 'Customer',
-      dataIndex: ['customer', 'name'],
+      dataIndex: 'customer',
       key: 'customer',
+      render: (customer) => customer?.name || 'N/A',
+      mobile: true,
     },
     {
       title: 'Due Date',
       dataIndex: 'dueDate',
       key: 'dueDate',
+      mobile: false,
       render: (date) => {
         const dueDate = new Date(date);
         const today = new Date();
@@ -208,6 +239,7 @@ const FinanceDashboard = () => {
       title: 'Amount',
       dataIndex: 'total',
       key: 'total',
+      mobile: true,
       render: (amount) => (
         <Text strong style={{ color: '#ff4d4f' }}>
           ${parseFloat(amount).toFixed(2)}
@@ -217,13 +249,17 @@ const FinanceDashboard = () => {
     {
       title: 'Actions',
       key: 'actions',
+      mobile: true,
       render: (_, record) => (
         <Button 
           size="small" 
           type="primary"
           danger
           icon={<EyeOutlined />}
-          onClick={() => navigate('/invoice-management')}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewInvoice(record);
+          }}
         >
           Follow Up
         </Button>
@@ -232,7 +268,7 @@ const FinanceDashboard = () => {
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div style={{ padding: '24px' }} className="dashboard-page-container">
       {/* Header */}
       <Row justify="space-between" align="middle" style={{ marginBottom: '24px' }}>
         <Col>
@@ -338,12 +374,14 @@ const FinanceDashboard = () => {
                 </Space>
               }
             >
-              <Table
+              <ResponsiveTable
                 columns={overdueColumns}
                 dataSource={overdueInvoices || []}
+                loading={loading}
                 rowKey="id"
                 pagination={false}
                 size="small"
+                onCardClick={handleViewInvoice}
               />
             </Card>
           </Col>
@@ -361,9 +399,10 @@ const FinanceDashboard = () => {
               </Space>
             }
           >
-            <Table
+            <ResponsiveTable
               columns={invoiceColumns}
               dataSource={recentInvoices || []}
+              loading={loading}
               rowKey="id"
               pagination={{
                 pageSize: 10,
@@ -374,6 +413,7 @@ const FinanceDashboard = () => {
               locale={{
                 emptyText: 'No invoices found'
               }}
+              onCardClick={handleViewInvoice}
             />
           </Card>
         </Col>
@@ -383,5 +423,4 @@ const FinanceDashboard = () => {
 };
 
 export default FinanceDashboard;
-
 
