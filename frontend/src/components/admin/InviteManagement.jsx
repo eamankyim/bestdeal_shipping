@@ -27,10 +27,12 @@ import {
   CloseCircleOutlined,
   CopyOutlined,
   LinkOutlined,
-  EyeOutlined
+  EyeOutlined,
+  ShareAltOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { authAPI } from '../../utils/api';
+import { showAlertToast, showError } from '../../utils/toast';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -198,6 +200,13 @@ const InviteManagement = () => {
       setTimeout(() => {
         console.log('🎬 Setting inviteLinkModalVisible to true');
         setInviteLinkModalVisible(true);
+        // Show toast notification about console logging
+        showAlertToast(
+          'Link also logged to browser console',
+          'Open DevTools (F12) → Console to see the link printed for easy copying.',
+          'success',
+          6
+        );
       }, 100);
       
       inviteForm.resetFields();
@@ -214,10 +223,20 @@ const InviteManagement = () => {
       console.error('Error data:', error.data);
       console.error('═══════════════════════════════════════════════');
       
-      message.error({
-        content: error.message || 'Failed to send invitation. Check console for details.',
-        duration: 8,
-      });
+      // Determine user-friendly error message
+      let errorMessage = 'Failed to send invitation. Please try again.';
+      
+      if (error.status === 400 && error.message?.includes('already exists')) {
+        errorMessage = 'A user with this email already exists. Please use a different email address.';
+      } else if (error.status === 400 && error.message) {
+        errorMessage = error.message;
+      } else if (error.message && !error.message.includes('localhost') && !error.message.includes('http')) {
+        // Use error message if it doesn't contain URLs/localhost
+        errorMessage = error.message;
+      }
+      
+      // Show toast notification to user
+      showError(errorMessage, 6);
     } finally {
       setLoading(false);
       console.log('🏁 Invitation process finished');
@@ -229,8 +248,61 @@ const InviteManagement = () => {
     navigator.clipboard.writeText(text).then(() => {
       message.success('Link copied to clipboard!');
     }).catch(() => {
-      message.error('Failed to copy link');
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        message.success('Link copied to clipboard!');
+      } catch (err) {
+        message.error('Failed to copy link');
+      }
+      document.body.removeChild(textArea);
     });
+  };
+
+  // Share link using Web Share API or fallback
+  const shareLink = async (link, email) => {
+    const shareData = {
+      title: 'Best Deal App Invitation',
+      text: `You have been invited to join Best Deal App. Please click the link to create your account.`,
+      url: link,
+    };
+
+    // Check if Web Share API is supported
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+        message.success('Link shared successfully!');
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          console.error('Error sharing:', error);
+          // Fallback to copy
+          copyToClipboard(link);
+        }
+      }
+    } else {
+      // Fallback: Copy link and show email template
+      copyToClipboard(link);
+      
+      // Create email template
+      const subject = encodeURIComponent('Best Deal App Invitation');
+      const body = encodeURIComponent(
+        `You have been invited to join Best Deal App!\n\n` +
+        `Click the link below to create your account:\n${link}\n\n` +
+        `This link expires in 7 days.`
+      );
+      const mailtoLink = `mailto:${email}?subject=${subject}&body=${body}`;
+      
+      // Open mail client
+      window.location.href = mailtoLink;
+      
+      message.info('Link copied! Email client opened. Paste the link in your email.');
+    }
   };
 
   const getStatusColor = (status) => {
@@ -348,6 +420,38 @@ const InviteManagement = () => {
         
         return (
           <Space>
+            {isPending && !expired && (
+              <>
+                <Tooltip title="Copy invitation link">
+                  <Button 
+                    size="small" 
+                    icon={<CopyOutlined />}
+                    onClick={() => {
+                      const linkToShow = record.token 
+                        ? `${window.location.origin}/accept-invite/${record.token}`
+                        : '';
+                      if (linkToShow) {
+                        copyToClipboard(linkToShow);
+                      }
+                    }}
+                  />
+                </Tooltip>
+                <Tooltip title="Share invitation link">
+                  <Button 
+                    size="small" 
+                    icon={<ShareAltOutlined />}
+                    onClick={() => {
+                      const linkToShow = record.token 
+                        ? `${window.location.origin}/accept-invite/${record.token}`
+                        : '';
+                      if (linkToShow) {
+                        shareLink(linkToShow, record.email);
+                      }
+                    }}
+                  />
+                </Tooltip>
+              </>
+            )}
             <Tooltip title="View invitation details">
               <Button 
                 size="small" 
@@ -368,15 +472,33 @@ const InviteManagement = () => {
                         <p><strong>Invited By:</strong> {record.invitedBy}</p>
                         <p><strong>Invited Date:</strong> {record.invitedAt}</p>
                         <p><strong>Expires:</strong> {record.expiresAt}</p>
-                        {isPending && (
+                        {isPending && !expired && (
                           <>
+                            <Divider />
                             <p style={{ marginTop: 16 }}><strong>Invitation Link:</strong></p>
-                            <Input.TextArea
-                              value={linkToShow}
-                              rows={3}
-                              readOnly
-                              style={{ fontFamily: 'monospace', fontSize: '12px' }}
-                            />
+                            <Space direction="vertical" style={{ width: '100%' }} size="small">
+                              <Input.TextArea
+                                value={linkToShow}
+                                rows={3}
+                                readOnly
+                                style={{ fontFamily: 'monospace', fontSize: '12px' }}
+                              />
+                              <Space>
+                                <Button 
+                                  type="primary" 
+                                  icon={<CopyOutlined />}
+                                  onClick={() => copyToClipboard(linkToShow)}
+                                >
+                                  Copy Link
+                                </Button>
+                                <Button 
+                                  icon={<ShareAltOutlined />}
+                                  onClick={() => shareLink(linkToShow, record.email)}
+                                >
+                                  Share
+                                </Button>
+                              </Space>
+                            </Space>
                           </>
                         )}
                       </div>
@@ -576,6 +698,37 @@ const InviteManagement = () => {
           </Form.Item>
 
           <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, currentValues) => prevValues.role !== currentValues.role}
+          >
+            {({ getFieldValue }) => {
+              const role = getFieldValue('role');
+              // Show warehouse location field only for warehouse role
+              if (role === 'warehouse') {
+                return (
+                  <Form.Item
+                    name="warehouseLocation"
+                    label="Warehouse Location"
+                    rules={[
+                      { required: false, message: 'Please select warehouse location' }
+                    ]}
+                    extra="Optional: Assign user to a specific warehouse. Users without location can access all warehouse dashboards."
+                  >
+                    <Select 
+                      placeholder="Select warehouse location"
+                      size="large"
+                    >
+                      <Option value="Ghana Warehouse">Ghana Warehouse</Option>
+                      <Option value="UK Warehouse">UK Warehouse</Option>
+                    </Select>
+                  </Form.Item>
+                );
+              }
+              return null;
+            }}
+          </Form.Item>
+
+          <Form.Item
             name="message"
             label="Personal Message (Optional)"
           >
@@ -615,6 +768,12 @@ const InviteManagement = () => {
         onCancel={() => setInviteLinkModalVisible(false)}
         footer={[
           <Button 
+            key="close" 
+            onClick={() => setInviteLinkModalVisible(false)}
+          >
+            Close
+          </Button>,
+          <Button 
             key="copy" 
             type="primary" 
             icon={<CopyOutlined />}
@@ -623,10 +782,12 @@ const InviteManagement = () => {
             Copy Link
           </Button>,
           <Button 
-            key="close" 
-            onClick={() => setInviteLinkModalVisible(false)}
+            key="share" 
+            type="primary" 
+            icon={<ShareAltOutlined />}
+            onClick={() => shareLink(generatedInviteLink, generatedInviteEmail)}
           >
-            Close
+            Share
           </Button>
         ]}
         width={700}
@@ -682,14 +843,6 @@ const InviteManagement = () => {
         </div>
 
         <Divider />
-
-        <Alert
-          message="Link also logged to browser console"
-          description="Open DevTools (F12) → Console to see the link printed for easy copying."
-          type="success"
-          showIcon
-          closable
-        />
       </Modal>
     </div>
   );

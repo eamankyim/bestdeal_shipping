@@ -42,12 +42,15 @@ import {
 import { JOB_STATUSES, getStatusColor } from '../constants/jobStatuses';
 import { jobAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
+import ResponsiveTable from '../components/common/ResponsiveTable';
+import { hasPermission } from '../utils/permissions';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
 const DriverDashboardPage = () => {
   const { currentUser } = useAuth();
+  const canViewRevenue = hasPermission(currentUser, 'financial:view');
   const [completionModalVisible, setCompletionModalVisible] = useState(false);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
@@ -245,28 +248,33 @@ const DriverDashboardPage = () => {
       dataIndex: 'trackingId',
       key: 'trackingId',
       render: (text) => <Text strong>{text}</Text>,
+      mobile: true,
     },
     {
       title: 'Customer',
       dataIndex: 'customer',
       key: 'customer',
+      mobile: true,
     },
     {
       title: 'Pickup Address',
       dataIndex: 'pickupAddress',
       key: 'pickupAddress',
       ellipsis: true,
+      mobile: false,
     },
     {
       title: 'Warehouse',
       dataIndex: 'warehouseLocation',
       key: 'warehouseLocation',
       render: (text) => text || 'Main Warehouse',
+      mobile: false,
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
+      mobile: true,
       render: (status) => (
         <Tag color={
           ['delivered', 'arrived_at_warehouse'].includes(status) ? 'green' :
@@ -283,6 +291,7 @@ const DriverDashboardPage = () => {
       title: 'Priority',
       dataIndex: 'priority',
       key: 'priority',
+      mobile: true,
       render: (priority) => (
         <Tag color={priority === 'Urgent' ? 'red' : priority === 'Express' ? 'orange' : 'blue'}>
           {priority}
@@ -292,6 +301,7 @@ const DriverDashboardPage = () => {
     {
       title: 'Actions',
       key: 'actions',
+      mobile: true,
       render: (_, record) => (
         <Space size="small">
           {/* Show different buttons based on job status */}
@@ -300,7 +310,10 @@ const DriverDashboardPage = () => {
               type="primary"
               size="small"
               icon={<PlayCircleOutlined />}
-              onClick={() => handleStartJourney(record)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStartJourney(record);
+              }}
             >
               Mark as Collected
             </Button>
@@ -311,7 +324,10 @@ const DriverDashboardPage = () => {
               type="primary"
               size="small"
               icon={<CarOutlined />}
-              onClick={() => handleStartJourney(record)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStartJourney(record);
+              }}
             >
               Mark as In Transit
             </Button>
@@ -322,7 +338,10 @@ const DriverDashboardPage = () => {
               type="primary"
               size="small"
               icon={<HomeOutlined />}
-              onClick={() => handleConfirmDropoff(record)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleConfirmDropoff(record);
+              }}
             >
               Mark as Arrived at Warehouse
             </Button>
@@ -331,7 +350,10 @@ const DriverDashboardPage = () => {
           <Button 
             size="small"
             icon={<EyeOutlined />}
-            onClick={() => handleViewJob(record)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleViewJob(record);
+            }}
           >
             View
           </Button>
@@ -452,7 +474,7 @@ const DriverDashboardPage = () => {
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         <Col span={24}>
           <Card title="Assigned Collection Jobs">
-            <Table
+            <ResponsiveTable
               columns={columns}
               dataSource={assignedJobs}
               loading={loading}
@@ -462,6 +484,7 @@ const DriverDashboardPage = () => {
               locale={{
                 emptyText: 'No jobs assigned to you yet. Jobs will appear here when assigned by admin.'
               }}
+              onCardClick={handleViewJob}
             />
           </Card>
         </Col>
@@ -644,6 +667,7 @@ const DriverDashboardPage = () => {
         onClose={() => setIsDetailsDrawerVisible(false)}
         open={isDetailsDrawerVisible}
         width={720}
+        className="user-details-drawer"
         extra={
           selectedJob && (
             <Dropdown
@@ -701,35 +725,80 @@ const DriverDashboardPage = () => {
             <Tabs.TabPane tab="Details" key="details">
 
             {/* Customer Information Card */}
-            <Card size="small" title="Customer Information" style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', padding: '8px 0' }}>
-                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Name</Text>
+            <Card 
+              size="small" 
+              title={<span className="user-info-title">Customer Information</span>}
+              className="user-info-card"
+              style={{ 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                borderRadius: 8,
+                marginBottom: 24
+              }}
+            >
+              <div className="user-info-list">
+                <div className="user-info-item">
+                  <div className="user-info-label">Name</div>
+                  <div className="user-info-value">
+                    <UserOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
                 <Text strong>{selectedJob.customer?.name}</Text>
+                  </div>
               </div>
               {selectedJob.customer?.phone && (
-                <div style={{ display: 'flex', padding: '8px 0' }}>
-                  <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Phone</Text>
+                  <div className="user-info-item">
+                    <div className="user-info-label">Phone</div>
+                    <div className="user-info-value">
+                      <PhoneOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
                   <Text>{selectedJob.customer.phone}</Text>
+                    </div>
                 </div>
               )}
+              </div>
             </Card>
 
             {/* Address Information Card */}
-            <Card size="small" title="Address Information" style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', padding: '8px 0' }}>
-                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Pickup</Text>
+            <Card 
+              size="small" 
+              title={<span className="user-info-title">Address Information</span>}
+              className="user-info-card"
+              style={{ 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                borderRadius: 8,
+                marginBottom: 24
+              }}
+            >
+              <div className="user-info-list">
+                <div className="user-info-item">
+                  <div className="user-info-label">Pickup</div>
+                  <div className="user-info-value">
+                    <EnvironmentOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
                 <Text>{selectedJob.pickupAddress}</Text>
               </div>
-              <div style={{ display: 'flex', padding: '8px 0' }}>
-                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Warehouse</Text>
+                </div>
+                <div className="user-info-item">
+                  <div className="user-info-label">Warehouse</div>
+                  <div className="user-info-value">
+                    <HomeOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
                 <Text>{selectedJob.warehouseLocation || 'Main Warehouse'}</Text>
+                  </div>
+                </div>
               </div>
             </Card>
 
             {/* Job Information Card */}
-            <Card size="small" title="Job Information" style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', padding: '8px 0' }}>
-                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Status</Text>
+            <Card 
+              size="small" 
+              title={<span className="user-info-title">Job Information</span>}
+              className="user-info-card"
+              style={{ 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                borderRadius: 8,
+                marginBottom: 24
+              }}
+            >
+              <div className="user-info-list">
+                <div className="user-info-item">
+                  <div className="user-info-label">Status</div>
+                  <div className="user-info-value">
                 <Tag color={
                   ['delivered', 'arrived_at_warehouse'].includes(selectedJob.status) ? 'green' :
                   ['in_transit', 'collected', 'out_for_delivery'].includes(selectedJob.status) ? 'blue' :
@@ -740,38 +809,62 @@ const DriverDashboardPage = () => {
                   {selectedJob.status?.replace(/_/g, ' ').toUpperCase()}
                 </Tag>
               </div>
-              <div style={{ display: 'flex', padding: '8px 0' }}>
-                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Priority</Text>
+                </div>
+                <div className="user-info-item">
+                  <div className="user-info-label">Priority</div>
+                  <div className="user-info-value">
                 <Tag color={selectedJob.priority === 'Urgent' ? 'red' : selectedJob.priority === 'Express' ? 'orange' : 'blue'}>
                   {selectedJob.priority}
                 </Tag>
               </div>
-              <div style={{ display: 'flex', padding: '8px 0' }}>
-                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Pickup Date</Text>
+                </div>
+                <div className="user-info-item">
+                  <div className="user-info-label">Pickup Date</div>
+                  <div className="user-info-value">
+                    <CalendarOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
                 <Text>{selectedJob.pickupDate ? new Date(selectedJob.pickupDate).toLocaleDateString() : 'Not set'}</Text>
+                  </div>
+                </div>
               </div>
             </Card>
 
             {/* Package Details Card */}
-            <Card size="small" title="Package Details" style={{ marginBottom: 16 }}>
+            <Card 
+              size="small" 
+              title={<span className="user-info-title">Package Details</span>}
+              className="user-info-card"
+              style={{ 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                borderRadius: 8,
+                marginBottom: 24
+              }}
+            >
+              <div className="user-info-list">
               {selectedJob.description && (
-                <div style={{ display: 'flex', padding: '8px 0' }}>
-                  <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Description</Text>
+                  <div className="user-info-item">
+                    <div className="user-info-label">Description</div>
+                    <div className="user-info-value">
                   <Text>{selectedJob.description}</Text>
+                    </div>
                 </div>
               )}
               {selectedJob.weight && (
-                <div style={{ display: 'flex', padding: '8px 0' }}>
-                  <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Weight</Text>
+                  <div className="user-info-item">
+                    <div className="user-info-label">Weight</div>
+                    <div className="user-info-value">
                   <Text>{selectedJob.weight} kg</Text>
+                    </div>
                 </div>
               )}
-              {selectedJob.value && (
-                <div style={{ display: 'flex', padding: '8px 0' }}>
-                  <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Value</Text>
+                {canViewRevenue && selectedJob.value && (
+                  <div className="user-info-item">
+                    <div className="user-info-label">Value</div>
+                    <div className="user-info-value">
                   <Text>£{selectedJob.value}</Text>
+                    </div>
                 </div>
               )}
+              </div>
             </Card>
 
             {/* Special Instructions */}

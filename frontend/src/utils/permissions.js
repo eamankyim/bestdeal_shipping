@@ -12,6 +12,9 @@
 export const hasPermission = (user, permission) => {
   if (!user || !user.role) return false;
 
+  // Superadmin has all permissions
+  if (user.role === 'superadmin') return true;
+
   const rolePermissions = {
     admin: [
       // User Management
@@ -32,6 +35,9 @@ export const hasPermission = (user, permission) => {
       
       // Reports
       'reports:view_all', 'reports:financial',
+      
+      // Financial
+      'financial:view',
       
       // Settings
       'settings:access', 'settings:modify',
@@ -77,6 +83,7 @@ export const hasPermission = (user, permission) => {
       'jobs:view_all',
       'customers:view',
       'reports:view_all', 'reports:financial',
+      'financial:view',
     ],
   };
 
@@ -104,15 +111,18 @@ export const hasRole = (user, ...roles) => {
 export const canAccessRoute = (user, route) => {
   if (!user || !user.role) return false;
 
+  // Superadmin can access all routes
+  if (user.role === 'superadmin') return true;
+
   const routePermissions = {
-    '/dashboard': ['admin', 'driver', 'delivery-agent', 'warehouse', 'customer-service', 'finance'],
-    '/jobs': ['admin', 'driver', 'delivery-agent', 'warehouse', 'customer-service'],
-    '/customers': ['admin', 'customer-service', 'driver', 'delivery-agent', 'warehouse'],
-    '/batches': ['admin', 'warehouse'],
-    '/invoices': ['admin', 'finance'],
-    '/reports': ['admin', 'driver', 'delivery-agent', 'warehouse', 'customer-service', 'finance'],
-    '/settings': ['admin'],
-    '/tracking': ['admin', 'driver', 'delivery-agent', 'warehouse', 'customer-service'],
+    '/dashboard': ['superadmin', 'admin', 'driver', 'delivery-agent', 'warehouse', 'customer-service', 'finance'],
+    '/jobs': ['superadmin', 'admin', 'driver', 'delivery-agent', 'warehouse', 'customer-service'],
+    '/customers': ['superadmin', 'admin', 'customer-service', 'driver', 'delivery-agent', 'warehouse'],
+    '/batches': ['superadmin', 'admin', 'warehouse'],
+    '/invoices': ['superadmin', 'admin', 'finance'],
+    '/reports': ['superadmin', 'admin', 'driver', 'delivery-agent', 'warehouse', 'customer-service', 'finance'],
+    '/settings': ['superadmin', 'admin'],
+    '/tracking': ['superadmin', 'admin', 'driver', 'delivery-agent', 'warehouse', 'customer-service'],
   };
 
   const allowedRoles = routePermissions[route] || [];
@@ -128,6 +138,7 @@ export const getDashboardRoute = (user) => {
   if (!user || !user.role) return '/login';
 
   const dashboardRoutes = {
+    superadmin: '/dashboard',
     admin: '/dashboard',
     driver: '/driver-dashboard',
     warehouse: '/warehouse-dashboard',
@@ -153,7 +164,7 @@ export const getSidebarMenuItems = (user) => {
       icon: 'DashboardOutlined',
       label: 'Dashboard',
       path: '/dashboard',
-      roles: ['admin', 'customer-service', 'finance'],
+      roles: ['superadmin', 'admin', 'customer-service', 'finance'],
     },
     {
       key: 'driver-dashboard',
@@ -181,49 +192,49 @@ export const getSidebarMenuItems = (user) => {
       icon: 'FileTextOutlined',
       label: 'Jobs',
       path: '/jobs',
-      roles: ['admin', 'customer-service', 'warehouse'],
+      roles: ['superadmin', 'admin', 'customer-service', 'warehouse'],
     },
     {
       key: 'customers',
       icon: 'UserOutlined',
       label: 'Customers',
       path: '/customers',
-      roles: ['admin', 'customer-service'],
+      roles: ['superadmin', 'admin', 'customer-service'],
     },
     {
       key: 'batches',
       icon: 'InboxOutlined',
       label: 'Batches',
       path: '/batches',
-      roles: ['admin', 'warehouse'],
+      roles: ['superadmin', 'admin', 'warehouse'],
     },
     {
       key: 'invoices',
       icon: 'DollarOutlined',
       label: 'Invoices',
       path: '/invoices',
-      roles: ['admin', 'finance'],
+      roles: ['superadmin', 'admin', 'finance'],
     },
     {
       key: 'reports',
       icon: 'BarChartOutlined',
       label: 'Reports',
       path: '/reports',
-      roles: ['admin', 'finance'],
+      roles: ['superadmin', 'admin', 'finance'],
     },
     {
       key: 'tracking',
       icon: 'EnvironmentOutlined',
       label: 'Track Shipment',
       path: '/tracking',
-      roles: ['admin', 'customer-service', 'warehouse'],
+      roles: ['superadmin', 'admin', 'customer-service', 'warehouse'],
     },
     {
       key: 'settings',
       icon: 'SettingOutlined',
       label: 'Settings',
       path: '/settings',
-      roles: ['admin'],
+      roles: ['superadmin', 'admin'],
     },
   ];
 
@@ -241,8 +252,8 @@ export const getSidebarMenuItems = (user) => {
 export const canPerformAction = (user, action, resource, resourceData = null) => {
   if (!user || !user.role) return false;
 
-  // Admin can do everything
-  if (user.role === 'admin') return true;
+  // Superadmin and admin can do everything
+  if (user.role === 'superadmin' || user.role === 'admin') return true;
 
   // Define role-action-resource matrix
   const permissions = {

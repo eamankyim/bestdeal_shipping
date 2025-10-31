@@ -10,7 +10,7 @@ const { authLimiter } = require('../middleware/rateLimiter');
  * /api/auth/create-superadmin:
  *   post:
  *     summary: Create first superadmin (One-time setup)
- *     description: Creates the initial superadmin account. This endpoint only works if no admin or superadmin exists in the system. Use this for initial system setup.
+ *     description: Creates the initial superadmin account and automatically seeds system roles and settings if they don't exist. This endpoint only works if no admin or superadmin exists in the system. Use this for initial system setup. Roles and settings are automatically created during this process.
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -214,6 +214,51 @@ router.post('/refresh-token', authController.refreshToken);
  *       400:
  *         description: Invalid or expired token
  */
+/**
+ * @swagger
+ * /api/auth/invite/{token}:
+ *   get:
+ *     summary: Get invitation details by token
+ *     tags: [Authentication]
+ *     parameters:
+ *       - in: path
+ *         name: token
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Invitation details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     invitation:
+ *                       type: object
+ *                       properties:
+ *                         email:
+ *                           type: string
+ *                         role:
+ *                           type: string
+ *                         status:
+ *                           type: string
+ *                         expiresAt:
+ *                           type: string
+ *                         invitedBy:
+ *                           type: string
+ *       400:
+ *         description: Invalid or expired invitation
+ *       404:
+ *         description: Invitation not found
+ */
+router.get('/invite/:token', authController.getInviteByToken);
+
 router.post('/accept-invite/:token', authController.acceptInvite);
 
 /**
@@ -423,6 +468,98 @@ router.patch('/change-password', authenticate, authController.changePassword);
  *         description: Profile updated successfully
  */
 router.patch('/update-profile', authenticate, authController.updateProfile);
+
+/**
+ * @swagger
+ * /api/auth/roles:
+ *   get:
+ *     summary: Get all roles with user counts
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Roles retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     roles:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           displayName:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *                           color:
+ *                             type: string
+ *                           isSystem:
+ *                             type: boolean
+ *                           userCount:
+ *                             type: integer
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin only
+ */
+router.get('/roles', authenticate, authorize('admin', 'superadmin'), authController.getRoles);
+
+/**
+ * @swagger
+ * /api/auth/users/{id}:
+ *   patch:
+ *     summary: Update user (Admin only)
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               phone:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *               warehouseLocation:
+ *                 type: string
+ *                 enum: [Ghana Warehouse, UK Warehouse]
+ *               active:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: User updated successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin only
+ *       404:
+ *         description: User not found
+ */
+router.patch('/users/:id', authenticate, authorize('admin', 'superadmin'), authController.updateUser);
 
 module.exports = router;
 

@@ -7,7 +7,6 @@ import {
   Col, 
   Progress, 
   Timeline, 
-  Descriptions, 
   Tag, 
   Typography, 
   Space,
@@ -17,11 +16,15 @@ import {
 import { SearchOutlined, CarOutlined, CheckCircleOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, MailOutlined, EnvironmentOutlined, InboxOutlined, CalendarOutlined } from '@ant-design/icons';
 import { trackingAPI } from '../utils/api';
 import { getStatusColor } from '../constants/jobStatuses';
+import { useAuth } from '../contexts/AuthContext';
+import { hasPermission } from '../utils/permissions';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
 
 const ShipmentTrackingPage = () => {
+  const { currentUser } = useAuth();
+  const canViewRevenue = hasPermission(currentUser, 'financial:view');
   const [trackingId, setTrackingId] = useState('');
   const [shipment, setShipment] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -68,8 +71,8 @@ const ShipmentTrackingPage = () => {
 
       {/* Search Section */}
       <Card style={{ marginBottom: '24px', maxWidth: '600px', margin: '0 auto 24px' }}>
-        <Row gutter={16} align="middle" className="search-row-container">
-          <Col flex="auto">
+        <Row gutter={[8, 8]} align="middle" className="search-row-container">
+          <Col xs={24} md="auto" style={{ flex: 'auto' }}>
             <Search
               placeholder="Enter job ID (e.g., SHIP-20251025-VSJO5)"
               value={trackingId}
@@ -78,14 +81,14 @@ const ShipmentTrackingPage = () => {
               size="large"
             />
           </Col>
-          <Col>
+          <Col xs={24} md="auto">
             <Button 
               type="primary" 
               icon={<SearchOutlined />} 
               size="large"
               loading={loading}
               onClick={handleSearch}
-              style={{ width: 'auto' }}
+              className="track-button-mobile"
             >
               Track
             </Button>
@@ -217,6 +220,7 @@ const ShipmentTrackingPage = () => {
                         </Text>
                       </div>
                     </Col>
+                    {canViewRevenue && (
                     <Col span={12}>
                       <div style={{ textAlign: 'center', padding: '8px' }}>
                         <Text type="secondary" style={{ fontSize: '12px' }}>VALUE</Text>
@@ -226,6 +230,7 @@ const ShipmentTrackingPage = () => {
                         </Text>
                       </div>
                     </Col>
+                    )}
                     <Col span={12}>
                       <div style={{ textAlign: 'center', padding: '8px' }}>
                         <Text type="secondary" style={{ fontSize: '12px' }}>SERVICE</Text>
@@ -249,82 +254,94 @@ const ShipmentTrackingPage = () => {
 
                 {/* Customer Information */}
                 <Card 
-                  title={
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <UserOutlined style={{ color: '#722ed1' }} />
-                      <span>Customer Information</span>
-                    </div>
-                  }
+                  title={<span className="user-info-title">Customer Information</span>}
+                  className="user-info-card"
                   size="small"
+                  style={{ 
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    borderRadius: 8,
+                    marginBottom: 24
+                  }}
                 >
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <div>
-                      <Text strong style={{ fontSize: '16px' }}>
-                        {shipment.customer?.name || 'N/A'}
-                      </Text>
+                  <div className="user-info-list">
+                    <div className="user-info-item">
+                      <div className="user-info-label">Name</div>
+                      <div className="user-info-value">
+                        <UserOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                        <Text strong>{shipment.customer?.name || 'N/A'}</Text>
+                      </div>
                     </div>
                     {shipment.customer?.phone && (
-                      <div>
-                        <Space>
-                          <PhoneOutlined style={{ color: '#1890ff' }} />
+                      <div className="user-info-item">
+                        <div className="user-info-label">Phone</div>
+                        <div className="user-info-value">
+                          <PhoneOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
                           <Text>{shipment.customer.phone}</Text>
-                        </Space>
+                        </div>
                       </div>
                     )}
                     {shipment.customer?.email && (
-                      <div>
-                        <Space>
-                          <MailOutlined style={{ color: '#1890ff' }} />
+                      <div className="user-info-item">
+                        <div className="user-info-label">Email</div>
+                        <div className="user-info-value">
+                          <MailOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
                           <Text>{shipment.customer.email}</Text>
-                        </Space>
+                        </div>
                       </div>
                     )}
-                  </Space>
+                  </div>
                 </Card>
 
                 {/* Addresses */}
                 <Card 
-                  title={
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <EnvironmentOutlined style={{ color: '#fa8c16' }} />
-                      <span>Addresses</span>
-                    </div>
-                  }
+                  title={<span className="user-info-title">Addresses</span>}
+                  className="user-info-card"
                   size="small"
+                  style={{ 
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    borderRadius: 8,
+                    marginBottom: 24
+                  }}
                 >
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                <div>
-                      <Text strong style={{ color: '#1890ff' }}>Collection Address:</Text>
-                  <br />
-                      <Text type="secondary" style={{ fontSize: '14px' }}>
-                        {shipment.pickupAddress || 'N/A'}
-                      </Text>
-                </div>
-                    <Divider style={{ margin: '12px 0' }} />
-                <div>
-                      <Text strong style={{ color: '#52c41a' }}>Delivery Address:</Text>
-                  <br />
-                      <Text type="secondary" style={{ fontSize: '14px' }}>
-                        {shipment.deliveryAddress || 'N/A'}
-                      </Text>
+                  <div className="user-info-list">
+                    <div className="user-info-item">
+                      <div className="user-info-label">Collection Address</div>
+                      <div className="user-info-value">
+                        <EnvironmentOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                        <Text>{shipment.pickupAddress || 'N/A'}</Text>
+                      </div>
                     </div>
-                  </Space>
+                    <div className="user-info-item">
+                      <div className="user-info-label">Delivery Address</div>
+                      <div className="user-info-value">
+                        <EnvironmentOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                        <Text>{shipment.deliveryAddress || 'N/A'}</Text>
+                </div>
+                    </div>
+                  </div>
                 </Card>
 
                 {/* Collection Date */}
                 <Card 
-                  title={
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <CalendarOutlined style={{ color: '#13c2c2' }} />
-                      <span>Collection Date</span>
-                    </div>
-                  }
+                  title={<span className="user-info-title">Collection Date</span>}
+                  className="user-info-card"
                   size="small"
+                  style={{ 
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    borderRadius: 8,
+                    marginBottom: 24
+                  }}
                 >
-                  <div style={{ textAlign: 'center' }}>
-                    <Text strong style={{ fontSize: '18px' }}>
+                  <div className="user-info-list">
+                    <div className="user-info-item">
+                      <div className="user-info-label">Date</div>
+                      <div className="user-info-value">
+                        <CalendarOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                        <Text strong style={{ fontSize: '16px' }}>
                       {shipment.createdAt ? new Date(shipment.createdAt).toLocaleDateString() : 'N/A'}
                     </Text>
+                      </div>
+                    </div>
                 </div>
               </Card>
               </Space>

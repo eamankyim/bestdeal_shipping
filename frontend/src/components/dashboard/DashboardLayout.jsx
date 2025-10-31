@@ -35,7 +35,7 @@ const DashboardLayout = ({
           {statsCards.map((card, index) => (
             <Col 
               key={index}
-              xs={24} 
+              xs={12} 
               sm={12} 
               md={statsCards.length <= 3 ? 8 : 6}
             >
@@ -75,5 +75,84 @@ const DashboardLayout = ({
 };
 
 export default DashboardLayout;
+
+
+
+
+              {card}
+
+            </Col>
+
+          ))}
+
+        </Row>
+
+      )}
+
+
+
+      {/* Main Content Area */}
+
+      {(mainContent || sideContent) && (
+
+        <Row gutter={[16, 16]}>
+
+          {/* Main content (takes 2/3 on desktop) */}
+
+          {mainContent && (
+
+            <Col xs={24} lg={sideContent ? 16 : 24}>
+
+              {mainContent}
+
+            </Col>
+
+          )}
+
+          
+
+          {/* Side content (takes 1/3 on desktop) */}
+
+          {sideContent && (
+
+            <Col xs={24} lg={8}>
+
+              {sideContent}
+
+            </Col>
+
+          )}
+
+        </Row>
+
+      )}
+
+
+
+      {/* Custom children content */}
+
+      {children && (
+
+        <div style={{ marginTop: 24 }}>
+
+          {children}
+
+        </div>
+
+      )}
+
+    </div>
+
+  );
+
+};
+
+
+
+export default DashboardLayout;
+
+
+
+
 
 

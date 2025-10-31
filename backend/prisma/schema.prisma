@@ -20,6 +20,7 @@ model User {
   role          String   // 'superadmin', 'admin', 'driver', 'warehouse', 'delivery_agent', 'user'
   avatarUrl     String?  @map("avatar_url")
   phone         String?
+  warehouseLocation String? @map("warehouse_location") // 'Ghana Warehouse', 'UK Warehouse', etc.
   active        Boolean  @default(true)
   emailVerified Boolean  @default(false) @map("email_verified")
   createdAt     DateTime @default(now()) @map("created_at")
@@ -60,15 +61,16 @@ model Role {
 }
 
 model Invitation {
-  id         String    @id @default(uuid())
-  email      String
-  role       String
-  invitedBy  String    @map("invited_by")
-  token      String    @unique
-  status     String    @default("pending") // 'pending', 'accepted', 'expired'
-  expiresAt  DateTime  @map("expires_at")
-  acceptedAt DateTime? @map("accepted_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
+  id               String    @id @default(uuid())
+  email            String
+  role             String
+  warehouseLocation String?  @map("warehouse_location") // 'Ghana Warehouse', 'UK Warehouse', etc.
+  invitedBy        String    @map("invited_by")
+  token            String    @unique
+  status           String    @default("pending") // 'pending', 'accepted', 'expired'
+  expiresAt        DateTime  @map("expires_at")
+  acceptedAt       DateTime? @map("accepted_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
 
   // Relationships
   inviter User @relation("InvitationSender", fields: [invitedBy], references: [id])

@@ -13,7 +13,7 @@ const runtimeOrigin =
 const config = {
   // Application Info
   app: {
-    name: process.env.REACT_APP_NAME || 'Best Deal Shipping app',
+    name: process.env.REACT_APP_NAME || 'Best Deal App',
     logoPath: process.env.REACT_APP_LOGO_PATH || '/AppLogo.png',
   },
 

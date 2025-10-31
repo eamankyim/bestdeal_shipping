@@ -16,6 +16,7 @@ import {
   FileTextOutlined,
   DollarOutlined,
   RocketOutlined,
+  FlagOutlined,
 } from '@ant-design/icons';
 import config from '../../config/env';
 import { useAuth } from '../../contexts/AuthContext';
@@ -66,7 +67,7 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
       key: '/dashboard',
       icon: <DashboardOutlined />,
       label: 'Dashboard',
-      roles: ['admin', 'customer-service', 'finance'],
+      roles: ['superadmin', 'admin', 'customer-service', 'finance'],
     },
     {
       key: '/driver-dashboard',
@@ -81,6 +82,12 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
       roles: ['warehouse'],
     },
     {
+      key: '/ghana-warehouse',
+      icon: <FlagOutlined />,
+      label: 'Ghana Warehouse',
+      roles: ['warehouse', 'admin', 'superadmin'],
+    },
+    {
       key: '/delivery-agent',
       icon: <RocketOutlined />,
       label: 'My Deliveries',
@@ -90,37 +97,37 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
       key: '/jobs',
       icon: <ShoppingOutlined />,
       label: 'Jobs',
-      roles: ['admin', 'customer-service', 'warehouse', 'driver', 'delivery-agent'],
+      roles: ['superadmin', 'admin', 'customer-service', 'warehouse', 'driver', 'delivery-agent'],
     },
     {
       key: '/customers',
       icon: <UserOutlined />,
       label: 'Customers',
-      roles: ['admin', 'customer-service'],
+      roles: ['superadmin', 'admin', 'customer-service'],
     },
     {
       key: '/batch-management',
       icon: <ContainerOutlined />,
       label: 'Batches',
-      roles: ['admin', 'warehouse'],
+      roles: ['superadmin', 'admin', 'warehouse'],
     },
     {
       key: '/invoice-management',
       icon: <DollarOutlined />,
       label: 'Invoices',
-      roles: ['admin', 'finance'],
+      roles: ['superadmin', 'admin', 'finance'],
     },
     {
       key: '/reports',
       icon: <BarChartOutlined />,
       label: 'Reports',
-      roles: ['admin', 'finance'],
+      roles: ['superadmin', 'admin', 'finance'],
     },
     {
       key: '/track-shipment',
       icon: <SearchOutlined />,
       label: 'Track Shipment',
-      roles: ['admin', 'customer-service', 'warehouse'],
+      roles: ['superadmin', 'admin', 'customer-service', 'warehouse'],
     },
     {
       key: '/admin',
@@ -130,11 +137,40 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
     },
   ];
 
-  // Filter menu items based on user role
+  // Filter menu items based on user role and warehouse location
   const menuItems = useMemo(() => {
     if (!currentUser || !currentUser.role) return [];
     
-    return allMenuItems.filter(item => item.roles.includes(currentUser.role));
+    return allMenuItems.filter(item => {
+      // Check if user role matches
+      if (!item.roles.includes(currentUser.role)) return false;
+      
+      // Special handling for Ghana Warehouse menu item
+      if (item.key === '/ghana-warehouse') {
+        // Show to admin/superadmin (always)
+        if (currentUser.role === 'admin' || currentUser.role === 'superadmin') return true;
+        // Show to warehouse users ONLY if they have warehouseLocation = "Ghana Warehouse"
+        if (currentUser.role === 'warehouse') {
+          return currentUser.warehouseLocation === 'Ghana Warehouse';
+        }
+        return false;
+      }
+      
+      // Regular Warehouse menu - show ONLY if user doesn't have a specific warehouse location
+      // Admin and superadmin can always see it
+      if (item.key === '/warehouse') {
+        // Admin/superadmin can always see general warehouse dashboard
+        if (currentUser.role === 'admin' || currentUser.role === 'superadmin') return true;
+        // Warehouse users only see this if they don't have a specific location assigned
+        if (currentUser.role === 'warehouse') {
+          return !currentUser.warehouseLocation; // Only show if no specific location
+        }
+        return false;
+      }
+      
+      // All other menu items - just check role
+      return true;
+    });
   }, [currentUser]);
 
   return (

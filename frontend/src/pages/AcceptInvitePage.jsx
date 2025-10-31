@@ -7,9 +7,7 @@ import {
   Typography, 
   Space,
   Row,
-  Col,
-  Alert,
-  message
+  Col
 } from 'antd';
 import { 
   LockOutlined, 
@@ -21,6 +19,7 @@ import {
 import { useParams, useNavigate } from 'react-router-dom';
 import config from '../config/env';
 import { authAPI } from '../utils/api';
+import { showAlertToast } from '../utils/toast';
 
 const { Title, Text } = Typography;
 
@@ -39,23 +38,51 @@ const AcceptInvitePage = () => {
     // Fetch invitation details to get the email
     const fetchInviteDetails = async () => {
       try {
-        // TODO: Add proper API endpoint to get invite details
-        // For now, we'll extract email from backend response when user accepts
-        // const response = await api.get(`/auth/invite/${token}`);
-        // const email = response.data.email;
+        console.log('📥 Fetching invitation details for token:', token);
+        const response = await authAPI.getInviteByToken(token);
         
-        // Temporary: Set empty for now, will be populated when backend provides endpoint
-        setInviteInfo({ token, email: '' });
+        console.log('✅ Invitation details fetched:', response);
+        
+        if (response.success && response.data?.invitation) {
+          const invitation = response.data.invitation;
+          setInviteInfo({
+            token,
+            email: invitation.email,
+            role: invitation.role,
+          });
+          
+          // Update form with email value
+          form.setFieldsValue({
+            email: invitation.email,
+          });
+          
         setFetchingInvite(false);
+        } else {
+          throw new Error('Invalid invitation response');
+        }
       } catch (err) {
-        console.error('Failed to fetch invite:', err);
-        setError('Invalid or expired invitation link');
+        console.error('❌ Failed to fetch invite:', err);
+        const errorMsg = err?.message?.includes('expired') 
+          ? 'This invitation link has expired. Please request a new invitation.'
+          : err?.message?.includes('accepted')
+          ? 'This invitation has already been accepted.'
+          : err?.message?.includes('not found')
+          ? 'Invalid invitation link. Please check the link and try again.'
+          : 'Invalid or expired invitation link';
+        
+        setError(errorMsg);
+        showAlertToast(
+          'Invitation Error',
+          errorMsg,
+          'error',
+          6
+        );
         setFetchingInvite(false);
       }
     };
     
     fetchInviteDetails();
-  }, [token]);
+  }, [token, form]);
 
   const handleAcceptInvite = async (values) => {
     setLoading(true);
@@ -71,41 +98,43 @@ const AcceptInvitePage = () => {
 
       console.log('✅ Invitation accepted:', response);
 
-      // Show success and redirect to login
-      message.success({
-        content: '🎉 Account created successfully! Redirecting to login...',
-        duration: 3,
-      });
-
       // Store the email if provided in response
       const userEmail = response.data?.user?.email;
 
+      // Show success toast once on login page redirect
       setTimeout(() => {
         navigate('/login', { 
           state: { 
-            message: 'Account created! Please login with your credentials.',
+            message: 'Account created successfully! Please login with your credentials.',
             email: userEmail
           } 
         });
-      }, 2000);
+      }, 500);
 
     } catch (error) {
       console.error('❌ Failed to accept invitation:', error);
       
       const errorMsg = error?.message || error?.data?.message || 'Failed to create account';
       
+      let errorTitle = 'Invitation Error';
+      let errorDescription = errorMsg;
+      
       if (errorMsg.includes('expired') || errorMsg.includes('Invalid')) {
-        setError('This invitation link has expired or is invalid. Please request a new invitation.');
+        errorDescription = 'This invitation link has expired or is invalid. Please request a new invitation.';
       } else if (errorMsg.includes('already exists')) {
-        setError('An account with this email already exists. Please login instead.');
-      } else {
-        setError(errorMsg);
+        errorDescription = 'An account with this email already exists. Please login instead.';
       }
 
-      message.error({
-        content: `❌ ${errorMsg}`,
-        duration: 5,
-      });
+      // Show toast notification instead of Alert
+      showAlertToast(
+        errorTitle,
+        errorDescription,
+        'error',
+        6
+      );
+
+      // Keep error state for form validation display if needed
+      setError(errorDescription);
     } finally {
       setLoading(false);
     }
@@ -168,16 +197,6 @@ const AcceptInvitePage = () => {
               margin: '0 auto'
             }}
           >
-            {error && (
-              <Alert
-                message="Invitation Error"
-                description={error}
-                type="error"
-                showIcon
-                closable
-                style={{ marginBottom: '24px' }}
-              />
-            )}
 
             {fetchingInvite ? (
               <div style={{ textAlign: 'center', padding: '40px' }}>
@@ -191,7 +210,7 @@ const AcceptInvitePage = () => {
                   layout="vertical"
                   size="large"
                   initialValues={{
-                    email: inviteInfo?.email || 'Loading...'
+                    email: inviteInfo?.email || ''
                   }}
                 >
                   <Form.Item

@@ -2,6 +2,10 @@ const express = require('express');
 const router = express.Router();
 const dashboardController = require('../controllers/dashboardController');
 const { authenticate, authorize } = require('../middleware/auth');
+const { dashboardLimiter } = require('../middleware/rateLimiter');
+
+// Apply dashboard-specific rate limiter to all dashboard routes
+router.use(dashboardLimiter);
 
 /**
  * @swagger
@@ -89,6 +93,57 @@ const { authenticate, authorize } = require('../middleware/auth');
  *         description: Forbidden - Warehouse role required
  */
 router.get('/warehouse', authenticate, authorize('warehouse', 'admin', 'superadmin'), dashboardController.getWarehouseDashboard);
+
+/**
+ * @swagger
+ * /api/dashboard/warehouse/ghana:
+ *   get:
+ *     summary: Get Ghana Warehouse dashboard data
+ *     description: Retrieve comprehensive Ghana Warehouse statistics including jobs, batches, and recent activity filtered by Ghana Warehouse location
+ *     tags: [Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Ghana Warehouse dashboard data retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     warehouseLocation:
+ *                       type: string
+ *                       example: "Ghana Warehouse"
+ *                     jobStats:
+ *                       type: object
+ *                     batchStats:
+ *                       type: object
+ *                     jobsReadyForBatching:
+ *                       type: object
+ *                     recentBatches:
+ *                       type: array
+ *                     jobsAtWarehouse:
+ *                       type: array
+ *                     todayActivity:
+ *                       type: integer
+ *                     unassignedJobs:
+ *                       type: integer
+ *                     recentActivity:
+ *                       type: array
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Warehouse role required
+ */
+router.get('/warehouse/ghana', authenticate, authorize('warehouse', 'admin', 'superadmin'), dashboardController.getGhanaWarehouseDashboard);
 
 /**
  * @swagger

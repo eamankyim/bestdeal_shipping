@@ -1,4 +1,4 @@
-// Job Status Constants for ShipEASE System
+// Job Status Constants for Best Deal App System
 
 export const JOB_STATUSES = {
   PENDING_COLLECTION: 'Pending Collection',

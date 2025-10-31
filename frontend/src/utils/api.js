@@ -223,11 +223,14 @@ export const authAPI = {
   refreshToken: (refreshToken) => api.post('/auth/refresh-token', { refreshToken }, { auth: false }),
   getCurrentUser: () => api.get('/auth/me'),
   sendInvite: (inviteData) => api.post('/auth/send-invite', inviteData),
+  getInviteByToken: (token) => api.get(`/auth/invite/${token}`, { auth: false }),
   acceptInvite: (token, userData) => api.post(`/auth/accept-invite/${token}`, userData, { auth: false }),
   getInvitations: () => api.get('/auth/invitations'),
   getUsers: (params) => api.get('/auth/users', { params }),
+  getRoles: () => api.get('/auth/roles'),
   changePassword: (currentPassword, newPassword) => api.patch('/auth/change-password', { currentPassword, newPassword }),
   updateProfile: (data) => api.patch('/auth/update-profile', data),
+  updateUser: (userId, data) => api.patch(`/auth/users/${userId}`, data),
 };
 
 export const inviteAPI = {
@@ -278,6 +281,7 @@ export const trackingAPI = {
 
 export const dashboardAPI = {
   getWarehouse: () => api.get('/dashboard/warehouse'),
+  getGhanaWarehouse: () => api.get('/dashboard/warehouse/ghana'),
   getDriver: () => api.get('/dashboard/driver'),
   getDelivery: () => api.get('/dashboard/delivery'),
   getFinance: () => api.get('/dashboard/finance'),

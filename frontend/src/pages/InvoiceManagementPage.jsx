@@ -33,10 +33,12 @@ import {
   EyeOutlined,
   EditOutlined,
   SendOutlined,
-  PrinterOutlined
+  PrinterOutlined,
+  MailOutlined
 } from '@ant-design/icons';
 import { invoiceAPI, customerAPI, jobAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
+import ResponsiveTable from '../components/common/ResponsiveTable';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -150,27 +152,32 @@ const InvoiceManagementPage = () => {
       dataIndex: 'invoiceNumber',
       key: 'invoiceNumber',
       render: (text) => <Text strong>{text}</Text>,
+      mobile: true,
     },
     {
       title: 'Tracking ID',
       dataIndex: 'trackingId',
       key: 'trackingId',
+      mobile: false,
     },
     {
       title: 'Customer',
       dataIndex: 'customer',
       key: 'customer',
+      mobile: true,
     },
     {
       title: 'Amount',
       dataIndex: 'amount',
       key: 'amount',
       render: (amount) => <Text strong>£{amount.toFixed(2)}</Text>,
+      mobile: true,
     },
     {
       title: 'Service',
       dataIndex: 'service',
       key: 'service',
+      mobile: true,
       render: (service) => {
         let color = 'default';
         switch (service) {
@@ -193,6 +200,7 @@ const InvoiceManagementPage = () => {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
+      mobile: true,
       render: (status) => {
         let color = 'default';
         let icon = null;
@@ -232,15 +240,18 @@ const InvoiceManagementPage = () => {
       title: 'Issue Date',
       dataIndex: 'issueDate',
       key: 'issueDate',
+      mobile: false,
     },
     {
       title: 'Due Date',
       dataIndex: 'dueDate',
       key: 'dueDate',
+      mobile: false,
     },
     {
       title: 'Actions',
       key: 'actions',
+      mobile: true,
       render: (_, record) => (
         <Space>
           {record.status === 'Draft' && (
@@ -248,7 +259,10 @@ const InvoiceManagementPage = () => {
               size="small"
               type="primary"
               icon={<SendOutlined />}
-              onClick={() => handleSendInvoice(record)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSendInvoice(record);
+              }}
               loading={sendingInvoice}
             >
               Send
@@ -259,7 +273,10 @@ const InvoiceManagementPage = () => {
               size="small"
               type="primary"
               icon={<CheckCircleOutlined />}
-              onClick={() => handleMarkAsPaid(record)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMarkAsPaid(record);
+              }}
               loading={markingPaid}
               style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
             >
@@ -269,14 +286,20 @@ const InvoiceManagementPage = () => {
           <Button 
             size="small"
             icon={<EyeOutlined />}
-            onClick={() => handleViewInvoice(record)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleViewInvoice(record);
+            }}
           >
             View
           </Button>
           <Button 
             size="small"
             icon={<DownloadOutlined />}
-            onClick={() => handleDownloadInvoice(record)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDownloadInvoice(record);
+            }}
           >
             Download
           </Button>
@@ -290,22 +313,26 @@ const InvoiceManagementPage = () => {
       title: 'Tracking ID',
       dataIndex: 'trackingId',
       key: 'trackingId',
+      mobile: true,
       render: (text) => <Text strong>{text}</Text>,
     },
     {
       title: 'Customer',
       dataIndex: 'customer',
       key: 'customer',
+      mobile: true,
     },
     {
       title: 'Weight',
       dataIndex: 'weight',
       key: 'weight',
+      mobile: true,
     },
     {
       title: 'Service',
       dataIndex: 'service',
       key: 'service',
+      mobile: true,
       render: (service) => {
         let color = 'default';
         switch (service) {
@@ -328,21 +355,27 @@ const InvoiceManagementPage = () => {
       title: 'Destination',
       dataIndex: 'destination',
       key: 'destination',
+      mobile: true,
     },
     {
       title: 'Collection Date',
       dataIndex: 'collectionDate',
       key: 'collectionDate',
+      mobile: true,
     },
     {
       title: 'Actions',
       key: 'actions',
+      mobile: true,
       render: (_, record) => (
         <Button 
           type="primary"
           size="small"
           icon={<PlusOutlined />}
-          onClick={() => handleGenerateInvoice(record)}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleGenerateInvoice(record);
+          }}
           disabled={record.invoiceGenerated}
         >
           Generate Invoice
@@ -490,7 +523,7 @@ const InvoiceManagementPage = () => {
         <div>
           <Card size="small" style={{ marginBottom: '16px' }}>
             <Row gutter={[16, 16]}>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Total Invoices"
                   value={invoices.length}
@@ -498,7 +531,7 @@ const InvoiceManagementPage = () => {
                   valueStyle={{ color: '#1890ff' }}
                 />
               </Col>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Paid"
                   value={invoices.filter(inv => inv.status === 'Paid').length}
@@ -506,7 +539,7 @@ const InvoiceManagementPage = () => {
                   valueStyle={{ color: '#52c41a' }}
                 />
               </Col>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Pending"
                   value={invoices.filter(inv => inv.status === 'Pending').length}
@@ -514,7 +547,7 @@ const InvoiceManagementPage = () => {
                   valueStyle={{ color: '#faad14' }}
                 />
               </Col>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Overdue"
                   value={invoices.filter(inv => inv.status === 'Overdue').length}
@@ -524,10 +557,11 @@ const InvoiceManagementPage = () => {
               </Col>
             </Row>
           </Card>
-          <Table
+          <ResponsiveTable
             columns={invoiceColumns}
             dataSource={invoices}
             loading={loading}
+            rowKey="id"
             pagination={{
               pageSize: 10,
               showTotal: (total) => `Total ${total} invoices`
@@ -536,6 +570,7 @@ const InvoiceManagementPage = () => {
               emptyText: 'No invoices created yet. Invoices are auto-generated when jobs are delivered.'
             }}
             size="small"
+            onCardClick={handleViewInvoice}
           />
         </div>
       ),
@@ -547,7 +582,7 @@ const InvoiceManagementPage = () => {
         <div>
           <Card size="small" style={{ marginBottom: '16px' }}>
             <Row gutter={[16, 16]}>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Available for Invoice"
                   value={availableShipments.filter(s => !s.invoiceGenerated).length}
@@ -555,7 +590,7 @@ const InvoiceManagementPage = () => {
                   valueStyle={{ color: '#1890ff' }}
                 />
               </Col>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Total Weight"
                   value={availableShipments.reduce((sum, s) => sum + parseFloat(s.weight), 0).toFixed(1)}
@@ -563,7 +598,7 @@ const InvoiceManagementPage = () => {
                   valueStyle={{ color: '#52c41a' }}
                 />
               </Col>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Total Value"
                   value={availableShipments.reduce((sum, s) => sum + s.value, 0)}
@@ -571,7 +606,7 @@ const InvoiceManagementPage = () => {
                   valueStyle={{ color: '#722ed1' }}
                 />
               </Col>
-              <Col xs={24} sm={12} lg={6}>
+              <Col xs={12} sm={12} lg={6}>
                 <Statistic
                   title="Premium Service"
                   value={availableShipments.filter(s => s.service === 'Premium').length}
@@ -581,11 +616,12 @@ const InvoiceManagementPage = () => {
               </Col>
             </Row>
           </Card>
-          <Table
+          <ResponsiveTable
             columns={shipmentColumns}
             dataSource={availableShipments.filter(s => !s.invoiceGenerated)}
             pagination={false}
             size="small"
+            rowKey="trackingId"
           />
         </div>
       ),
@@ -836,6 +872,7 @@ const InvoiceManagementPage = () => {
         onClose={() => setIsDetailsDrawerVisible(false)}
         open={isDetailsDrawerVisible}
         width={800}
+        className="user-details-drawer"
         extra={[
           <Button 
             key="download"
@@ -897,27 +934,51 @@ const InvoiceManagementPage = () => {
             {/* Invoice Details */}
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
               <Col span={24}>
-                <Card size="small" title="Invoice Information">
-                  <Descriptions column={2} size="small">
-                    <Descriptions.Item label="Tracking ID">
-                      {selectedInvoice.trackingId}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Customer">
-                      {selectedInvoice.customer}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Customer Email">
-                      {selectedInvoice.customerEmail}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Service">
+                <Card 
+                  size="small" 
+                  title={<span className="user-info-title">Invoice Information</span>}
+                  className="user-info-card"
+                  style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 8, marginBottom: 24 }}
+                >
+                  <div className="user-info-list">
+                    <div className="user-info-item">
+                      <div className="user-info-label">Tracking ID</div>
+                      <div className="user-info-value">
+                        <Text>{selectedInvoice.trackingId}</Text>
+                      </div>
+                    </div>
+                    <div className="user-info-item">
+                      <div className="user-info-label">Customer</div>
+                      <div className="user-info-value">
+                        <Text>{selectedInvoice.customer}</Text>
+                      </div>
+                    </div>
+                    <div className="user-info-item">
+                      <div className="user-info-label">Customer Email</div>
+                      <div className="user-info-value">
+                        <MailOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                        <Text>{selectedInvoice.customerEmail}</Text>
+                      </div>
+                    </div>
+                    <div className="user-info-item">
+                      <div className="user-info-label">Service</div>
+                      <div className="user-info-value">
                       <Tag color="blue">{selectedInvoice.service}</Tag>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Issue Date">
-                      {selectedInvoice.issueDate}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Due Date">
-                      {selectedInvoice.dueDate}
-                    </Descriptions.Item>
-                  </Descriptions>
+                      </div>
+                    </div>
+                    <div className="user-info-item">
+                      <div className="user-info-label">Issue Date</div>
+                      <div className="user-info-value">
+                        <Text>{selectedInvoice.issueDate}</Text>
+                      </div>
+                    </div>
+                    <div className="user-info-item">
+                      <div className="user-info-label">Due Date</div>
+                      <div className="user-info-value">
+                        <Text>{selectedInvoice.dueDate}</Text>
+                      </div>
+                    </div>
+                  </div>
                 </Card>
               </Col>
             </Row>
@@ -925,23 +986,40 @@ const InvoiceManagementPage = () => {
             {/* Payment Information */}
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
               <Col span={24}>
-                <Card size="small" title="Payment Information">
-                  <Descriptions column={2} size="small">
-                    <Descriptions.Item label="Payment Status">
+                <Card 
+                  size="small" 
+                  title={<span className="user-info-title">Payment Information</span>}
+                  className="user-info-card"
+                  style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 8 }}
+                >
+                  <div className="user-info-list">
+                    <div className="user-info-item">
+                      <div className="user-info-label">Payment Status</div>
+                      <div className="user-info-value">
                       <Tag color={selectedInvoice.status === 'Paid' ? 'success' : 'processing'}>
                         {selectedInvoice.status}
                       </Tag>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Payment Method">
-                      {selectedInvoice.paymentMethod || 'Not specified'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Payment Date">
-                      {selectedInvoice.paymentDate || 'Not paid'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Amount">
+                      </div>
+                    </div>
+                    <div className="user-info-item">
+                      <div className="user-info-label">Payment Method</div>
+                      <div className="user-info-value">
+                        <Text>{selectedInvoice.paymentMethod || 'Not specified'}</Text>
+                      </div>
+                    </div>
+                    <div className="user-info-item">
+                      <div className="user-info-label">Payment Date</div>
+                      <div className="user-info-value">
+                        <Text>{selectedInvoice.paymentDate || 'Not paid'}</Text>
+                      </div>
+                    </div>
+                    <div className="user-info-item">
+                      <div className="user-info-label">Amount</div>
+                      <div className="user-info-value">
                       <Text strong>£{selectedInvoice.amount.toFixed(2)}</Text>
-                    </Descriptions.Item>
-                  </Descriptions>
+                      </div>
+                    </div>
+                  </div>
                 </Card>
               </Col>
             </Row>

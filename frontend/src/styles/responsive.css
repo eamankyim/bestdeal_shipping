@@ -1,4 +1,4 @@
-/* ShipEASE Responsive Utilities */
+/* Best Deal App Responsive Utilities */
 
 /* Breakpoints:
    - Mobile: <= 576px
@@ -223,28 +223,78 @@
   flex-wrap: wrap;
 }
 
+/* Track Button Mobile Styles */
+@media (max-width: 768px) {
+  .search-row-container {
+    flex-wrap: wrap;
+  }
+  
+  .search-row-container .ant-col {
+    width: 100% !important;
+    margin-bottom: 0 !important;
+  }
+  
+  .search-row-container .ant-col:first-child {
+    margin-bottom: 8px !important;
+  }
+  
+  .track-button-mobile {
+    width: 100% !important;
+    max-width: none !important;
+  }
+  
+  .create-batch-button-container {
+    text-align: center !important;
+  }
+  
+  .create-batch-button-mobile {
+    width: 100% !important;
+    max-width: none !important;
+  }
+}
+
 @media (max-width: 768px) {
   .search-filter-container .ant-col {
-    width: 100%;
+    width: 100% !important;
     margin-bottom: 12px;
   }
   
   .search-filter-container .ant-space {
-    width: 100%;
+    width: 100% !important;
+    flex-direction: column !important;
+  }
+  
+  .search-filter-container .ant-space-item {
+    width: 100% !important;
+    margin-bottom: 12px;
   }
   
   .search-filter-container .ant-input,
-  .search-filter-container .ant-select {
+  .search-filter-container .ant-select,
+  .search-filter-container .ant-select-selector {
     width: 100% !important;
+    max-width: none !important;
   }
   
   .search-filter-container .ant-btn {
-    width: 100%;
+    width: 100% !important;
+    max-width: none !important;
   }
   
-  /* Right-aligned buttons on mobile should be full width */
-  .search-filter-container [style*="textAlign: 'right'"] {
-    text-align: left !important;
+  /* Right-aligned buttons on mobile should be full width and centered */
+  .search-filter-container .ant-col:last-child {
+    text-align: center !important;
+  }
+  
+  .search-filter-container .ant-col:last-child .ant-btn {
+    width: 100% !important;
+    max-width: none !important;
+  }
+  
+  /* Mobile full width utility */
+  .mobile-full-width {
+    width: 100% !important;
+    max-width: none !important;
   }
 }
 
@@ -470,6 +520,47 @@
   }
 }
 
+/* ===== NOTIFICATION SWITCH FIXED HEIGHT ON MOBILE ===== */
+@media (max-width: 768px) {
+  .notification-switch-fixed,
+  .notification-switch-fixed.ant-switch {
+    height: 24px !important;
+    max-height: 24px !important;
+    min-height: 24px !important;
+    line-height: 22px !important;
+  }
+  
+  .notification-switch-fixed .ant-switch-handle {
+    width: 20px !important;
+    height: 20px !important;
+    top: 2px !important;
+  }
+  
+  .notification-switch-fixed.ant-switch-checked .ant-switch-handle {
+    left: calc(100% - 22px) !important;
+  }
+}
+
+/* ===== GENERATE REPORT BUTTON MOBILE ===== */
+@media (max-width: 768px) {
+  /* Hide Generate Report button on mobile */
+  .generate-report-button-container .generate-report-button {
+    display: none !important;
+  }
+  
+  /* Show alert on mobile only */
+  .generate-report-mobile-alert {
+    display: block !important;
+  }
+}
+
+@media (min-width: 769px) {
+  /* Hide alert on desktop */
+  .generate-report-mobile-alert {
+    display: none !important;
+  }
+}
+
 /* ===== SPACE COMPONENT RESPONSIVENESS ===== */
 
 @media (max-width: 576px) {
@@ -479,6 +570,145 @@
   
   .ant-space-vertical {
     width: 100%;
+  }
+}
+
+/* ===== USER DETAILS DRAWER RESPONSIVENESS ===== */
+
+/* Desktop styles for user info descriptions */
+.user-info-descriptions.ant-descriptions {
+  display: block !important;
+}
+
+.user-info-descriptions .ant-descriptions-row {
+  display: flex !important;
+  flex-direction: row !important;
+  width: 100% !important;
+  margin-bottom: 16px !important;
+  padding-bottom: 16px !important;
+  border-bottom: 1px solid #f0f0f0 !important;
+}
+
+.user-info-descriptions .ant-descriptions-row:last-child {
+  border-bottom: none !important;
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.user-info-descriptions .ant-descriptions-item {
+  width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0 !important;
+  margin-bottom: 0 !important;
+  border-bottom: none !important;
+}
+
+.user-info-descriptions .ant-descriptions-item-label {
+  width: 100% !important;
+  padding-bottom: 8px !important;
+  padding-right: 0 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #595959 !important;
+  margin-bottom: 4px !important;
+}
+
+.user-info-descriptions .ant-descriptions-item-content {
+  width: 100% !important;
+  padding-left: 0 !important;
+  font-size: 14px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+@media (max-width: 768px) {
+  .user-details-drawer .ant-drawer-content-wrapper {
+    width: 100% !important;
+  }
+  
+  .user-details-drawer .ant-drawer-body {
+    padding: 16px;
+  }
+  
+  .user-details-header {
+    padding: 12px 0 !important;
+  }
+  
+  .user-details-avatar {
+    width: 80px !important;
+    height: 80px !important;
+    font-size: 32px !important;
+    line-height: 80px !important;
+    margin-bottom: 16px !important;
+  }
+  
+  .user-details-name {
+    font-size: 24px !important;
+    margin: 8px 0 12px !important;
+  }
+  
+  .user-details-role-tag,
+  .user-details-status-tag {
+    font-size: 14px !important;
+    padding: 6px 14px !important;
+  }
+  
+  .user-info-card .ant-card-head-title {
+    font-size: 18px !important;
+    font-weight: 600;
+  }
+  
+  /* Custom user info list - row by row layout */
+  .user-info-list {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .user-info-item {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .user-info-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+  
+  .user-info-label {
+    width: 100%;
+    font-size: 13px;
+    font-weight: 600;
+    color: #595959;
+    margin-bottom: 8px;
+    display: block;
+  }
+  
+  .user-info-value {
+    width: 100%;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+  }
+  
+  /* Mobile-specific font sizes */
+  .user-info-label {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+  }
+  
+  .user-info-value {
+    font-size: 15px !important;
+  }
+  
+  .user-info-tag {
+    font-size: 13px !important;
   }
 }
 
