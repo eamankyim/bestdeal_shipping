@@ -58,6 +58,7 @@ const DriverDashboardPage = () => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [apiError, setApiError] = useState(null);
   const [stats, setStats] = useState([
     { title: 'Collections Today', value: 0, suffix: '', color: '#1890ff' },
     { title: 'Completed', value: 0, suffix: '', color: '#52c41a' },
