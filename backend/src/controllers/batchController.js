@@ -295,6 +295,36 @@ exports.updateBatchStatus = async (req, res) => {
       });
 
       console.log(`✅ Updated ${batch.jobs.length} jobs to status: ${jobStatus}`);
+
+      // Send notifications for each job status change
+      const { notifyJobStatusChange } = require('../services/notificationService');
+      try {
+        // Fetch updated jobs with full details for notifications
+        const updatedJobs = await prisma.job.findMany({
+          where: {
+            batchId: id
+          },
+          include: {
+            customer: {
+              select: {
+                name: true
+              }
+            }
+          }
+        });
+
+        // Send notification for each job
+        for (const job of updatedJobs) {
+          try {
+            await notifyJobStatusChange(job, jobStatus, req.user.id);
+          } catch (error) {
+            console.error(`⚠️ Failed to send notification for job ${job.trackingId}:`, error);
+          }
+        }
+        console.log(`📬 Sent notifications for ${updatedJobs.length} job status changes from batch ${batch.batchId}`);
+      } catch (error) {
+        console.error('⚠️ Failed to send batch status change notifications:', error);
+      }
     }
 
     // Update shippedAt timestamp for Shipped status

@@ -90,15 +90,20 @@ const DriverDashboardPage = () => {
     fetchMyJobs();
   }, []);
 
-  // Auto-refresh jobs every 30 seconds
+  // Auto-refresh jobs every 120 seconds (2 minutes) to reduce API load
   useEffect(() => {
+    // Don't auto-refresh if there's an API error (rate limit, etc.)
+    if (apiError) return;
+    
     const interval = setInterval(() => {
-      console.log('🔄 Auto-refreshing driver jobs...');
-      fetchMyJobs(true); // Silent refresh
-    }, 30000); // 30 seconds
+      if (!apiError) { // Double-check error state before refresh
+        console.log('🔄 Auto-refreshing driver jobs...');
+        fetchMyJobs(true); // Silent refresh
+      }
+    }, 120000); // 120 seconds (2 minutes)
 
     return () => clearInterval(interval);
-  }, []);
+  }, [apiError]);
 
   const fetchMyJobs = async (silent = false) => {
     if (!silent) {
@@ -163,12 +168,25 @@ const DriverDashboardPage = () => {
           { title: 'Pending', value: pending, suffix: '', color: '#faad14' },
           { title: 'Total Weight', value: totalWeight.toFixed(1), suffix: ' kg', color: '#722ed1' },
         ]);
+        // Clear API error on successful fetch
+        setApiError(null);
       }
     } catch (error) {
       console.error('❌ Failed to fetch driver jobs:', error);
-      if (!silent) {
-        message.error('Failed to load your jobs');
+      
+      // Check if it's a rate limit error
+      if (error.message && error.message.includes('Too many requests')) {
+        setApiError('rate_limit');
+        if (!silent) {
+          message.error('Too many requests. Please wait a moment and refresh the page.');
+        }
+      } else {
+        setApiError(null); // Clear error for non-rate-limit issues
+        if (!silent) {
+          message.error('Failed to load your jobs');
+        }
       }
+      
       setAssignedJobs([]);
     } finally {
       setLoading(false);

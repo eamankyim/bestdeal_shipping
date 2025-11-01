@@ -16,18 +16,15 @@ import {
 } from 'antd';
 import { 
   InboxOutlined,
-  ShoppingOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
-  TeamOutlined,
-  DollarOutlined,
   BoxPlotOutlined,
   CarOutlined,
   EyeOutlined,
   FlagOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { dashboardAPI, jobAPI, batchAPI } from '../utils/api';
+import { dashboardAPI, jobAPI } from '../utils/api';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 
 const { Title, Text } = Typography;
@@ -123,41 +120,45 @@ const GhanaWarehouseDashboardPage = () => {
 
   const { 
     warehouseLocation,
-    jobStats, 
-    batchStats, 
-    jobsReadyForBatching, 
-    recentBatches, 
-    jobsAtWarehouse,
+    jobStats,
+    itemsArrivedFromShip,
+    itemsStoredAtWarehouse,
+    jobsReadyForDistribution,
+    jobsBeingDistributed,
+    jobsAtWarehouse, // For backward compatibility
     todayActivity,
-    unassignedJobs,
     recentActivity
   } = dashboardData;
 
-  // Statistics cards
+  // Statistics cards - Ghana Warehouse workflow: Receive -> Store -> Distribute
   const statsCards = [
     {
-      title: 'Jobs Ready for Batching',
-      value: jobsReadyForBatching?.count || 0,
-      prefix: <InboxOutlined />,
+      title: 'Items Arrived',
+      value: itemsArrivedFromShip?.count || jobStats?.arrivedFromShip || 0,
+      prefix: <CheckCircleOutlined />,
       color: '#1890ff',
+      description: 'Items arrived from ship',
     },
     {
-      title: 'Jobs at Ghana Warehouse',
-      value: jobStats?.atWarehouse || 0,
+      title: 'Items Stored',
+      value: jobStats?.atWarehouse || (itemsStoredAtWarehouse?.length || 0),
       prefix: <BoxPlotOutlined />,
       color: '#52c41a',
+      description: 'Currently stored at warehouse',
     },
     {
-      title: 'Total Batches',
-      value: batchStats?.total || 0,
-      prefix: <ShoppingOutlined />,
+      title: 'Ready for Distribution',
+      value: jobsReadyForDistribution?.count || jobStats?.readyForDistribution || 0,
+      prefix: <InboxOutlined />,
       color: '#722ed1',
+      description: 'Ready to distribute',
     },
     {
-      title: 'Unassigned Jobs',
-      value: unassignedJobs || 0,
+      title: 'Being Distributed',
+      value: jobsBeingDistributed?.count || jobStats?.outForDelivery || 0,
       prefix: <CarOutlined />,
       color: '#faad14',
+      description: 'Out for delivery',
     },
   ];
 
@@ -176,13 +177,8 @@ const GhanaWarehouseDashboardPage = () => {
     }
   };
 
-  // Handle view batch
-  const handleViewBatch = (batch) => {
-    navigate('/batches', { state: { selectedBatchId: batch.id } });
-  };
-
-  // Jobs ready for batching table
-  const batchingColumns = [
+  // Items table columns (used for arrived, ready for distribution)
+  const itemsColumns = [
     {
       title: 'Tracking ID',
       dataIndex: 'trackingId',
@@ -202,14 +198,14 @@ const GhanaWarehouseDashboardPage = () => {
       dataIndex: 'weight',
       key: 'weight',
       render: (weight) => weight ? `${parseFloat(weight).toFixed(2)} kg` : 'N/A',
-      mobile: false,
+      mobile: true,
     },
     {
-      title: 'Value',
-      dataIndex: 'value',
-      key: 'value',
-      render: (value) => value ? `$${parseFloat(value).toFixed(2)}` : 'N/A',
-      mobile: false,
+      title: 'Destination',
+      dataIndex: 'deliveryAddress',
+      key: 'deliveryAddress',
+      render: (address) => address ? <Text ellipsis style={{ maxWidth: 200 }}>{address}</Text> : 'N/A',
+      mobile: true,
     },
     {
       title: 'Status',
@@ -222,8 +218,8 @@ const GhanaWarehouseDashboardPage = () => {
     },
   ];
 
-  // Jobs at warehouse table
-  const warehouseColumns = [
+  // Items stored/being distributed table columns
+  const storedItemsColumns = [
     {
       title: 'Tracking ID',
       dataIndex: 'trackingId',
@@ -239,22 +235,37 @@ const GhanaWarehouseDashboardPage = () => {
       mobile: true,
     },
     {
-      title: 'Driver',
-      dataIndex: 'assignedDriver',
-      key: 'driver',
-      render: (driver) => driver?.name || <Text type="secondary">Unassigned</Text>,
-      mobile: false,
+      title: 'Weight (kg)',
+      dataIndex: 'weight',
+      key: 'weight',
+      render: (weight) => weight ? `${parseFloat(weight).toFixed(2)} kg` : 'N/A',
+      mobile: true,
+    },
+    {
+      title: 'Destination',
+      dataIndex: 'deliveryAddress',
+      key: 'deliveryAddress',
+      render: (address) => address ? <Text ellipsis style={{ maxWidth: 200 }}>{address}</Text> : 'N/A',
+      mobile: true,
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
       mobile: true,
-      render: (status) => (
-        <Tag color={status === 'Collected' ? 'green' : 'orange'}>
-          {status?.replace(/_/g, ' ').toUpperCase()}
-        </Tag>
-      )
+      render: (status) => {
+        const colors = {
+          'At Ghana Warehouse': 'green',
+          'at_ghana_warehouse': 'green',
+          'arrived_at_warehouse': 'cyan',
+          'Out for Delivery': 'orange',
+        };
+        return (
+          <Tag color={colors[status] || 'default'}>
+            {status?.replace(/_/g, ' ').toUpperCase()}
+          </Tag>
+        );
+      }
     },
     {
       title: 'Actions',
@@ -275,45 +286,6 @@ const GhanaWarehouseDashboardPage = () => {
     },
   ];
 
-  // Recent batches table
-  const batchColumns = [
-    {
-      title: 'Batch ID',
-      dataIndex: 'batchId',
-      key: 'batchId',
-      render: (text) => <Text strong>{text}</Text>
-    },
-    {
-      title: 'Destination',
-      dataIndex: 'destination',
-      key: 'destination',
-    },
-    {
-      title: 'Jobs',
-      dataIndex: '_count',
-      key: 'jobs',
-      render: (count) => count?.jobs || 0
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status) => {
-        const colors = {
-          'In Preparation': 'orange',
-          'Shipped': 'blue',
-          'In Transit': 'cyan',
-          'Arrived': 'green'
-        };
-        return <Tag color={colors[status] || 'default'}>{status}</Tag>;
-      }
-    },
-    {
-      title: 'Created By',
-      dataIndex: ['creator', 'name'],
-      key: 'creator',
-    },
-  ];
 
   return (
     <div style={{ padding: '24px' }} className="dashboard-page-container">
@@ -327,7 +299,7 @@ const GhanaWarehouseDashboardPage = () => {
                 <BoxPlotOutlined /> Ghana Warehouse Dashboard
               </Title>
               <Text type="secondary" style={{ fontSize: '16px' }}>
-                Manage Ghana Warehouse operations and batching
+                Receive items from ships, store, and distribute to final destinations
               </Text>
             </div>
           </Space>
@@ -337,8 +309,8 @@ const GhanaWarehouseDashboardPage = () => {
             <Button onClick={() => navigate('/jobs')}>
               View All Jobs
             </Button>
-            <Button type="primary" onClick={() => navigate('/batches')}>
-              Manage Batches
+            <Button type="primary" onClick={() => navigate('/jobs')}>
+              Manage Jobs
             </Button>
           </Space>
         </Col>
@@ -360,40 +332,42 @@ const GhanaWarehouseDashboardPage = () => {
         ))}
       </Row>
 
-      {/* Job Status Overview */}
+      {/* Workflow Overview */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         <Col xs={24} md={12}>
-          <Card title="Job Status Overview - Ghana Warehouse">
+          <Card title="Items Status - Ghana Warehouse">
             <Space direction="vertical" style={{ width: '100%' }} size="middle">
               <div>
-                <Text>Pending Collection</Text>
+                <Text>Arrived from Ship</Text>
                 <Progress 
-                  percent={((jobStats?.pendingCollection || 0) / (jobStats?.total || 1)) * 100} 
-                  format={() => jobStats?.pendingCollection || 0}
+                  percent={((jobStats?.arrivedFromShip || jobStats?.inTransit || 0) / (jobStats?.total || 1)) * 100} 
+                  format={() => jobStats?.arrivedFromShip || jobStats?.inTransit || 0}
+                  strokeColor="#1890ff"
                 />
               </div>
               <div>
-                <Text>Collected</Text>
-                <Progress 
-                  percent={((jobStats?.collected || 0) / (jobStats?.total || 1)) * 100}
-                  status="active"
-                  format={() => jobStats?.collected || 0}
-                />
-              </div>
-              <div>
-                <Text>At Ghana Warehouse</Text>
+                <Text>Stored at Warehouse</Text>
                 <Progress 
                   percent={((jobStats?.atWarehouse || 0) / (jobStats?.total || 1)) * 100}
+                  status="active"
                   strokeColor="#52c41a"
                   format={() => jobStats?.atWarehouse || 0}
                 />
               </div>
               <div>
-                <Text>Batched</Text>
+                <Text>Ready for Distribution</Text>
                 <Progress 
-                  percent={((jobStats?.batched || 0) / (jobStats?.total || 1)) * 100}
+                  percent={((jobsReadyForDistribution?.count || 0) / (jobStats?.total || 1)) * 100}
                   strokeColor="#722ed1"
-                  format={() => jobStats?.batched || 0}
+                  format={() => jobsReadyForDistribution?.count || 0}
+                />
+              </div>
+              <div>
+                <Text>Being Distributed</Text>
+                <Progress 
+                  percent={((jobStats?.outForDelivery || 0) / (jobStats?.total || 1)) * 100}
+                  strokeColor="#faad14"
+                  format={() => jobStats?.outForDelivery || 0}
                 />
               </div>
             </Space>
@@ -401,72 +375,53 @@ const GhanaWarehouseDashboardPage = () => {
         </Col>
 
         <Col xs={24} md={12}>
-          <Card title="Batch Status Overview - Ghana Warehouse">
-            <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <Card title="Today's Activity - Ghana Warehouse">
+            <Space direction="vertical" style={{ width: '100%' }} size="large">
               <div>
-                <Text>In Preparation</Text>
-                <Progress 
-                  percent={((batchStats?.inPreparation || 0) / (batchStats?.total || 1)) * 100}
-                  format={() => batchStats?.inPreparation || 0}
-                  strokeColor="#faad14"
+                <Statistic
+                  title="Items Processed Today"
+                  value={todayActivity || 0}
+                  prefix={<CheckCircleOutlined />}
+                  valueStyle={{ color: '#1890ff' }}
                 />
               </div>
               <div>
-                <Text>Shipped</Text>
-                <Progress 
-                  percent={((batchStats?.shipped || 0) / (batchStats?.total || 1)) * 100}
-                  format={() => batchStats?.shipped || 0}
-                  strokeColor="#1890ff"
-                />
-              </div>
-              <div>
-                <Text>In Transit</Text>
-                <Progress 
-                  percent={((batchStats?.inTransit || 0) / (batchStats?.total || 1)) * 100}
-                  format={() => batchStats?.inTransit || 0}
-                  strokeColor="#13c2c2"
-                />
-              </div>
-              <div>
-                <Text>Arrived</Text>
-                <Progress 
-                  percent={((batchStats?.arrived || 0) / (batchStats?.total || 1)) * 100}
-                  format={() => batchStats?.arrived || 0}
-                  strokeColor="#52c41a"
-                />
+                <Text type="secondary" style={{ fontSize: '14px' }}>
+                  Items received, stored, or distributed today
+                </Text>
               </div>
             </Space>
           </Card>
         </Col>
       </Row>
 
-      {/* Jobs Ready for Batching */}
+      {/* Items Arrived from Ship */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         <Col xs={24}>
           <Card 
             title={
               <Space>
-                <InboxOutlined />
-                <span>Jobs Ready for Batching - Ghana Warehouse</span>
-                <Tag color="blue">{jobsReadyForBatching?.count || 0}</Tag>
+                <CheckCircleOutlined />
+                <span>Items Arrived from Ship</span>
+                <Tag color="blue">{itemsArrivedFromShip?.count || 0}</Tag>
               </Space>
             }
             extra={
               <Space>
-                <Text>Total Weight: <strong>{jobsReadyForBatching?.totalWeight?.toFixed(2) || 0} kg</strong></Text>
-                <Text>Total Value: <strong>${jobsReadyForBatching?.totalValue?.toFixed(2) || 0}</strong></Text>
+                <Text>Total Weight: <strong>{itemsArrivedFromShip?.totalWeight?.toFixed(2) || 0} kg</strong></Text>
+                <Text>Total Value: <strong>${itemsArrivedFromShip?.totalValue?.toFixed(2) || 0}</strong></Text>
               </Space>
             }
           >
             <ResponsiveTable
-              columns={batchingColumns}
-              dataSource={jobsReadyForBatching?.jobs || []}
+              columns={itemsColumns}
+              dataSource={itemsArrivedFromShip?.jobs || []}
               loading={loading}
               rowKey="id"
               pagination={false}
               size="small"
               locale={{
-                emptyText: 'No jobs ready for batching at Ghana Warehouse'
+                emptyText: 'No items arrived from ship yet'
               }}
               onCardClick={handleViewJob}
             />
@@ -474,19 +429,73 @@ const GhanaWarehouseDashboardPage = () => {
         </Col>
       </Row>
 
-      {/* Jobs at Ghana Warehouse */}
-      <Row gutter={[16, 16]}>
+      {/* Items Ready for Distribution */}
+      <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         <Col xs={24}>
-          <Card title="Jobs at Ghana Warehouse">
+          <Card 
+            title={
+              <Space>
+                <InboxOutlined />
+                <span>Items Ready for Distribution</span>
+                <Tag color="purple">{jobsReadyForDistribution?.count || 0}</Tag>
+              </Space>
+            }
+            extra={
+              <Space>
+                <Text>Total Weight: <strong>{jobsReadyForDistribution?.totalWeight?.toFixed(2) || 0} kg</strong></Text>
+                <Text>Total Value: <strong>${jobsReadyForDistribution?.totalValue?.toFixed(2) || 0}</strong></Text>
+              </Space>
+            }
+          >
             <ResponsiveTable
-              columns={warehouseColumns}
-              dataSource={jobsAtWarehouse || []}
+              columns={itemsColumns}
+              dataSource={jobsReadyForDistribution?.jobs || []}
               loading={loading}
               rowKey="id"
               pagination={false}
               size="small"
               locale={{
-                emptyText: 'No jobs at Ghana Warehouse'
+                emptyText: 'No items ready for distribution'
+              }}
+              onCardClick={handleViewJob}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Items Stored at Warehouse */}
+      <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+        <Col xs={24}>
+          <Card title="Items Stored at Warehouse">
+            <ResponsiveTable
+              columns={storedItemsColumns}
+              dataSource={itemsStoredAtWarehouse || jobsAtWarehouse || []}
+              loading={loading}
+              rowKey="id"
+              pagination={false}
+              size="small"
+              locale={{
+                emptyText: 'No items stored at warehouse'
+              }}
+              onCardClick={handleViewJob}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Items Being Distributed */}
+      <Row gutter={[16, 16]}>
+        <Col xs={24}>
+          <Card title="Items Being Distributed">
+            <ResponsiveTable
+              columns={storedItemsColumns}
+              dataSource={jobsBeingDistributed?.jobs || []}
+              loading={loading}
+              rowKey="id"
+              pagination={false}
+              size="small"
+              locale={{
+                emptyText: 'No items being distributed'
               }}
               onCardClick={handleViewJob}
             />

@@ -399,7 +399,29 @@ exports.sendInvite = asyncHandler(async (req, res) => {
   });
 
   // TODO: Send email with invitation link
-  const inviteLink = `${process.env.FRONTEND_URL}/accept-invite/${token}`;
+  // Use FRONTEND_URL, PRODUCTION_URL, or extract from CORS_ORIGINS, fallback to localhost for development
+  let frontendUrl = process.env.FRONTEND_URL;
+  
+  // If FRONTEND_URL is not set, try PRODUCTION_URL
+  if (!frontendUrl && process.env.PRODUCTION_URL) {
+    frontendUrl = process.env.PRODUCTION_URL;
+  }
+  
+  // If still not set, try to extract from CORS_ORIGINS (first origin)
+  if (!frontendUrl && process.env.CORS_ORIGINS) {
+    const corsOrigins = process.env.CORS_ORIGINS.split(',').map(origin => origin.trim());
+    frontendUrl = corsOrigins[0]; // Use first origin
+  }
+  
+  // Final fallback for development
+  if (!frontendUrl) {
+    frontendUrl = 'http://localhost:3000';
+  }
+  
+  // Ensure URL doesn't have trailing slash
+  frontendUrl = frontendUrl.replace(/\/$/, '');
+  
+  const inviteLink = `${frontendUrl}/accept-invite/${token}`;
 
   return sendSuccess(res, 201, 'Invitation sent successfully', {
     invitation: {

@@ -60,6 +60,7 @@ import { JOB_STATUSES, STATUS_GROUPS, getStatusColor } from '../constants/jobSta
 import { jobAPI, customerAPI, authAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { hasPermission } from '../utils/permissions';
+import { compressFiles } from '../utils/fileCompression';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -172,6 +173,7 @@ const JobsPage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [apiError, setApiError] = useState(null);
   const [stats, setStats] = useState([
     { title: 'Total Jobs', value: 0, color: '#1890ff' },
     { title: 'In Progress', value: 0, color: '#faad14' },
@@ -211,15 +213,20 @@ const JobsPage = () => {
     fetchTeamMembers();
   }, []);
 
-  // Auto-refresh jobs every 30 seconds
+  // Auto-refresh jobs every 120 seconds (2 minutes) to reduce API load
   useEffect(() => {
+    // Don't auto-refresh if there's an API error (rate limit, etc.)
+    if (apiError) return;
+    
     const interval = setInterval(() => {
-      console.log('🔄 Auto-refreshing jobs...');
-      fetchJobs(true); // Silent refresh
-    }, 30000); // 30 seconds
+      if (!apiError) { // Double-check error state before refresh
+        console.log('🔄 Auto-refreshing jobs...');
+        fetchJobs(true); // Silent refresh
+      }
+    }, 120000); // 120 seconds (2 minutes)
 
     return () => clearInterval(interval);
-  }, []);
+  }, [apiError]);
 
   // Open modal automatically if navigated from dashboard with state
   useEffect(() => {
@@ -282,11 +289,23 @@ const JobsPage = () => {
           { title: 'Completed', value: completed, color: '#52c41a' },
           { title: 'Pending', value: pending, color: '#f5222d' },
         ]);
+        // Clear API error on successful fetch
+        setApiError(null);
       }
     } catch (error) {
       console.error('❌ Failed to fetch jobs:', error);
-      if (!silent) {
-        message.error('Failed to load jobs');
+      
+      // Check if it's a rate limit error
+      if (error.message && error.message.includes('Too many requests')) {
+        setApiError('rate_limit');
+        if (!silent) {
+          message.error('Too many requests. Please wait a moment and refresh the page.');
+        }
+      } else {
+        setApiError(null); // Clear error for non-rate-limit issues
+        if (!silent) {
+          message.error('Failed to load jobs');
+        }
       }
       setJobs([]);
     } finally {
@@ -489,25 +508,55 @@ const JobsPage = () => {
       
       // Add documents if any
       if (values.documents && values.documents.fileList && values.documents.fileList.length > 0) {
-        // Convert files to base64 for storage in database
-        const documentPromises = values.documents.fileList.map(file => {
-          return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              resolve({
-                fileName: file.name,
-                fileSize: file.size,
-                mimeType: file.type,
-                fileData: reader.result, // Base64 string
-              });
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(file.originFileObj);
+        try {
+          // Extract original file objects
+          const originalFiles = values.documents.fileList.map(file => file.originFileObj || file);
+          
+          // Show loading message for compression
+          message.loading({ content: 'Compressing files...', key: 'compressing', duration: 0 });
+          
+          // Compress all files to 5MB maximum each
+          const compressedFiles = await compressFiles(originalFiles, 5);
+          
+          // Validate total file size (25MB max total after compression)
+          const maxTotalSize = 25 * 1024 * 1024; // 25MB
+          const totalSize = compressedFiles.reduce((sum, file) => sum + file.size, 0);
+          
+          if (totalSize > maxTotalSize) {
+            message.destroy('compressing');
+            message.error(`Total file size after compression (${(totalSize / 1024 / 1024).toFixed(2)}MB) exceeds maximum allowed size of 25MB. Please upload fewer files.`);
+            setSubmitting(false);
+            return;
+          }
+          
+          message.destroy('compressing');
+          message.success({ content: `Compressed ${compressedFiles.length} file(s) successfully`, key: 'compressing', duration: 2 });
+          
+          // Convert compressed files to base64 for storage in database
+          const documentPromises = compressedFiles.map(file => {
+            return new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                resolve({
+                  fileName: file.name,
+                  fileSize: file.size,
+                  mimeType: file.type,
+                  fileData: reader.result, // Base64 string
+                });
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
           });
-        });
-        
-        jobData.documents = await Promise.all(documentPromises);
-        console.log('📎 Documents to upload:', jobData.documents.length, 'files');
+          
+          jobData.documents = await Promise.all(documentPromises);
+          console.log('📎 Documents to upload:', jobData.documents.length, 'files');
+        } catch (error) {
+          message.destroy('compressing');
+          message.error(error.message || 'Failed to compress files. Please check file sizes and try again.');
+          setSubmitting(false);
+          return;
+        }
       }
 
       // Call API to create job
@@ -615,12 +664,29 @@ const JobsPage = () => {
       });
       
       if (response.ok) {
+        const contentType = response.headers.get('content-type') || document.mimeType || 'application/octet-stream';
+        console.log('📄 Document Content-Type:', contentType);
+        console.log('📄 Document MIME type from DB:', document.mimeType);
+        
         const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        setDocumentUrl(url);
-        console.log('✅ Document loaded successfully');
+        console.log('📄 Blob created:', { type: blob.type, size: blob.size });
+        
+        // Ensure blob has correct MIME type (in case response header was wrong)
+        if (blob.type === 'application/octet-stream' && contentType !== 'application/octet-stream') {
+          // Recreate blob with correct MIME type
+          const blobWithType = new Blob([blob], { type: contentType });
+          const url = window.URL.createObjectURL(blobWithType);
+          setDocumentUrl(url);
+          console.log('✅ Document loaded with corrected MIME type:', contentType);
+        } else {
+          const url = window.URL.createObjectURL(blob);
+          setDocumentUrl(url);
+          console.log('✅ Document loaded successfully');
+        }
       } else {
-        message.error('Failed to load document');
+        const errorText = await response.text();
+        console.error('❌ Failed to load document:', response.status, errorText);
+        message.error(`Failed to load document: ${response.status}`);
         setDocumentModalVisible(false);
       }
     } catch (error) {
@@ -1230,8 +1296,21 @@ const JobsPage = () => {
           <Form.Item
             name="documents"
             label="Upload Documents (Optional)"
+            extra="Files will be automatically compressed to 5MB maximum each. Images are compressed automatically. PDFs and other files must be under 5MB. Maximum 5 files, 25MB total."
           >
-            <Upload beforeUpload={() => false}>
+            <Upload 
+              beforeUpload={(file) => {
+                // Allow all files - compression will happen during submission
+                // Just validate that it's not extremely large (e.g., over 50MB)
+                const absoluteMaxSize = 50 * 1024 * 1024; // 50MB absolute max
+                if (file.size > absoluteMaxSize) {
+                  message.error(`${file.name} is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum allowed is 50MB. Files will be compressed to 5MB during upload.`);
+                  return Upload.LIST_IGNORE;
+                }
+                return false; // Prevent auto upload
+              }}
+              maxCount={5}
+            >
               <Button icon={<UploadOutlined />}>Upload Files</Button>
             </Upload>
           </Form.Item>
