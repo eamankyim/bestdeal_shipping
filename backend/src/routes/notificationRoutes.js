@@ -2,6 +2,10 @@ const express = require('express');
 const router = express.Router();
 const notificationController = require('../controllers/notificationController');
 const { authenticate } = require('../middleware/auth');
+const { notificationLimiter } = require('../middleware/rateLimiter');
+
+// Apply notification rate limiter to all notification routes
+router.use(notificationLimiter);
 
 // All notification routes require authentication
 router.use(authenticate);

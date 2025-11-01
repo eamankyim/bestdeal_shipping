@@ -55,6 +55,7 @@ const { TextArea } = Input;
 const BatchManagementPage = () => {
   const { currentUser } = useAuth();
   const canViewRevenue = hasPermission(currentUser, 'financial:view');
+  const isGhanaWarehouse = currentUser?.role === 'warehouse' && currentUser?.warehouseLocation === 'Ghana Warehouse';
   const [batchModalVisible, setBatchModalVisible] = useState(false);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(null);
@@ -98,16 +99,19 @@ const BatchManagementPage = () => {
     fetchBatches();
   }, []);
 
-  // Auto-refresh jobs and batches every 30 seconds
+  // Auto-refresh jobs and batches every 120 seconds (2 minutes) to reduce API load
   useEffect(() => {
+    // Don't auto-refresh if there's an error (rate limit, etc.)
+    if (loading || loadingBatches) return;
+    
     const interval = setInterval(() => {
       console.log('🔄 Auto-refreshing batch jobs and batches...');
       fetchAvailableJobs();
       fetchBatches();
-    }, 30000); // 30 seconds
+    }, 120000); // 120 seconds (2 minutes)
 
     return () => clearInterval(interval);
-  }, []);
+  }, [loading, loadingBatches]);
 
   const fetchAvailableJobs = async () => {
     setLoading(true);
@@ -349,6 +353,11 @@ const BatchManagementPage = () => {
   ];
 
   const handleCreateBatch = () => {
+    // Prevent Ghana Warehouse users from creating batches
+    if (isGhanaWarehouse) {
+      message.warning('Ghana Warehouse users cannot create batches. This page is view-only.');
+      return;
+    }
     setSelectedBatch(null);
     setSelectedParcels([]);
     batchForm.resetFields();
@@ -361,6 +370,11 @@ const BatchManagementPage = () => {
   };
 
   const handleEditBatch = (batch) => {
+    // Prevent Ghana Warehouse users from editing batches
+    if (isGhanaWarehouse) {
+      message.warning('Ghana Warehouse users cannot edit batches. This page is view-only.');
+      return;
+    }
     setSelectedBatch(batch);
     setSelectedParcels(batch.jobs?.map(j => j.key) || []);
     
@@ -516,17 +530,27 @@ const BatchManagementPage = () => {
       label: 'Batch Management',
       children: (
         <div>
-          <div style={{ marginBottom: '16px', textAlign: 'right' }} className="create-batch-button-container">
-            <Button 
-              type="primary" 
-              icon={<PlusOutlined />}
-              onClick={handleCreateBatch}
-              size="large"
-              className="create-batch-button-mobile"
-            >
-              Create New Batch
-            </Button>
-          </div>
+          {/* Hide batch creation for Ghana Warehouse users */}
+          {!isGhanaWarehouse && (
+            <div style={{ marginBottom: '16px', textAlign: 'right' }} className="create-batch-button-container">
+              <Button 
+                type="primary" 
+                icon={<PlusOutlined />}
+                onClick={handleCreateBatch}
+                size="large"
+                className="create-batch-button-mobile"
+              >
+                Create New Batch
+              </Button>
+            </div>
+          )}
+          {isGhanaWarehouse && (
+            <div style={{ marginBottom: '16px', padding: '12px', background: '#f0f0f0', borderRadius: '4px' }}>
+              <Text type="secondary" style={{ fontSize: '14px' }}>
+                <EyeOutlined /> View-only mode: Ghana Warehouse users can view batches but cannot create or edit them.
+              </Text>
+            </div>
+          )}
           <ResponsiveTable
             columns={batchColumns}
             dataSource={batches}
@@ -562,16 +586,17 @@ const BatchManagementPage = () => {
         />
       </Card>
 
-      {/* Create/Edit Batch Modal */}
-      <Modal
-        title={selectedBatch ? `Edit Batch - ${selectedBatch.batchId}` : 'Create New Batch'}
-        open={batchModalVisible}
-        onCancel={() => {
-          setBatchModalVisible(false);
-          setSelectedParcels([]);
-        }}
-        footer={null}
-        width={1000}
+      {/* Create/Edit Batch Modal - Hidden for Ghana Warehouse users */}
+      {!isGhanaWarehouse && (
+        <Modal
+          title={selectedBatch ? `Edit Batch - ${selectedBatch.batchId}` : 'Create New Batch'}
+          open={batchModalVisible}
+          onCancel={() => {
+            setBatchModalVisible(false);
+            setSelectedParcels([]);
+          }}
+          footer={null}
+          width={1000}
         styles={{ 
           body: {
             maxHeight: '75vh', 
@@ -746,7 +771,8 @@ const BatchManagementPage = () => {
             </Space>
           </Form.Item>
         </Form>
-      </Modal>
+        </Modal>
+      )}
 
       {/* Batch Details Side Drawer */}
       <Drawer
@@ -757,7 +783,7 @@ const BatchManagementPage = () => {
         width={800}
         className="user-details-drawer"
         extra={
-          selectedBatch && (
+          selectedBatch && !isGhanaWarehouse && (
             <Space>
               {/* In Preparation → Show Ship and Edit buttons */}
               {selectedBatch.status === 'In Preparation' && (

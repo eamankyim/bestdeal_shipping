@@ -21,14 +21,14 @@ const NotificationBell = () => {
     fetchNotifications();
   }, []);
 
-  // Auto-refresh notifications every 30 seconds
+  // Auto-refresh notifications every 60 seconds (1 minute) to reduce API load
   useEffect(() => {
     const interval = setInterval(() => {
       fetchUnreadCount();
       if (dropdownVisible) {
         fetchNotifications();
       }
-    }, 30000);
+    }, 60000); // 60 seconds (1 minute) - reduced from 30 seconds
 
     return () => clearInterval(interval);
   }, [dropdownVisible]);

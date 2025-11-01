@@ -102,56 +102,35 @@ const notifyJobCreated = async (job, creatorId) => {
 
 /**
  * Notify when job status changes
+ * Notifies ALL active users in the system
  */
 const notifyJobStatusChange = async (job, newStatus, updaterId) => {
   const notifications = [];
 
-  // Notify assigned driver
-  if (job.assignedDriverId && job.assignedDriverId !== updaterId) {
+  // Format status for display (convert snake_case or camelCase to Title Case)
+  const statusLabel = newStatus
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, l => l.toUpperCase());
+
+  // Notify ALL active users (except the updater)
+  const allUsers = await prisma.user.findMany({
+    where: {
+      active: true,
+      id: { not: updaterId }, // Don't notify the user who made the update
+    },
+    select: { id: true },
+  });
+
+  allUsers.forEach(user => {
     notifications.push({
-      userId: job.assignedDriverId,
+      userId: user.id,
       type: 'job_status',
       title: 'Job Status Updated',
-      message: `Job ${job.trackingId} status changed to: ${newStatus}`,
+      message: `Job ${job.trackingId} status changed to: ${statusLabel}`,
       relatedEntityType: 'job',
       relatedEntityId: job.id,
     });
-  }
-
-  // Notify assigned delivery agent
-  if (job.assignedDeliveryAgentId && job.assignedDeliveryAgentId !== updaterId) {
-    notifications.push({
-      userId: job.assignedDeliveryAgentId,
-      type: 'job_status',
-      title: 'Job Status Updated',
-      message: `Job ${job.trackingId} status changed to: ${newStatus}`,
-      relatedEntityType: 'job',
-      relatedEntityId: job.id,
-    });
-  }
-
-  // Notify admins and customer service for certain status changes
-  if (['Delivered', 'Cancelled', 'At Warehouse'].includes(newStatus)) {
-    const adminUsers = await prisma.user.findMany({
-      where: {
-        role: { in: ['admin', 'superadmin', 'warehouse', 'customer-service'] },
-        active: true,
-        id: { not: updaterId },
-      },
-      select: { id: true },
-    });
-
-    adminUsers.forEach(user => {
-      notifications.push({
-        userId: user.id,
-        type: 'job_status',
-        title: `Job ${newStatus}`,
-        message: `Job ${job.trackingId} has been marked as ${newStatus}`,
-        relatedEntityType: 'job',
-        relatedEntityId: job.id,
-      });
-    });
-  }
+  });
 
   if (notifications.length > 0) {
     await createBulkNotifications(notifications);
@@ -180,26 +159,26 @@ const notifyDriverAssignment = async (job, driverId, assignerId) => {
 
 /**
  * Notify when batch is created
+ * Notifies ALL active users in the system
  */
 const notifyBatchCreated = async (batch, creatorId) => {
   const notifications = [];
 
-  // Notify all admins, warehouse staff, and customer service
-  const users = await prisma.user.findMany({
+  // Notify ALL active users (except the creator)
+  const allUsers = await prisma.user.findMany({
     where: {
-      role: { in: ['admin', 'superadmin', 'warehouse', 'customer-service'] },
       active: true,
-      id: { not: creatorId },
+      id: { not: creatorId }, // Don't notify the user who created the batch
     },
     select: { id: true },
   });
 
-  users.forEach(user => {
+  allUsers.forEach(user => {
     notifications.push({
       userId: user.id,
       type: 'system',
       title: 'New Batch Created',
-      message: `Batch ${batch.batchId} created with ${batch.totalJobs} jobs`,
+      message: `Batch ${batch.batchId} created with ${batch.totalJobs || batch.jobs?.length || 0} jobs`,
       relatedEntityType: 'batch',
       relatedEntityId: batch.id,
     });

@@ -23,7 +23,6 @@ import {
   Upload
 } from 'antd';
 import { 
-  PlusOutlined, 
   UserOutlined, 
   MailOutlined, 
   PhoneOutlined,
@@ -417,11 +416,6 @@ const AdminDashboardPage = () => {
     }
   };
 
-  const handleInviteTeamMember = () => {
-    // This will be handled by the InviteManagement component
-    message.info('Use the Invite Management tab to send invitations');
-  };
-
   const tabItems = [
     {
       key: 'profile',
@@ -713,18 +707,6 @@ const AdminDashboardPage = () => {
       label: 'Team Members',
       children: (
         <div>
-          {(currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && (
-            <div style={{ marginBottom: '16px', textAlign: 'right' }}>
-              <Button 
-                type="primary" 
-                icon={<PlusOutlined />}
-                onClick={handleInviteTeamMember}
-                style={{ width: 'auto' }}
-              >
-                Invite Team Member
-              </Button>
-            </div>
-          )}
           <ResponsiveTable
             columns={userColumns}
             dataSource={users}
