@@ -18,13 +18,15 @@ jobs:
           CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
           PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
           FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+          BACKEND_PORT: ${{ secrets.BACKEND_PORT }}
+          FRONTEND_PORT: ${{ secrets.FRONTEND_PORT }}
 
         with:
           host: ${{ secrets.PRODUCTION_HOST }}
           username: ${{ secrets.PRODUCTION_USERNAME }}
           key: ${{ secrets.PRODUCTION_SSH_KEY }}
           script_stop: true
-          envs: DB_PASSWORD,JWT_SECRET,JWT_REFRESH_SECRET,CORS_ORIGINS,PRODUCTION_URL,FRONTEND_URL
+          envs: DB_PASSWORD,JWT_SECRET,JWT_REFRESH_SECRET,CORS_ORIGINS,PRODUCTION_URL,FRONTEND_URL,BACKEND_PORT,FRONTEND_PORT
           script: |
             set -e
             cd /root/bestdeal_shipping
@@ -36,10 +38,16 @@ jobs:
             echo "DB_PASSWORD=$DB_PASSWORD" >> .env
             echo "JWT_SECRET=$JWT_SECRET" >> .env
             echo "JWT_REFRESH_SECRET=$JWT_REFRESH_SECRET" >> .env
-            echo "REACT_APP_API_URL=http://localhost:5000" >> .env
+            echo "REACT_APP_API_URL=http://localhost:$BACKEND_PORT" >> .env
+            echo "PORT=$FRONTEND_PORT" >> .env
             echo "CORS_ORIGINS=$CORS_ORIGINS" >> .env
             echo "PRODUCTION_URL=$PRODUCTION_URL" >> .env
             echo "FRONTEND_URL=$FRONTEND_URL" >> .env
+            # Set frontend .env
+            mkdir -p frontend
+            echo "PORT=$FRONTEND_PORT" >> frontend/.env
+            echo "REACT_APP_API_URL=http://localhost:$BACKEND_PORT" >> frontend/.env
+            echo "REACT_APP_API_BASE_PATH=/api" >> frontend/.env
             docker-compose -f docker-compose.prod.yml down --remove-orphans || true
             docker system prune -af || true
             docker-compose -f docker-compose.prod.yml build --no-cache --pull
