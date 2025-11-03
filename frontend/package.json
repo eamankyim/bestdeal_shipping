@@ -28,7 +28,9 @@
     "build": "craco build",
     "test": "craco test",
     "eject": "react-scripts eject",
-    "render-start": "node server.js"
+    "render-start": "node server.js",
+    "check-port": "node check-port.js",
+    "check-port:custom": "node check-port.js"
   },
   "eslintConfig": {
     "extends": [
