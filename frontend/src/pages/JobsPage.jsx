@@ -52,15 +52,23 @@ import {
   MailOutlined,
   PhoneOutlined,
   HomeOutlined,
-  FileTextOutlined
+  FileTextOutlined,
+  UndoOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
+import dayjs from 'dayjs';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 import { JOB_STATUSES, STATUS_GROUPS, getStatusColor } from '../constants/jobStatuses';
 import { jobAPI, customerAPI, authAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { hasPermission } from '../utils/permissions';
 import { compressFiles } from '../utils/fileCompression';
+import CountryCodePicker from '../components/common/CountryCodePicker';
+import DropdownWithOther from '../components/common/DropdownWithOther';
+import { FREIGHT_TYPES, PRIORITY_LEVELS } from '../utils/countryCodes';
+import StatusUpdateModal from '../components/jobs/StatusUpdateModal';
+import PaymentRecordingModal from '../components/jobs/PaymentRecordingModal';
+import StatusRevertModal from '../components/jobs/StatusRevertModal';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -158,11 +166,13 @@ const JobsPage = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [isStatusUpdateModalVisible, setIsStatusUpdateModalVisible] = useState(false);
+  const [isPaymentModalVisible, setIsPaymentModalVisible] = useState(false);
+  const [isRevertStatusModalVisible, setIsRevertStatusModalVisible] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
+  const [editingJobId, setEditingJobId] = useState(null);
   const [customerType, setCustomerType] = useState('existing'); // 'existing' or 'new'
   const [statusFilter, setStatusFilter] = useState(null); // Status filter
   const [form] = Form.useForm();
-  const [statusUpdateForm] = Form.useForm();
 
   const [jobs, setJobs] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -469,23 +479,30 @@ const JobsPage = () => {
       
       // Prepare job data
       const jobData = {
+        referenceNumber: values.referenceNumber, // New: reference number
         pickupAddress: values.pickupAddress,
         deliveryAddress: values.deliveryAddress,
         pickupDate: values.pickupDate ? values.pickupDate.toISOString() : null,
+        // Receiver information (new)
+        receiverName: values.receiverName,
+        receiverAddress: values.receiverAddress,
+        receiverContact: values.receiverContact,
         parcelDetails: {
           description: values.description,
-          weight: values.weight,
-          dimensions: {
+          // Weight for air freight, dimensions for sea freight
+          weight: values.freightType === 'Air Freight' ? values.weight : null,
+          dimensions: values.freightType === 'Sea Freight' ? {
             length: values.length,
             width: values.width,
             height: values.height,
-          },
+          } : null,
           quantity: values.quantity || 1,
-          value: values.value,
+          estimatedPrice: values.estimatedPrice, // Changed from 'value' to 'estimatedPrice', optional
         },
         specialInstructions: values.specialInstructions,
         priority: values.priority || 'Standard',
         assignedDriverId: values.assignedTo || null,
+        status: values.saveAsDraft ? 'Draft' : 'Pending Collection', // New: draft option
       };
 
       // If creating a new customer
@@ -493,7 +510,7 @@ const JobsPage = () => {
         const newCustomer = {
           name: values.customerName,
           email: values.customerEmail,
-          phone: values.customerPhone,
+          phone: `${values.customerCountryCode || '+44'}${values.customerPhone}`, // Include country code
           address: values.customerAddress,
           customerType: values.customerType || 'Individual',
         };
@@ -504,6 +521,11 @@ const JobsPage = () => {
         // Use existing customer
         jobData.customerId = values.customerId;
         console.log('📦 Creating job with existing customer:', jobData);
+      }
+      
+      // Include receiver contact with country code if provided
+      if (values.receiverContact && values.receiverCountryCode) {
+        jobData.receiverContact = `${values.receiverCountryCode}${values.receiverContact}`;
       }
       
       // Add documents if any
@@ -559,25 +581,35 @@ const JobsPage = () => {
         }
       }
 
-      // Call API to create job
-      const response = await jobAPI.create(jobData);
+      // Call API to create or update job
+      let response;
+      if (editingJobId) {
+        response = await jobAPI.update(editingJobId, jobData);
+      } else {
+        response = await jobAPI.create(jobData);
+      }
       
       if (response.success) {
-        message.success(`Job created successfully! Tracking ID: ${response.data.job?.trackingId || 'N/A'}`);
-        
-        // Broadcast new job to other tabs
-        const channel = new BroadcastChannel('job_updates');
-        channel.postMessage({
-          type: 'JOB_CREATED',
-          jobId: response.data.job?.id,
-          trackingId: response.data.job?.trackingId,
-          timestamp: new Date().toISOString()
-        });
-        channel.close();
+        if (editingJobId) {
+          message.success(`Job updated successfully!`);
+        } else {
+          message.success(`Job created successfully! Tracking ID: ${response.data.job?.trackingId || 'N/A'}`);
+          
+          // Broadcast new job to other tabs
+          const channel = new BroadcastChannel('job_updates');
+          channel.postMessage({
+            type: 'JOB_CREATED',
+            jobId: response.data.job?.id,
+            trackingId: response.data.job?.trackingId,
+            timestamp: new Date().toISOString()
+          });
+          channel.close();
+        }
         
         setIsModalVisible(false);
         form.resetFields();
         setCustomerType('existing');
+        setEditingJobId(null);
         
         // Refresh jobs list
         await fetchJobs();
@@ -587,7 +619,7 @@ const JobsPage = () => {
           await fetchCustomers();
         }
       } else {
-        message.error(response.message || 'Failed to create job');
+        message.error(response.message || (editingJobId ? 'Failed to update job' : 'Failed to create job'));
       }
     } catch (error) {
       if (error.name === 'ValidationError') {
@@ -605,6 +637,7 @@ const JobsPage = () => {
     setIsModalVisible(false);
     form.resetFields();
     setCustomerType('existing');
+    setEditingJobId(null);
   };
 
   const handleCustomerTypeChange = (e) => {
@@ -708,7 +741,7 @@ const JobsPage = () => {
     }
   };
 
-  const handleUpdateJobStatus = async (status, notes = '') => {
+  const handleUpdateJobStatus = async (status, notes = '', document = null) => {
     if (!selectedJob) return;
     
     setUpdatingStatus(true);
@@ -719,31 +752,77 @@ const JobsPage = () => {
       
       message.loading({ content: `Updating status to ${statusLabel}...`, key: 'statusUpdate' });
       
-      const response = await jobAPI.updateStatus(selectedJob.id, { 
-        status, 
-        notes: notes || `Status updated to ${statusLabel}` 
-      });
-      
-      if (response.success) {
-        message.success({ content: `Job marked as ${statusLabel}`, key: 'statusUpdate', duration: 2 });
+      // Prepare form data if document is provided
+      let requestData;
+      if (document) {
+        const formData = new FormData();
+        formData.append('status', status);
+        if (notes) formData.append('notes', notes);
+        formData.append('document', document);
         
-        // Broadcast update to other tabs
-        const channel = new BroadcastChannel('job_updates');
-        channel.postMessage({
-          type: 'JOB_STATUS_UPDATED',
-          jobId: selectedJob.id,
-          newStatus: status,
-          timestamp: new Date().toISOString()
+        // Use fetch directly for multipart/form-data
+        const token = localStorage.getItem('shipease_token');
+        const apiUrl = `${process.env.REACT_APP_API_URL}${process.env.REACT_APP_API_BASE_PATH}/jobs/${selectedJob.id}/status`;
+        
+        const response = await fetch(apiUrl, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
         });
-        channel.close();
         
-        // Refresh job details
-        await handleViewJob({ id: selectedJob.id });
+        const data = await response.json();
         
-        // Refresh jobs list
-        await fetchJobs();
+        if (data.success) {
+          message.success({ content: `Job marked as ${statusLabel}`, key: 'statusUpdate', duration: 2 });
+          
+          // Broadcast update to other tabs
+          const channel = new BroadcastChannel('job_updates');
+          channel.postMessage({
+            type: 'JOB_STATUS_UPDATED',
+            jobId: selectedJob.id,
+            newStatus: status,
+            timestamp: new Date().toISOString()
+          });
+          channel.close();
+          
+          // Refresh job details
+          await handleViewJob({ id: selectedJob.id });
+          
+          // Refresh jobs list
+          await fetchJobs();
+        } else {
+          message.error({ content: data.message || 'Failed to update status', key: 'statusUpdate', duration: 3 });
+        }
       } else {
-        message.error({ content: response.message || 'Failed to update status', key: 'statusUpdate', duration: 3 });
+        // Regular JSON request without document
+        const response = await jobAPI.updateStatus(selectedJob.id, { 
+          status, 
+          notes: notes || `Status updated to ${statusLabel}` 
+        });
+        
+        if (response.success) {
+          message.success({ content: `Job marked as ${statusLabel}`, key: 'statusUpdate', duration: 2 });
+          
+          // Broadcast update to other tabs
+          const channel = new BroadcastChannel('job_updates');
+          channel.postMessage({
+            type: 'JOB_STATUS_UPDATED',
+            jobId: selectedJob.id,
+            newStatus: status,
+            timestamp: new Date().toISOString()
+          });
+          channel.close();
+          
+          // Refresh job details
+          await handleViewJob({ id: selectedJob.id });
+          
+          // Refresh jobs list
+          await fetchJobs();
+        } else {
+          message.error({ content: response.message || 'Failed to update status', key: 'statusUpdate', duration: 3 });
+        }
       }
     } catch (error) {
       console.error('❌ Failed to update status:', error);
@@ -753,22 +832,63 @@ const JobsPage = () => {
     }
   };
 
-  const getNextStatusOptions = (currentStatus) => {
+  const getNextStatusOptions = (currentStatus, userRole = null) => {
     const statusFlow = {
       'pending': ['assigned'],
-      'assigned': ['collected'],
-      'collected': ['in_transit'],
-      'in_transit': ['arrived_at_warehouse'],
-      'arrived_at_warehouse': ['batched'],
+      'assigned': ['collected', 'collection_failed'], // Added collection_failed
+      'collected': ['arrived_at_warehouse'], // Only warehouse staff can update to this
+      'collection_failed': ['assigned'], // Can retry collection
+      'arrived_at_warehouse': ['batched'], // Only warehouse staff can update to this
       'batched': ['shipped'],
-      'shipped': ['out_for_delivery'],
+      'shipped': ['arrived_at_destination', 'ready_for_delivery'],
+      'arrived_at_destination': ['ready_for_delivery'],
+      'ready_for_delivery': ['out_for_delivery'], // New status
       'out_for_delivery': ['delivered', 'failed_delivery'],
       'failed_delivery': ['out_for_delivery'],
       'delivered': [],
       'cancelled': [],
+      'draft': ['pending'], // Draft can be activated
     };
     
-    return statusFlow[currentStatus] || [];
+    let nextStatuses = statusFlow[currentStatus] || [];
+    
+    // Filter statuses based on user role
+    if (userRole) {
+      // Drivers can only update to "collected" or "collection_failed"
+      // They cannot update to "arrived_at_warehouse" - that's for warehouse staff only
+      if (userRole === 'driver') {
+        nextStatuses = nextStatuses.filter(status => 
+          status !== 'arrived_at_warehouse' && 
+          status !== 'batched' && 
+          status !== 'shipped'
+        );
+      }
+      
+      // Warehouse staff can update to "arrived_at_warehouse" and "batched"
+      // But not delivery-related statuses
+      if (userRole === 'warehouse' || userRole === 'warehouse_staff') {
+        // Warehouse staff can handle warehouse-related statuses
+        // They can't update delivery statuses (that's for delivery agents)
+        nextStatuses = nextStatuses.filter(status => 
+          status !== 'out_for_delivery' && 
+          status !== 'delivered' && 
+          status !== 'failed_delivery'
+        );
+      }
+      
+      // Delivery agents can only handle delivery-related statuses
+      if (userRole === 'delivery-agent' || userRole === 'delivery_agent') {
+        nextStatuses = nextStatuses.filter(status => 
+          status !== 'arrived_at_warehouse' && 
+          status !== 'batched' && 
+          status !== 'shipped' &&
+          status !== 'collected' &&
+          status !== 'collection_failed'
+        );
+      }
+    }
+    
+    return nextStatuses;
   };
 
   const handleCancelJob = async () => {
@@ -806,13 +926,44 @@ const JobsPage = () => {
     });
   };
 
-  const handleEditJob = (job) => {
-    form.setFieldsValue({
-      customerName: job.customer,
-      pickupAddress: job.pickupAddress,
-      deliveryAddress: job.deliveryAddress,
-    });
-    setIsModalVisible(true);
+  const handleEditJob = async (job) => {
+    try {
+      // Fetch full job details
+      const response = await jobAPI.getById(job.id);
+      if (response.success && response.data) {
+        const jobData = response.data.job;
+        
+        // Set form values for editing
+        form.setFieldsValue({
+          referenceNumber: jobData.referenceNumber,
+          customerId: jobData.customer?.id,
+          pickupAddress: jobData.pickupAddress,
+          deliveryAddress: jobData.deliveryAddress,
+          pickupDate: jobData.pickupDate ? dayjs(jobData.pickupDate) : null,
+          receiverName: jobData.receiverName,
+          receiverAddress: jobData.receiverAddress,
+          receiverContact: jobData.receiverContact?.replace(/^\+\d+/, '') || '',
+          receiverCountryCode: jobData.receiverContact?.match(/^\+\d+/)?.[0] || '+44',
+          freightType: jobData.weight ? 'Air Freight' : 'Sea Freight',
+          weight: jobData.weight,
+          length: jobData.dimensions?.length,
+          width: jobData.dimensions?.width,
+          height: jobData.dimensions?.height,
+          estimatedPrice: jobData.estimatedPrice || jobData.value,
+          description: jobData.description,
+          priority: jobData.priority || 'Standard',
+          assignedTo: jobData.assignedDriverId,
+          specialInstructions: jobData.specialInstructions,
+        });
+        
+        setCustomerType('existing');
+        setEditingJobId(job.id);
+        setIsModalVisible(true);
+      }
+    } catch (error) {
+      console.error('Failed to load job for editing:', error);
+      message.error('Failed to load job details');
+    }
   };
 
   const handleDeleteJob = (job) => {
@@ -820,29 +971,81 @@ const JobsPage = () => {
     message.info('Backend API not yet implemented');
   };
 
-  const handleStatusUpdate = () => {
+  const handleStatusUpdate = (status) => {
     setIsStatusUpdateModalVisible(true);
-    statusUpdateForm.resetFields();
+    setStatusUpdateStatus(status);
   };
 
-  const handleStatusUpdateOk = async () => {
-    try {
-      const values = await statusUpdateForm.validateFields();
-      console.log('Status update values:', values);
-      // TODO: Replace with API call
-      message.info('Backend API not yet implemented');
-      setIsStatusUpdateModalVisible(false);
-      statusUpdateForm.resetFields();
-      setIsDetailsDrawerVisible(false);
-    } catch (error) {
-      console.error('Status update validation failed:', error);
+  const handleStatusUpdateOk = async (updateData) => {
+    const { status, comment, document, reassignTo } = updateData;
+    
+    // If reassignment is requested, assign the job first
+    if (reassignTo !== null && reassignTo !== undefined) {
+      try {
+        await jobAPI.assignDriver(selectedJob.id, reassignTo);
+        message.success('Job reassigned successfully');
+      } catch (error) {
+        message.error('Failed to reassign job');
+        console.error('Reassignment error:', error);
+      }
     }
+    
+    await handleUpdateJobStatus(status, comment, document);
+    setIsStatusUpdateModalVisible(false);
   };
 
   const handleStatusUpdateCancel = () => {
     setIsStatusUpdateModalVisible(false);
-    statusUpdateForm.resetFields();
   };
+
+  const handleRecordPayment = async (paymentData) => {
+    try {
+      // Call API to record payment
+      const response = await jobAPI.recordPayment(selectedJob.id, paymentData);
+      
+      if (response.success) {
+        message.success('Payment recorded successfully!');
+        setIsPaymentModalVisible(false);
+        // Refresh job details
+        await handleViewJob({ id: selectedJob.id });
+        // Refresh jobs list
+        await fetchJobs();
+      } else {
+        message.error(response.message || 'Failed to record payment');
+      }
+    } catch (error) {
+      console.error('Failed to record payment:', error);
+      message.error(error.message || 'Failed to record payment');
+    }
+  };
+
+  const handleRevertStatus = async (revertData) => {
+    try {
+      const { previousStatus, comment } = revertData;
+      
+      // Call API to revert status
+      const response = await jobAPI.revertStatus(selectedJob.id, {
+        previousStatus,
+        comment,
+      });
+      
+      if (response.success) {
+        message.success('Job status reverted successfully!');
+        setIsRevertStatusModalVisible(false);
+        // Refresh job details
+        await handleViewJob({ id: selectedJob.id });
+        // Refresh jobs list
+        await fetchJobs();
+      } else {
+        message.error(response.message || 'Failed to revert status');
+      }
+    } catch (error) {
+      console.error('Failed to revert status:', error);
+      message.error(error.message || 'Failed to revert status');
+    }
+  };
+  
+  const [statusUpdateStatus, setStatusUpdateStatus] = useState(null);
 
   return (
     <div>
@@ -967,13 +1170,33 @@ const JobsPage = () => {
 
       {/* New Job Modal */}
       <Modal
-        title="Create New Job"
+        title={editingJobId ? "Edit Job" : "Create New Job"}
         visible={isModalVisible}
         onOk={handleModalOk}
         onCancel={handleModalCancel}
         confirmLoading={submitting}
         width={window.innerWidth <= 768 ? '95%' : 800}
-        okText={submitting ? "Creating Job..." : "Create Job"}
+        okText={submitting ? (editingJobId ? "Updating Job..." : "Creating Job...") : (editingJobId ? "Update Job" : "Create Job")}
+        footer={(_, { OkBtn, CancelBtn }) => (
+          <>
+            <CancelBtn />
+            <Button 
+              onClick={async () => {
+                try {
+                  const values = await form.validateFields();
+                  form.setFieldsValue({ saveAsDraft: true });
+                  await handleModalOk();
+                } catch (error) {
+                  console.error('Validation failed:', error);
+                }
+              }}
+              loading={submitting}
+            >
+              Save as Draft
+            </Button>
+            <OkBtn />
+          </>
+        )}
         cancelText="Cancel"
         styles={{ 
           body: {
@@ -991,6 +1214,10 @@ const JobsPage = () => {
             fragile: false,
             insurance: false,
             customerCountry: 'United Kingdom',
+            customerCountryCode: '+44',
+            receiverCountryCode: '+44',
+            freightType: 'Air Freight',
+            saveAsDraft: false,
           }}
         >
           {/* Customer Selection */}
@@ -1046,7 +1273,10 @@ const JobsPage = () => {
                       label="Email Address"
                       rules={[
                         { required: true, message: 'Please enter email!' },
-                        { type: 'email', message: 'Please enter a valid email!' }
+                        { 
+                          pattern: /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, 
+                          message: 'Please enter a valid email! (Double dots allowed)' 
+                        }
                       ]}
                     >
                       <Input placeholder="Enter email address" />
@@ -1056,6 +1286,15 @@ const JobsPage = () => {
                 <Row gutter={16}>
                   <Col xs={24} sm={12}>
                     <Form.Item
+                      name="customerCountryCode"
+                      label="Country Code"
+                      initialValue="+44"
+                    >
+                      <CountryCodePicker />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} sm={12}>
+                    <Form.Item
                       name="customerPhone"
                       label="Phone Number"
                       rules={[{ required: true, message: 'Please enter phone!' }]}
@@ -1063,6 +1302,8 @@ const JobsPage = () => {
                       <Input placeholder="Enter phone number" />
                     </Form.Item>
                   </Col>
+                </Row>
+                <Row gutter={16}>
                   <Col xs={24} sm={12}>
                     <Form.Item
                       name="customerCity"
@@ -1116,6 +1357,18 @@ const JobsPage = () => {
           {/* Job Details */}
           <Card size="small" title="Job Details" style={{ marginBottom: 16 }}>
             <Row gutter={16}>
+              <Col xs={24}>
+                <Form.Item
+                  name="referenceNumber"
+                  label="Reference Number *"
+                  rules={[{ required: true, message: 'Please enter reference number!' }]}
+                  tooltip="This is the key identifier for this job"
+                >
+                  <Input placeholder="Enter reference number" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
               <Col xs={24} sm={12}>
                 <Form.Item
                   name="pickupAddress"
@@ -1132,6 +1385,46 @@ const JobsPage = () => {
                   rules={[{ required: true, message: 'Please enter delivery address!' }]}
                 >
                   <TextArea rows={2} placeholder="Enter delivery address" />
+                </Form.Item>
+              </Col>
+            </Row>
+            
+            {/* Receiver Information */}
+            <Divider>Receiver Information (Optional)</Divider>
+            <Row gutter={16}>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  name="receiverName"
+                  label="Receiver Name"
+                >
+                  <Input placeholder="Enter receiver name" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  name="receiverAddress"
+                  label="Receiver Address"
+                >
+                  <TextArea rows={2} placeholder="Enter receiver address" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  name="receiverCountryCode"
+                  label="Receiver Country Code"
+                  initialValue="+44"
+                >
+                  <CountryCodePicker />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  name="receiverContact"
+                  label="Receiver Contact"
+                >
+                  <Input placeholder="Enter receiver phone number" />
                 </Form.Item>
               </Col>
             </Row>
@@ -1165,11 +1458,10 @@ const JobsPage = () => {
                   initialValue="Standard"
                   rules={[{ required: true, message: 'Please select priority!' }]}
                 >
-                  <Select>
-                    <Option value="Standard">Standard</Option>
-                    <Option value="Express">Express</Option>
-                    <Option value="Urgent">Urgent</Option>
-                  </Select>
+                  <DropdownWithOther
+                    options={['Standard', 'Express', 'Urgent']}
+                    placeholder="Select priority"
+                  />
                 </Form.Item>
               </Col>
               <Col xs={24} sm={12}>
@@ -1211,47 +1503,116 @@ const JobsPage = () => {
           {/* Package Details */}
           <Card size="small" title="Package Details" style={{ marginBottom: 16 }}>
             <Row gutter={16}>
-              <Col xs={24} sm={12} md={8}>
+              <Col xs={24} sm={12}>
+                <Form.Item
+                  name="freightType"
+                  label="Freight Type"
+                  rules={[{ required: true, message: 'Please select freight type!' }]}
+                >
+                  <DropdownWithOther
+                    options={['Air Freight', 'Sea Freight']}
+                    placeholder="Select freight type"
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
                 <Form.Item
                   name="packageType"
                   label="Package Type"
                   rules={[{ required: true, message: 'Please select package type!' }]}
                 >
-                  <Select>
-                    <Option value="Document">Document</Option>
-                    <Option value="Parcel">Parcel</Option>
-                    <Option value="Box">Box</Option>
-                    <Option value="Fragile">Fragile</Option>
-                    <Option value="Heavy">Heavy</Option>
-                  </Select>
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={12} md={8}>
-                <Form.Item
-                  name="weight"
-                  label="Weight (kg)"
-                  rules={[{ required: true, message: 'Please enter weight!' }]}
-                >
-                  <InputNumber
-                    min={0.1}
-                    max={1000}
-                    step={0.1}
-                    style={{ width: '100%' }}
-                    placeholder="Enter weight"
+                  <DropdownWithOther
+                    options={['Document', 'Parcel', 'Box', 'Fragile', 'Heavy']}
+                    placeholder="Select package type"
                   />
                 </Form.Item>
               </Col>
-              <Col xs={24} sm={12} md={8}>
+            </Row>
+            
+            {/* Conditional fields based on freight type */}
+            <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.freightType !== currentValues.freightType}>
+              {({ getFieldValue }) => {
+                const freightType = getFieldValue('freightType');
+                return (
+                  <>
+                    {freightType === 'Air Freight' && (
+                      <Row gutter={16}>
+                        <Col xs={24} sm={12}>
+                          <Form.Item
+                            name="weight"
+                            label="Weight (kg) - Air Freight"
+                            rules={[{ required: true, message: 'Please enter weight!' }]}
+                          >
+                            <InputNumber
+                              min={0.1}
+                              max={1000}
+                              step={0.1}
+                              style={{ width: '100%' }}
+                              placeholder="Enter weight"
+                            />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                    )}
+                    {freightType === 'Sea Freight' && (
+                      <Row gutter={16}>
+                        <Col xs={24} sm={8}>
+                          <Form.Item
+                            name="length"
+                            label="Length (cm)"
+                            rules={[{ required: true, message: 'Please enter length!' }]}
+                          >
+                            <InputNumber
+                              min={0.1}
+                              style={{ width: '100%' }}
+                              placeholder="Length"
+                            />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={8}>
+                          <Form.Item
+                            name="width"
+                            label="Width (cm)"
+                            rules={[{ required: true, message: 'Please enter width!' }]}
+                          >
+                            <InputNumber
+                              min={0.1}
+                              style={{ width: '100%' }}
+                              placeholder="Width"
+                            />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={8}>
+                          <Form.Item
+                            name="height"
+                            label="Height (cm)"
+                            rules={[{ required: true, message: 'Please enter height!' }]}
+                          >
+                            <InputNumber
+                              min={0.1}
+                              style={{ width: '100%' }}
+                              placeholder="Height"
+                            />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                    )}
+                  </>
+                );
+              }}
+            </Form.Item>
+            
+            <Row gutter={16}>
+              <Col xs={24} sm={12}>
                 <Form.Item
-                  name="value"
-                  label="Declared Value (£)"
-                  rules={[{ required: true, message: 'Please enter value!' }]}
+                  name="estimatedPrice"
+                  label="Estimated Price (£) - Optional"
                 >
                   <InputNumber
                     min={0}
                     step={0.01}
                     style={{ width: '100%' }}
-                    placeholder="Enter value"
+                    placeholder="Enter estimated price (optional)"
                   />
                 </Form.Item>
               </Col>
@@ -1314,6 +1675,13 @@ const JobsPage = () => {
               <Button icon={<UploadOutlined />}>Upload Files</Button>
             </Upload>
           </Form.Item>
+          
+          <Form.Item
+            name="saveAsDraft"
+            valuePropName="checked"
+          >
+            <Switch /> Save as Draft
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -1330,22 +1698,64 @@ const JobsPage = () => {
             <Dropdown
               overlay={
                 <Menu>
-                  {getNextStatusOptions(selectedJob.status).length > 0 && (
+                  {getNextStatusOptions(selectedJob.status, currentUser?.role).length > 0 && (
                     <>
                       <Menu.ItemGroup title="Update Status">
-                        {getNextStatusOptions(selectedJob.status).map(status => (
+                        {getNextStatusOptions(selectedJob.status, currentUser?.role).map(status => (
                           <Menu.Item
                             key={status}
-                            onClick={() => handleUpdateJobStatus(status)}
+                            onClick={() => handleStatusUpdate(status)}
                             disabled={updatingStatus}
                           >
                             Mark as {status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                           </Menu.Item>
                         ))}
                       </Menu.ItemGroup>
-                      {currentUser?.role === 'admin' && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered' && (
+                      {(currentUser?.role === 'admin' || currentUser?.role === 'warehouse_staff' || currentUser?.role === 'warehouse') && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered' && (
                         <Menu.Divider />
                       )}
+                    </>
+                  )}
+                  {(currentUser?.role === 'admin' || currentUser?.role === 'warehouse_staff' || currentUser?.role === 'warehouse') && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered' && (
+                    <Menu.Item
+                      key="edit"
+                      icon={<EditOutlined />}
+                      onClick={() => {
+                        setIsDetailsDrawerVisible(false);
+                        handleEditJob({ id: selectedJob.id });
+                      }}
+                    >
+                      Edit Job
+                    </Menu.Item>
+                  )}
+                  {/* Warehouse manager can record payment */}
+                  {(currentUser?.role === 'warehouse_staff' || currentUser?.role === 'warehouse' || currentUser?.role === 'admin') && (
+                    <>
+                      <Menu.Divider />
+                      <Menu.Item
+                        key="recordPayment"
+                        icon={<DollarOutlined />}
+                        onClick={() => {
+                          setIsPaymentModalVisible(true);
+                        }}
+                      >
+                        Record Payment
+                      </Menu.Item>
+                    </>
+                  )}
+                  {/* Admin can revert status */}
+                  {currentUser?.role === 'admin' && selectedJob.status !== 'pending' && selectedJob.status !== 'draft' && (
+                    <>
+                      <Menu.Divider />
+                      <Menu.Item
+                        key="revertStatus"
+                        icon={<UndoOutlined />}
+                        onClick={() => {
+                          setIsRevertStatusModalVisible(true);
+                        }}
+                      >
+                        Revert Status
+                      </Menu.Item>
                     </>
                   )}
                   {currentUser?.role === 'admin' && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered' && (
@@ -1357,7 +1767,7 @@ const JobsPage = () => {
                       Cancel Job
                     </Menu.Item>
                   )}
-                  {getNextStatusOptions(selectedJob.status).length === 0 && 
+                  {getNextStatusOptions(selectedJob.status, currentUser?.role).length === 0 && 
                    !(currentUser?.role === 'admin' && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered') && (
                     <Menu.Item disabled>No actions available</Menu.Item>
                   )}
@@ -1796,6 +2206,38 @@ const JobsPage = () => {
           </div>
         )}
       </Modal>
+
+      {/* Status Update Modal */}
+      <StatusUpdateModal
+        visible={isStatusUpdateModalVisible}
+        onCancel={handleStatusUpdateCancel}
+        onOk={handleStatusUpdateOk}
+        currentStatus={selectedJob?.status}
+        nextStatuses={selectedJob ? getNextStatusOptions(selectedJob.status, currentUser?.role) : []}
+        loading={updatingStatus}
+        teamMembers={teamMembers}
+        allowReassignment={true}
+      />
+
+      {/* Payment Recording Modal */}
+      <PaymentRecordingModal
+        visible={isPaymentModalVisible}
+        onCancel={() => setIsPaymentModalVisible(false)}
+        onOk={handleRecordPayment}
+        job={selectedJob}
+        invoiceAmount={selectedJob?.estimatedPrice || selectedJob?.value || 0}
+        loading={updatingStatus}
+      />
+
+      {/* Status Revert Modal */}
+      <StatusRevertModal
+        visible={isRevertStatusModalVisible}
+        onCancel={() => setIsRevertStatusModalVisible(false)}
+        onOk={handleRevertStatus}
+        currentStatus={selectedJob?.status}
+        jobHistory={selectedJob?.timeline || []}
+        loading={updatingStatus}
+      />
     </div>
   );
 };

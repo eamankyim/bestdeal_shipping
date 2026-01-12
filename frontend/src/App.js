@@ -4,6 +4,7 @@ import { ConfigProvider, App as AntApp } from 'antd';
 import { theme } from 'antd';
 import './App.css';
 import './styles/mobile.css';
+import './styles/input-focus.css';
 
 // Layout and Pages
 import MainLayout from './components/layout/MainLayout';
@@ -35,12 +36,46 @@ function App() {
       theme={{
         algorithm: defaultAlgorithm,
         token: {
-          colorPrimary: '#ff9800',
+          colorPrimary: '#ff9800', // Orange for buttons
           colorSuccess: '#4caf50',
           colorWarning: '#ff5722',
           colorError: '#f44336',
-          colorInfo: '#2196f3',
-          borderRadius: 6,
+          colorInfo: '#003d82', // Dark blue
+          borderRadius: 8, // 8px border radius
+          // Input styling
+          controlOutline: '#d9d9d9', // Light grey border
+          controlOutlineHover: '#ff9800', // Orange on hover
+          controlOutlineActive: '#ff9800', // Orange on focus
+        },
+        components: {
+          Button: {
+            borderRadius: 8,
+            primaryColor: '#ffffff',
+          },
+          Input: {
+            borderRadius: 8,
+            activeBorderColor: '#ff9800', // Orange on focus
+            hoverBorderColor: '#ff9800', // Orange on hover
+            borderColor: '#d9d9d9', // Light grey default
+          },
+          Select: {
+            borderRadius: 8,
+            activeBorderColor: '#ff9800',
+            hoverBorderColor: '#ff9800',
+            borderColor: '#d9d9d9',
+          },
+          DatePicker: {
+            borderRadius: 8,
+            activeBorderColor: '#ff9800',
+            hoverBorderColor: '#ff9800',
+            borderColor: '#d9d9d9',
+          },
+          InputNumber: {
+            borderRadius: 8,
+            activeBorderColor: '#ff9800',
+            hoverBorderColor: '#ff9800',
+            borderColor: '#d9d9d9',
+          },
         },
       }}
     >

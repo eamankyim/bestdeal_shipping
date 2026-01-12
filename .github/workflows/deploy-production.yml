@@ -38,7 +38,7 @@ jobs:
             echo "DB_PASSWORD=$DB_PASSWORD" >> .env
             echo "JWT_SECRET=$JWT_SECRET" >> .env
             echo "JWT_REFRESH_SECRET=$JWT_REFRESH_SECRET" >> .env
-            echo "REACT_APP_API_URL=http://localhost:$BACKEND_PORT" >> .env
+            echo "REACT_APP_API_URL=$PRODUCTION_URL" >> .env
             echo "PORT=$FRONTEND_PORT" >> .env
             echo "CORS_ORIGINS=$CORS_ORIGINS" >> .env
             echo "PRODUCTION_URL=$PRODUCTION_URL" >> .env
@@ -46,7 +46,7 @@ jobs:
             # Set frontend .env
             mkdir -p frontend
             echo "PORT=$FRONTEND_PORT" >> frontend/.env
-            echo "REACT_APP_API_URL=http://localhost:$BACKEND_PORT" >> frontend/.env
+            echo "REACT_APP_API_URL=$PRODUCTION_URL" >> frontend/.env
             echo "REACT_APP_API_BASE_PATH=/api" >> frontend/.env
             docker-compose -f docker-compose.prod.yml down --remove-orphans || true
             docker system prune -af || true

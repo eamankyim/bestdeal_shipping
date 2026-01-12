@@ -8,6 +8,7 @@ import {
   Modal, 
   Form, 
   Input, 
+  InputNumber,
   Select, 
   DatePicker, 
   Typography, 
@@ -462,11 +463,12 @@ const BatchManagementPage = () => {
         name: values.name,
         route: values.route,
         vessel: values.vessel,
-        containerNumber: values.containerNumber,
+        containerNumber: values.containerNumber, // Seal Number
         departureDate: values.departureDate ? values.departureDate.toISOString() : null,
         eta: values.eta ? values.eta.toISOString() : null,
         notes: values.notes,
         jobs: selectedParcels, // Array of selected job IDs
+        batchItems: values.batchItems || [], // Batch items for Ghana delivery
       };
       
       console.log('📦 Creating batch with jobs:', batchData);
@@ -680,9 +682,10 @@ const BatchManagementPage = () => {
               <Col xs={24} sm={12}>
                 <Form.Item
                   name="containerNumber"
-                  label="Container Number (Optional)"
+                  label="Seal Number"
+                  rules={[{ required: true, message: 'Please enter seal number!' }]}
                 >
-                  <Input placeholder="e.g., CONT001234" />
+                  <Input placeholder="e.g., SEAL001234" />
                 </Form.Item>
               </Col>
             </Row>
@@ -736,6 +739,54 @@ const BatchManagementPage = () => {
                 emptyText: 'No jobs available for batching. Jobs must have "Arrived At Hub" status to be ready for batching.'
               }}
             />
+          </Card>
+
+          {/* Batch Items for Ghana Delivery */}
+          <Card size="small" title="Batch Items (Ghana Delivery)" style={{ marginBottom: 16 }}>
+            <Form.List name="batchItems">
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map(({ key, name, ...restField }) => (
+                    <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
+                      <Form.Item
+                        {...restField}
+                        name={[name, 'itemName']}
+                        label="Item Name"
+                        rules={[{ required: true, message: 'Missing item name' }]}
+                      >
+                        <Input placeholder="Item name" />
+                      </Form.Item>
+                      <Form.Item
+                        {...restField}
+                        name={[name, 'quantity']}
+                        label="Quantity"
+                        rules={[{ required: true, message: 'Missing quantity' }]}
+                      >
+                        <InputNumber min={1} placeholder="Qty" />
+                      </Form.Item>
+                      <Form.Item
+                        {...restField}
+                        name={[name, 'description']}
+                        label="Description"
+                      >
+                        <Input placeholder="Description" />
+                      </Form.Item>
+                      <Button type="link" onClick={() => remove(name)} danger>
+                        Remove
+                      </Button>
+                    </Space>
+                  ))}
+                  <Form.Item>
+                    <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                      Add Batch Item
+                    </Button>
+                  </Form.Item>
+                </>
+              )}
+            </Form.List>
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              Add items that will be included in this batch for delivery in Ghana
+            </Text>
           </Card>
 
           {/* Batch Notes */}
@@ -979,10 +1030,84 @@ const BatchManagementPage = () => {
                         <Text>{selectedBatch.eta}</Text>
                       </div>
                     </div>
+                    {selectedBatch.trackingNumber && (
+                      <div className="user-info-item">
+                        <div className="user-info-label">Seal Number</div>
+                        <div className="user-info-value">
+                          <Text strong>{selectedBatch.trackingNumber}</Text>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </Card>
               </Col>
             </Row>
+
+            {/* Jobs in Batch - Tabular View */}
+            {selectedBatch.jobs && selectedBatch.jobs.length > 0 && (
+              <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+                <Col span={24}>
+                  <Card 
+                    size="small" 
+                    title={<span className="user-info-title">Jobs in Batch ({selectedBatch.jobs.length})</span>}
+                    className="user-info-card"
+                    style={{ 
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                      borderRadius: 8
+                    }}
+                  >
+                    <Table
+                      columns={[
+                        {
+                          title: 'Job ID',
+                          dataIndex: 'trackingId',
+                          key: 'trackingId',
+                          render: (text) => <Text strong>{text}</Text>,
+                        },
+                        {
+                          title: 'Customer',
+                          dataIndex: 'customer',
+                          key: 'customer',
+                          render: (customer) => customer?.name || 'N/A',
+                        },
+                        {
+                          title: 'Status',
+                          dataIndex: 'status',
+                          key: 'status',
+                          render: (status) => (
+                            <Tag color={
+                              status === 'delivered' ? 'green' :
+                              status === 'batched' ? 'purple' :
+                              status === 'shipped' ? 'blue' :
+                              'default'
+                            }>
+                              {status?.replace(/_/g, ' ').toUpperCase()}
+                            </Tag>
+                          ),
+                        },
+                        {
+                          title: 'Weight',
+                          dataIndex: 'weight',
+                          key: 'weight',
+                          render: (weight) => `${weight || 0} kg`,
+                        },
+                        {
+                          title: 'Value',
+                          dataIndex: 'value',
+                          key: 'value',
+                          render: (value) => `£${value || 0}`,
+                        },
+                      ]}
+                      dataSource={selectedBatch.jobs}
+                      rowKey="id"
+                      pagination={false}
+                      size="small"
+                      scroll={{ x: 'max-content' }}
+                    />
+                  </Card>
+                </Col>
+              </Row>
+            )}
           </div>
         )}
       </Drawer>

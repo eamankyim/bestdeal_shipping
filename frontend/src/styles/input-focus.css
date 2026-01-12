@@ -1,0 +1,77 @@
+/* BestDeal Input Focus Styles */
+.ant-input:focus,
+.ant-input-focused {
+  border-color: #ff9800 !important;
+  box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.2) !important;
+}
+
+.ant-input:hover {
+  border-color: #ff9800 !important;
+}
+
+.ant-input-affix-wrapper:focus,
+.ant-input-affix-wrapper-focused {
+  border-color: #ff9800 !important;
+  box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.2) !important;
+}
+
+.ant-input-affix-wrapper:hover {
+  border-color: #ff9800 !important;
+}
+
+.ant-select-selector {
+  border-color: #d9d9d9 !important;
+}
+
+.ant-select-focused .ant-select-selector {
+  border-color: #ff9800 !important;
+  box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.2) !important;
+}
+
+.ant-select:hover .ant-select-selector {
+  border-color: #ff9800 !important;
+}
+
+.ant-picker {
+  border-color: #d9d9d9 !important;
+}
+
+.ant-picker-focused {
+  border-color: #ff9800 !important;
+  box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.2) !important;
+}
+
+.ant-picker:hover {
+  border-color: #ff9800 !important;
+}
+
+.ant-input-number {
+  border-color: #d9d9d9 !important;
+}
+
+.ant-input-number-focused {
+  border-color: #ff9800 !important;
+  box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.2) !important;
+}
+
+.ant-input-number:hover {
+  border-color: #ff9800 !important;
+}
+
+/* Button border radius */
+.ant-btn {
+  border-radius: 8px !important;
+}
+
+/* Input border radius */
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select-selector,
+.ant-picker,
+.ant-input-number {
+  border-radius: 8px !important;
+}
+
+
+
+
