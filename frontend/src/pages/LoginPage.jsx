@@ -157,30 +157,23 @@ const LoginPage = () => {
     }}>
       <Row justify="center" style={{ width: '100%' }}>
         <Col xs={24} sm={22} md={20} lg={16} xl={12} style={{ maxWidth: '600px' }}>
-          {/* Header - Outside Card */}
+          {/* Header - Outside Card (text-only, no logo image) */}
           <div style={{ textAlign: 'center', marginBottom: '32px', maxWidth: '600px', margin: '0 auto 32px' }}>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              gap: '16px',
-              marginBottom: '16px'
-            }}>
-              <img 
-                src={config.app.logoPath} 
-                alt={config.app.name} 
-                style={{ 
-                  width: '56px', 
-                  height: '56px',
-                  objectFit: 'cover',
-                  borderRadius: '8px'
-                }} 
-              />
-              <span style={{ 
-                fontSize: '40px', 
-                fontWeight: 'bold',
-                color: '#ff9800'
-              }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '16px',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: '40px',
+                  fontWeight: 'bold',
+                  color: '#ff9800',
+                }}
+              >
                 {config.app.name}
               </span>
             </div>

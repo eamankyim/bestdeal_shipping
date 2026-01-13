@@ -1,10 +1,11 @@
-// Job Status Constants for Best Deal App System
+// Job Status Constants for ShipEASE App System
 
 export const JOB_STATUSES = {
   PENDING_COLLECTION: 'Pending Collection',
   ASSIGNED: 'Assigned',
   EN_ROUTE_TO_CUSTOMER: 'En Route to Customer',
   COLLECTED: 'Collected',
+  COLLECTION_FAILED: 'Collection Failed',
   RETURNING_TO_WAREHOUSE: 'Returning to Warehouse',
   AT_WAREHOUSE: 'At Warehouse',
   ARRIVED_AT_WAREHOUSE: 'arrived_at_warehouse',
@@ -12,11 +13,12 @@ export const JOB_STATUSES = {
   AT_GHANA_WAREHOUSE: 'At Ghana Warehouse',
   BATCHED: 'Batched',
   SHIPPED: 'Shipped',
-  IN_TRANSIT: 'In Transit',
   ARRIVED_AT_DESTINATION: 'arrived_at_destination',
   ARRIVED: 'Arrived at Destination',
+  READY_FOR_DELIVERY: 'Ready for Delivery',
   OUT_FOR_DELIVERY: 'Out for Delivery',
-  DELIVERED: 'Delivered'
+  DELIVERED: 'Delivered',
+  DRAFT: 'Draft'
 };
 
 // Status groups for filtering and organization
@@ -43,14 +45,14 @@ export const STATUS_GROUPS = {
     label: 'Batching & Shipping Stage',
     statuses: [
       JOB_STATUSES.BATCHED,
-      JOB_STATUSES.SHIPPED,
-      JOB_STATUSES.IN_TRANSIT
+      JOB_STATUSES.SHIPPED
     ]
   },
   DELIVERY: {
     label: 'Delivery Stage',
     statuses: [
       JOB_STATUSES.ARRIVED,
+      JOB_STATUSES.READY_FOR_DELIVERY,
       JOB_STATUSES.OUT_FOR_DELIVERY,
       JOB_STATUSES.DELIVERED
     ]
@@ -68,13 +70,15 @@ export const STATUS_COLORS = {
   [JOB_STATUSES.ARRIVED_AT_WAREHOUSE]: 'cyan',
   [JOB_STATUSES.AT_UK_WAREHOUSE]: 'blue',
   [JOB_STATUSES.AT_GHANA_WAREHOUSE]: 'green',
+  [JOB_STATUSES.COLLECTION_FAILED]: 'error',
   [JOB_STATUSES.BATCHED]: 'purple',
   [JOB_STATUSES.SHIPPED]: 'geekblue',
-  [JOB_STATUSES.IN_TRANSIT]: 'blue',
   [JOB_STATUSES.ARRIVED_AT_DESTINATION]: 'lime',
   [JOB_STATUSES.ARRIVED]: 'lime',
+  [JOB_STATUSES.READY_FOR_DELIVERY]: 'cyan',
   [JOB_STATUSES.OUT_FOR_DELIVERY]: 'orange',
-  [JOB_STATUSES.DELIVERED]: 'success'
+  [JOB_STATUSES.DELIVERED]: 'success',
+  [JOB_STATUSES.DRAFT]: 'default'
 };
 
 // Helper function to get status color
@@ -93,10 +97,11 @@ export const getNextStatuses = (currentStatus) => {
     [JOB_STATUSES.AT_WAREHOUSE]: [JOB_STATUSES.BATCHED],
     [JOB_STATUSES.AT_UK_WAREHOUSE]: [JOB_STATUSES.BATCHED],
     [JOB_STATUSES.AT_GHANA_WAREHOUSE]: [JOB_STATUSES.OUT_FOR_DELIVERY],
+    [JOB_STATUSES.ASSIGNED]: [JOB_STATUSES.COLLECTED, JOB_STATUSES.COLLECTION_FAILED],
     [JOB_STATUSES.BATCHED]: [JOB_STATUSES.SHIPPED],
-    [JOB_STATUSES.SHIPPED]: [JOB_STATUSES.IN_TRANSIT],
-    [JOB_STATUSES.IN_TRANSIT]: [JOB_STATUSES.ARRIVED, JOB_STATUSES.AT_GHANA_WAREHOUSE],
-    [JOB_STATUSES.ARRIVED]: [JOB_STATUSES.OUT_FOR_DELIVERY],
+    [JOB_STATUSES.SHIPPED]: [JOB_STATUSES.ARRIVED, JOB_STATUSES.AT_GHANA_WAREHOUSE],
+    [JOB_STATUSES.ARRIVED]: [JOB_STATUSES.READY_FOR_DELIVERY, JOB_STATUSES.OUT_FOR_DELIVERY],
+    [JOB_STATUSES.READY_FOR_DELIVERY]: [JOB_STATUSES.OUT_FOR_DELIVERY],
     [JOB_STATUSES.OUT_FOR_DELIVERY]: [JOB_STATUSES.DELIVERED],
     [JOB_STATUSES.DELIVERED]: [] // Final status
   };
@@ -121,13 +126,15 @@ export const STATUS_DESCRIPTIONS = {
   [JOB_STATUSES.ARRIVED_AT_WAREHOUSE]: 'Package arrived at warehouse',
   [JOB_STATUSES.AT_UK_WAREHOUSE]: 'Package at UK warehouse, ready for shipping',
   [JOB_STATUSES.AT_GHANA_WAREHOUSE]: 'Package at Ghana warehouse, ready for delivery',
+  [JOB_STATUSES.COLLECTION_FAILED]: 'Collection attempt failed',
   [JOB_STATUSES.BATCHED]: 'Added to shipping batch',
   [JOB_STATUSES.SHIPPED]: 'Batch departed on vessel/flight',
-  [JOB_STATUSES.IN_TRANSIT]: 'Package in transit to destination',
   [JOB_STATUSES.ARRIVED_AT_DESTINATION]: 'Package arrived at destination warehouse',
   [JOB_STATUSES.ARRIVED]: 'Package arrived at destination warehouse',
+  [JOB_STATUSES.READY_FOR_DELIVERY]: 'Package ready for delivery',
   [JOB_STATUSES.OUT_FOR_DELIVERY]: 'Package with delivery agent',
-  [JOB_STATUSES.DELIVERED]: 'Package delivered to customer'
+  [JOB_STATUSES.DELIVERED]: 'Package delivered to customer',
+  [JOB_STATUSES.DRAFT]: 'Job saved as draft'
 };
 
 // Batch status constants
@@ -137,7 +144,8 @@ export const BATCH_STATUSES = {
   SHIPPED: 'Shipped',
   IN_TRANSIT: 'In Transit',
   ARRIVED: 'Arrived',
-  DISTRIBUTED: 'Distributed'
+  READY_FOR_DELIVERY: 'Ready for Delivery',
+  DISTRIBUTED: 'Delivered'
 };
 
 export const BATCH_STATUS_COLORS = {
@@ -146,7 +154,8 @@ export const BATCH_STATUS_COLORS = {
   [BATCH_STATUSES.SHIPPED]: 'geekblue',
   [BATCH_STATUSES.IN_TRANSIT]: 'blue',
   [BATCH_STATUSES.ARRIVED]: 'success',
-  [BATCH_STATUSES.DISTRIBUTED]: 'default'
+  [BATCH_STATUSES.READY_FOR_DELIVERY]: 'cyan',
+  [BATCH_STATUSES.DISTRIBUTED]: 'success'
 };
 
 export const getBatchStatusColor = (status) => {

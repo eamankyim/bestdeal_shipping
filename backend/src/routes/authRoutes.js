@@ -26,7 +26,7 @@ const { authLimiter } = require('../middleware/rateLimiter');
  *               email:
  *                 type: string
  *                 format: email
- *                 example: admin@bestdeal.com
+ *                 example: admin@shipease.com
  *               password:
  *                 type: string
  *                 minLength: 6

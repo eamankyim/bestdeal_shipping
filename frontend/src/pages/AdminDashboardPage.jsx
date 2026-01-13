@@ -597,7 +597,7 @@ const AdminDashboardPage = () => {
               layout="vertical"
               onFinish={handleUpdateOrganisation}
               initialValues={{
-                companyName: 'Best Deal',
+                companyName: 'ShipEASE',
                 industry: 'logistics'
               }}
             >
@@ -605,7 +605,7 @@ const AdminDashboardPage = () => {
                 <Col xs={24} md={12}>
                   <Form.Item label="Company Name" name="companyName">
                     <Input 
-                      placeholder="Best Deal Ltd" 
+                      placeholder="ShipEASE Ltd" 
                       size="large"
                       disabled={!isEditingOrganisation}
                     />

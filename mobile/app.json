@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "ShipEASE Shipping",
+    "slug": "shipease-shipping",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1890ff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.shipease.shipping",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app needs access to camera to capture proof of delivery and collection photos.",
+        "NSLocationWhenInUseUsageDescription": "This app needs location access to show pickup and delivery locations on the map.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to photo library to select images for proof of delivery."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.shipease.shipping",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#ffffff"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow ShipEASE Shipping to use your location to show pickup and delivery locations."
+        }
+      ]
+    ]
+  }
+}
+
+

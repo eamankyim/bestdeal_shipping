@@ -169,31 +169,31 @@ async function main() {
   
   const sampleUsers = [
     {
-      email: 'warehouse@bestdeal.com',
+      email: 'warehouse@shipease.com',
       password: 'warehouse123',
       name: 'Warehouse Manager',
       role: 'warehouse',
     },
     {
-      email: 'driver@bestdeal.com',
+      email: 'driver@shipease.com',
       password: 'driver123',
       name: 'John Driver',
       role: 'driver',
     },
     {
-      email: 'delivery@bestdeal.com',
+      email: 'delivery@shipease.com',
       password: 'delivery123',
       name: 'Sarah Delivery',
       role: 'delivery-agent',
     },
     {
-      email: 'finance@bestdeal.com',
+      email: 'finance@shipease.com',
       password: 'finance123',
       name: 'Finance Manager',
       role: 'finance',
     },
     {
-      email: 'support@bestdeal.com',
+      email: 'support@shipease.com',
       password: 'support123',
       name: 'Customer Support',
       role: 'customer-service',
@@ -225,13 +225,13 @@ async function main() {
   const settings = [
     {
       key: 'company_name',
-      value: 'BestDeal Shipping',
+      value: 'ShipEASE Shipping',
       description: 'Company name',
       type: 'string',
     },
     {
       key: 'company_email',
-      value: 'info@bestdeal.com',
+      value: 'info@shipease.com',
       description: 'Company contact email',
       type: 'string',
     },
@@ -272,11 +272,11 @@ async function main() {
   console.log(`   - ${settings.length} settings created\n`);
   
   console.log('🔐 Sample Test User Credentials:');
-  console.log('   Warehouse:  warehouse@bestdeal.com / warehouse123');
-  console.log('   Driver:     driver@bestdeal.com / driver123');
-  console.log('   Delivery:   delivery@bestdeal.com / delivery123');
-  console.log('   Finance:    finance@bestdeal.com / finance123');
-  console.log('   Support:    support@bestdeal.com / support123\n');
+  console.log('   Warehouse:  warehouse@shipease.com / warehouse123');
+  console.log('   Driver:     driver@shipease.com / driver123');
+  console.log('   Delivery:   delivery@shipease.com / delivery123');
+  console.log('   Finance:    finance@shipease.com / finance123');
+  console.log('   Support:    support@shipease.com / support123\n');
   
   console.log('⚠️  IMPORTANT: Create your superadmin via API:');
   console.log('   POST http://localhost:4001/api/auth/create-superadmin');
