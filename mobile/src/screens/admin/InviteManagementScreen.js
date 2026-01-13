@@ -109,6 +109,7 @@ export default function InviteManagementScreen({ navigation }) {
     try {
       // Construct invite link - adjust URL scheme based on your app configuration
       const inviteLink = invite.token 
+<<<<<<< HEAD
         ? `shipease://accept-invite/${invite.token}` 
         : `https://app.shipease.com/accept-invite/${invite.token || invite.id}`;
       
@@ -117,6 +118,16 @@ export default function InviteManagementScreen({ navigation }) {
       const result = await Share.share({
         message: message,
         title: 'ShipEASE Invitation',
+=======
+        ? `bestdeal://accept-invite/${invite.token}` 
+        : `https://app.bestdeal.com/accept-invite/${invite.token || invite.id}`;
+      
+      const message = `You've been invited to join BestDeal Shipping!\n\nEmail: ${invite.email}\nRole: ${invite.role}\n\nClick here to accept: ${inviteLink}`;
+      
+      const result = await Share.share({
+        message: message,
+        title: 'BestDeal Invitation',
+>>>>>>> origin/master
       });
 
       if (result.action === Share.sharedAction) {

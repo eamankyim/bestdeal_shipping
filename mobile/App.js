@@ -93,9 +93,15 @@ export default function App() {
     try {
       // Extract token from URL
       // Expected formats:
+<<<<<<< HEAD
       // - shipease://accept-invite?token=xxx
       // - https://app.shipease.com/accept-invite/xxx
       // - shipease://accept-invite/xxx
+=======
+      // - bestdeal://accept-invite?token=xxx
+      // - https://app.bestdeal.com/accept-invite/xxx
+      // - bestdeal://accept-invite/xxx
+>>>>>>> origin/master
       let token = null;
       
       // Check for query parameter

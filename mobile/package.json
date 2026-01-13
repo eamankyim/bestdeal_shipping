@@ -1,5 +1,9 @@
 {
+<<<<<<< HEAD
   "name": "shipease-shipping-mobile",
+=======
+  "name": "bestdeal-shipping-mobile",
+>>>>>>> origin/master
   "version": "1.0.0",
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {

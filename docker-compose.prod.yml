@@ -71,6 +71,26 @@ services:
     networks:
       - shipease_network
 
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: bestdeal_nginx
+    restart: unless-stopped
+    ports:
+      # Using test ports first (8080 for HTTP, 8443 for HTTPS)
+      # Will switch to 80/443 after verification
+      - "${NGINX_HTTP_PORT:-8080}:80"
+      - "${NGINX_HTTPS_PORT:-8443}:443"
+    volumes:
+      # Mount SSL certificates
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - bestdeal_network
+
 volumes:
   postgres_data:
 

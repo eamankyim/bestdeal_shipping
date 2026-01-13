@@ -10,3 +10,7 @@ export const AuthContext = createContext({
 
 
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/master

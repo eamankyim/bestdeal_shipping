@@ -222,7 +222,11 @@ export default function ProfileScreen({ navigation }) {
         <View style={styles.menuGroup}>
           <TouchableOpacity 
             style={styles.menuItem}
+<<<<<<< HEAD
             onPress={() => Alert.alert('Help & Support', 'Contact support at support@shipease.com')}
+=======
+            onPress={() => Alert.alert('Help & Support', 'Contact support at support@bestdeal.com')}
+>>>>>>> origin/master
           >
             <Ionicons name="help-circle-outline" size={24} color={theme.colors.text} style={styles.menuIcon} />
             <Text style={styles.menuText}>Help & Support</Text>
@@ -242,7 +246,11 @@ export default function ProfileScreen({ navigation }) {
         </View>
 
         {/* Version */}
+<<<<<<< HEAD
         <Text style={styles.version}>ShipEASE Shipping App v1.0.0</Text>
+=======
+        <Text style={styles.version}>BestDeal Shipping App v1.0.0</Text>
+>>>>>>> origin/master
       </View>
     </ScrollView>
   );

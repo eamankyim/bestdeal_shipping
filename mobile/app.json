@@ -1,7 +1,12 @@
 {
   "expo": {
+<<<<<<< HEAD
     "name": "ShipEASE Shipping",
     "slug": "shipease-shipping",
+=======
+    "name": "BestDeal Shipping",
+    "slug": "bestdeal-shipping",
+>>>>>>> origin/master
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,7 +21,11 @@
     ],
     "ios": {
       "supportsTablet": true,
+<<<<<<< HEAD
       "bundleIdentifier": "com.shipease.shipping",
+=======
+      "bundleIdentifier": "com.bestdeal.shipping",
+>>>>>>> origin/master
       "infoPlist": {
         "NSCameraUsageDescription": "This app needs access to camera to capture proof of delivery and collection photos.",
         "NSLocationWhenInUseUsageDescription": "This app needs location access to show pickup and delivery locations on the map.",
@@ -28,7 +37,11 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+<<<<<<< HEAD
       "package": "com.shipease.shipping",
+=======
+      "package": "com.bestdeal.shipping",
+>>>>>>> origin/master
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -51,7 +64,11 @@
       [
         "expo-location",
         {
+<<<<<<< HEAD
           "locationAlwaysAndWhenInUsePermission": "Allow ShipEASE Shipping to use your location to show pickup and delivery locations."
+=======
+          "locationAlwaysAndWhenInUsePermission": "Allow BestDeal Shipping to use your location to show pickup and delivery locations."
+>>>>>>> origin/master
         }
       ]
     ]

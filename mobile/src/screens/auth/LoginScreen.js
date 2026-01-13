@@ -67,10 +67,22 @@ export default function LoginScreen({ navigation }) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.content}>
+<<<<<<< HEAD
           {/* Brand Section (text-only, logo image removed) */}
           <View style={styles.brandSection}>
             <Text variant="displaySmall" style={styles.title}>
               ShipEASE Shipping
+=======
+          {/* Logo/Brand Section */}
+          <View style={styles.brandSection}>
+            <Image
+              source={require('../../../assets/AppLogo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+            <Text variant="displaySmall" style={styles.title}>
+              BestDeal Shipping
+>>>>>>> origin/master
             </Text>
             <Text variant="bodyLarge" style={styles.welcomeText}>
               Sign in to continue
@@ -113,7 +125,11 @@ export default function LoginScreen({ navigation }) {
               disabled={loading}
               style={styles.button}
               contentStyle={styles.buttonContent}
+<<<<<<< HEAD
               buttonColor={theme.colors.shipeaseOrange}
+=======
+              buttonColor={theme.colors.bestdealOrange}
+>>>>>>> origin/master
             >
               Sign In
             </Button>

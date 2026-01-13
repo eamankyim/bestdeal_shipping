@@ -111,7 +111,11 @@ The mobile app should be able to call:
 
 ### Test 2: Login
 Try logging in with:
+<<<<<<< HEAD
 - Email: `admin@shipease.com`
+=======
+- Email: `admin@bestdeal.com`
+>>>>>>> origin/master
 - Password: `111111@1A`
 
 ### Test 3: Check Logs
@@ -208,3 +212,7 @@ Should show:
 That's it! Your mobile app should now communicate with the backend. 🎉
 
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/master

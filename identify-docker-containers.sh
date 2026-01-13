@@ -23,7 +23,11 @@ done
 
 echo ""
 echo "=== Best Deal Containers ==="
+<<<<<<< HEAD
 docker ps --format "{{.Names}}" | grep -i "shipease\|best_deal" | while read container; do
+=======
+docker ps --format "{{.Names}}" | grep -i "bestdeal\|best_deal" | while read container; do
+>>>>>>> origin/master
     echo ""
     echo "Container: $container"
     docker port $container 2>/dev/null || echo "  No port mappings"

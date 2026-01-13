@@ -507,7 +507,11 @@ export default function CreateJobScreen({ navigation, route }) {
                 loading={loading}
                 disabled={loading || savingDraft}
                 style={styles.submitButton}
+<<<<<<< HEAD
                 buttonColor={theme.colors.shipeaseOrange}
+=======
+                buttonColor={theme.colors.bestdealOrange}
+>>>>>>> origin/master
               >
                 {editingJob ? 'Update Job' : 'Create Job'}
               </Button>

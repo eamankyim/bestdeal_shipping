@@ -16,7 +16,11 @@ import { standardStyles, theme, spacing, touchTargets } from '../../theme/theme'
 
 export default function OrganisationSettingsScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+<<<<<<< HEAD
   const [companyName, setCompanyName] = useState('ShipEASE');
+=======
+  const [companyName, setCompanyName] = useState('Best Deal');
+>>>>>>> origin/master
   const [businessReg, setBusinessReg] = useState('');
   const [vatNumber, setVatNumber] = useState('');
   const [address, setAddress] = useState('');

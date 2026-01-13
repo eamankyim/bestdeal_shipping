@@ -7,7 +7,11 @@ async function createCustomerServiceUser() {
   try {
     console.log('🔐 Creating Customer Service user...\n');
 
+<<<<<<< HEAD
     const email = 'cs@shipease.com';
+=======
+    const email = 'cs@bestdeal.com';
+>>>>>>> origin/master
     const password = '111111@1A';
     const name = 'Customer Service';
     const role = 'customer-service';
@@ -81,3 +85,7 @@ createCustomerServiceUser()
   });
 
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/master

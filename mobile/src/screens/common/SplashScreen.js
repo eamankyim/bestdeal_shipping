@@ -84,7 +84,15 @@ export default function SplashScreen({ onFinish, onGetStarted }) {
             },
           ]}
         >
+<<<<<<< HEAD
           {/* Logo image removed to avoid old BestDeal branding */}
+=======
+          <Image
+            source={require('../../../assets/AppLogo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+>>>>>>> origin/master
         </Animated.View>
 
         {/* App Name with Reveal Animation */}
@@ -113,7 +121,11 @@ export default function SplashScreen({ onFinish, onGetStarted }) {
               },
             ]}
           >
+<<<<<<< HEAD
             ShipEASE Shipping App
+=======
+            BestDeal Shipping App
+>>>>>>> origin/master
           </Animated.Text>
         </View>
       </View>

@@ -5,7 +5,11 @@ echo "=========================================="
 echo "FIXING PORT 4001 CONFLICT"
 echo "=========================================="
 
+<<<<<<< HEAD
 cd ~/shipease_shipping
+=======
+cd ~/bestdeal_shipping
+>>>>>>> origin/master
 
 # Check what's using port 4001
 echo ""
@@ -48,11 +52,19 @@ sleep 5
 # Verify port mapping
 echo ""
 echo "=== Verifying port mapping ==="
+<<<<<<< HEAD
 docker port shipease_backend 2>/dev/null || echo "Backend container not running yet"
 
 echo ""
 echo "=== Container status ==="
 docker ps | grep shipease
+=======
+docker port bestdeal_backend 2>/dev/null || echo "Backend container not running yet"
+
+echo ""
+echo "=== Container status ==="
+docker ps | grep bestdeal
+>>>>>>> origin/master
 
 echo ""
 echo "=========================================="

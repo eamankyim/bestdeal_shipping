@@ -39,13 +39,21 @@ echo ""
 
 # Step 6: Check Best Deal Nginx Config
 echo "=== Step 6: Check Best Deal Nginx Config ==="
+<<<<<<< HEAD
 docker exec sabito-nginx cat /etc/nginx/conf.d/sabito.conf | grep -A30 "server_name.*shipeaseshippingapp.com" | head -35
+=======
+docker exec sabito-nginx cat /etc/nginx/conf.d/sabito.conf | grep -A30 "server_name.*bestdealshippingapp.com" | head -35
+>>>>>>> origin/master
 
 echo ""
 
 # Step 7: Check Nginx Logs
 echo "=== Step 7: Nginx Error Logs (Last 20 lines) ==="
+<<<<<<< HEAD
 docker logs sabito-nginx 2>&1 | tail -20 | grep -i "error\|warn\|shipease" || echo "No errors found"
+=======
+docker logs sabito-nginx 2>&1 | tail -20 | grep -i "error\|warn\|bestdeal" || echo "No errors found"
+>>>>>>> origin/master
 
 echo ""
 echo "=========================================="

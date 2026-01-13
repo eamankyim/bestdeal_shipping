@@ -70,7 +70,11 @@ export default function ForgotPasswordScreen({ navigation }) {
               disabled={loading}
               style={styles.button}
               contentStyle={styles.buttonContent}
+<<<<<<< HEAD
               buttonColor={theme.colors.shipeaseOrange}
+=======
+              buttonColor={theme.colors.bestdealOrange}
+>>>>>>> origin/master
             >
               Send Reset Link
             </Button>

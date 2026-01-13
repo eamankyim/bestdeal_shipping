@@ -1,7 +1,12 @@
 #!/bin/bash
 
+<<<<<<< HEAD
 # Phase 2: Setup ShipEASE Nginx Container
 # This script creates the ShipEASE nginx container in isolation (test ports)
+=======
+# Phase 2: Setup Best Deal Nginx Container
+# This script creates the Best Deal nginx container in isolation (test ports)
+>>>>>>> origin/master
 
 set -e
 
@@ -9,11 +14,19 @@ echo "=========================================="
 echo "PHASE 2: SETUP BEST DEAL NGINX CONTAINER"
 echo "=========================================="
 echo ""
+<<<<<<< HEAD
 echo "This will create ShipEASE nginx container on TEST ports (8080/8443)"
 echo "No conflicts with existing ports 80/443"
 echo ""
 
 cd ~/shipease_shipping
+=======
+echo "This will create Best Deal nginx container on TEST ports (8080/8443)"
+echo "No conflicts with existing ports 80/443"
+echo ""
+
+cd ~/bestdeal_shipping
+>>>>>>> origin/master
 
 # Step 1: Create directory structure
 echo "=== Step 1: Create Directory Structure ==="
@@ -23,11 +36,19 @@ echo "✓ Directories created"
 # Step 2: Copy SSL certificates
 echo ""
 echo "=== Step 2: Copy SSL Certificates ==="
+<<<<<<< HEAD
 if [ -f /etc/letsencrypt/live/shipeaseshippingapp.com/fullchain.pem ]; then
     cp /etc/letsencrypt/live/shipeaseshippingapp.com/fullchain.pem nginx/ssl/shipeaseshippingapp.com.crt
     cp /etc/letsencrypt/live/shipeaseshippingapp.com/privkey.pem nginx/ssl/shipeaseshippingapp.com.key
     chmod 644 nginx/ssl/shipeaseshippingapp.com.crt
     chmod 600 nginx/ssl/shipeaseshippingapp.com.key
+=======
+if [ -f /etc/letsencrypt/live/bestdealshippingapp.com/fullchain.pem ]; then
+    cp /etc/letsencrypt/live/bestdealshippingapp.com/fullchain.pem nginx/ssl/bestdealshippingapp.com.crt
+    cp /etc/letsencrypt/live/bestdealshippingapp.com/privkey.pem nginx/ssl/bestdealshippingapp.com.key
+    chmod 644 nginx/ssl/bestdealshippingapp.com.crt
+    chmod 600 nginx/ssl/bestdealshippingapp.com.key
+>>>>>>> origin/master
     echo "✓ SSL certificates copied"
     ls -la nginx/ssl/
 else
@@ -96,6 +117,7 @@ http {
 }
 EOF
 
+<<<<<<< HEAD
 # Create ShipEASE server config
 cat > nginx/conf.d/shipease.conf << 'EOF'
 # ShipEASE Shipping Application
@@ -103,6 +125,15 @@ server {
     listen 80;
     listen [::]:80;
     server_name shipeaseshippingapp.com www.shipeaseshippingapp.com;
+=======
+# Create Best Deal server config
+cat > nginx/conf.d/bestdeal.conf << 'EOF'
+# Best Deal Shipping Application
+server {
+    listen 80;
+    listen [::]:80;
+    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+>>>>>>> origin/master
     
     # Redirect HTTP to HTTPS
     return 301 https://$host$request_uri;
@@ -111,11 +142,19 @@ server {
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
+<<<<<<< HEAD
     server_name shipeaseshippingapp.com www.shipeaseshippingapp.com;
 
     # SSL Configuration
     ssl_certificate /etc/nginx/ssl/shipeaseshippingapp.com.crt;
     ssl_certificate_key /etc/nginx/ssl/shipeaseshippingapp.com.key;
+=======
+    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+
+    # SSL Configuration
+    ssl_certificate /etc/nginx/ssl/bestdealshippingapp.com.crt;
+    ssl_certificate_key /etc/nginx/ssl/bestdealshippingapp.com.key;
+>>>>>>> origin/master
 
     # SSL Settings
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -139,7 +178,11 @@ server {
 
     # Frontend (React App) - Proxy to frontend container
     location / {
+<<<<<<< HEAD
         proxy_pass http://shipease_frontend:3000;
+=======
+        proxy_pass http://bestdeal_frontend:3000;
+>>>>>>> origin/master
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -153,7 +196,11 @@ server {
 
     # Backend API - Proxy to backend container
     location /api {
+<<<<<<< HEAD
         proxy_pass http://shipease_backend:4001;
+=======
+        proxy_pass http://bestdeal_backend:4001;
+>>>>>>> origin/master
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -181,7 +228,11 @@ echo "✓ Nginx configuration files created"
 # Step 4: Verify docker-compose has nginx service
 echo ""
 echo "=== Step 4: Verify Docker Compose Configuration ==="
+<<<<<<< HEAD
 if grep -q "shipease_nginx" docker-compose.prod.yml; then
+=======
+if grep -q "bestdeal_nginx" docker-compose.prod.yml; then
+>>>>>>> origin/master
     echo "✓ Nginx service already in docker-compose.prod.yml"
 else
     echo "⚠ Nginx service not found in docker-compose.prod.yml"
@@ -202,6 +253,7 @@ docker-compose -f docker-compose.prod.yml up -d nginx
 echo ""
 echo "=== Step 6: Verify Nginx is Running ==="
 sleep 3
+<<<<<<< HEAD
 if docker ps | grep -q shipease_nginx; then
     echo "✓ shipease_nginx is running"
     docker ps | grep shipease_nginx
@@ -209,13 +261,26 @@ else
     echo "✗ shipease_nginx is not running!"
     echo "Checking logs..."
     docker logs shipease_nginx --tail 30
+=======
+if docker ps | grep -q bestdeal_nginx; then
+    echo "✓ bestdeal_nginx is running"
+    docker ps | grep bestdeal_nginx
+else
+    echo "✗ bestdeal_nginx is not running!"
+    echo "Checking logs..."
+    docker logs bestdeal_nginx --tail 30
+>>>>>>> origin/master
     exit 1
 fi
 
 # Step 7: Test nginx configuration
 echo ""
 echo "=== Step 7: Test Nginx Configuration ==="
+<<<<<<< HEAD
 docker exec shipease_nginx nginx -t
+=======
+docker exec bestdeal_nginx nginx -t
+>>>>>>> origin/master
 
 # Step 8: Test nginx response
 echo ""
@@ -232,7 +297,11 @@ echo "=========================================="
 echo "PHASE 2 COMPLETE!"
 echo "=========================================="
 echo ""
+<<<<<<< HEAD
 echo "ShipEASE nginx container is running on TEST ports:"
+=======
+echo "Best Deal nginx container is running on TEST ports:"
+>>>>>>> origin/master
 echo "  - HTTP:  port 8080"
 echo "  - HTTPS: port 8443"
 echo ""
@@ -243,7 +312,11 @@ echo "3. Verify backend proxy works"
 echo "4. After verification, switch to ports 80/443"
 echo ""
 echo "Check nginx logs:"
+<<<<<<< HEAD
 echo "  docker logs shipease_nginx"
+=======
+echo "  docker logs bestdeal_nginx"
+>>>>>>> origin/master
 echo ""
 
 

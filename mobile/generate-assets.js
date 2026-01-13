@@ -45,7 +45,11 @@ async function generateAssets() {
   const splashSvg = `
     <svg width="1242" height="2436" xmlns="http://www.w3.org/2000/svg">
       <rect width="1242" height="2436" fill="#1890ff"/>
+<<<<<<< HEAD
       <text x="621" y="1200" font-family="Arial, sans-serif" font-size="120" font-weight="bold" fill="white" text-anchor="middle">ShipEASE</text>
+=======
+      <text x="621" y="1200" font-family="Arial, sans-serif" font-size="120" font-weight="bold" fill="white" text-anchor="middle">BestDeal</text>
+>>>>>>> origin/master
       <text x="621" y="1350" font-family="Arial, sans-serif" font-size="80" fill="white" text-anchor="middle">Shipping</text>
     </svg>
   `;
@@ -68,3 +72,7 @@ generateAssets().catch(console.error);
 
 
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/master

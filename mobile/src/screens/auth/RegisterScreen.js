@@ -76,13 +76,27 @@ export default function RegisterScreen({ navigation }) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.content}>
+<<<<<<< HEAD
           {/* Header Section (text-only, logo image removed) */}
           <View style={styles.headerSection}>
+=======
+          {/* Header Section */}
+          <View style={styles.headerSection}>
+            <Image
+              source={require('../../../assets/AppLogo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+>>>>>>> origin/master
             <Text variant="displaySmall" style={styles.title}>
               Create Account
             </Text>
             <Text variant="bodyLarge" style={styles.subtitle}>
+<<<<<<< HEAD
               Join ShipEASE Shipping today
+=======
+              Join BestDeal Shipping today
+>>>>>>> origin/master
             </Text>
           </View>
 
@@ -160,7 +174,11 @@ export default function RegisterScreen({ navigation }) {
               disabled={loading}
               style={styles.button}
               contentStyle={styles.buttonContent}
+<<<<<<< HEAD
               buttonColor={theme.colors.shipeaseOrange}
+=======
+              buttonColor={theme.colors.bestdealOrange}
+>>>>>>> origin/master
             >
               Sign Up
             </Button>

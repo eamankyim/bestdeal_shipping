@@ -43,15 +43,26 @@ server {
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
+<<<<<<< HEAD
     server_name shipeaseshippingapp.com www.shipeaseshippingapp.com;
     
     ssl_certificate /etc/nginx/ssl/shipeaseshippingapp.com.crt;
     ssl_certificate_key /etc/nginx/ssl/shipeaseshippingapp.com.key;
+=======
+    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+    
+    ssl_certificate /etc/nginx/ssl/bestdealshippingapp.com.crt;
+    ssl_certificate_key /etc/nginx/ssl/bestdealshippingapp.com.key;
+>>>>>>> origin/master
     ssl_protocols TLSv1.2 TLSv1.3;
     
     # Frontend - Route directly to frontend container
     location / {
+<<<<<<< HEAD
         set $frontend_upstream shipease_frontend:3000;
+=======
+        set $frontend_upstream bestdeal_frontend:3000;
+>>>>>>> origin/master
         proxy_pass http://$frontend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -65,7 +76,11 @@ server {
     
     # Backend API - Route directly to backend container
     location /api {
+<<<<<<< HEAD
         set $backend_upstream shipease_backend:4001;
+=======
+        set $backend_upstream bestdeal_backend:4001;
+>>>>>>> origin/master
         proxy_pass http://$backend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -91,7 +106,11 @@ server {
 server {
     listen 80;
     listen [::]:80;
+<<<<<<< HEAD
     server_name shipeaseshippingapp.com www.shipeaseshippingapp.com;
+=======
+    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+>>>>>>> origin/master
     return 301 https://$host$request_uri;
 }
 EOF
@@ -101,8 +120,13 @@ echo "✅ Configuration updated"
 # Connect backend and frontend to host-network
 echo ""
 echo "=== Connecting services to host-network ==="
+<<<<<<< HEAD
 docker network connect host-network shipease_backend 2>/dev/null || echo "Backend already on network"
 docker network connect host-network shipease_frontend 2>/dev/null || echo "Frontend already on network"
+=======
+docker network connect host-network bestdeal_backend 2>/dev/null || echo "Backend already on network"
+docker network connect host-network bestdeal_frontend 2>/dev/null || echo "Frontend already on network"
+>>>>>>> origin/master
 
 # Test configuration
 echo ""
@@ -126,8 +150,15 @@ echo "UPDATE COMPLETE"
 echo "=========================================="
 echo ""
 echo "✅ host-nginx now routes directly to:"
+<<<<<<< HEAD
 echo "   - Frontend: shipease_frontend:3000"
 echo "   - Backend:  shipease_backend:4001"
 echo ""
 echo "Test: curl -k https://shipeaseshippingapp.com/api/health"
+=======
+echo "   - Frontend: bestdeal_frontend:3000"
+echo "   - Backend:  bestdeal_backend:4001"
+echo ""
+echo "Test: curl -k https://bestdealshippingapp.com/api/health"
+>>>>>>> origin/master
 

@@ -17,9 +17,15 @@ export const theme = {
     disabled: '#d9d9d9',
     placeholder: '#8c8c8c',
     backdrop: 'rgba(0, 0, 0, 0.5)',
+<<<<<<< HEAD
     // Custom colors for ShipEASE
     shipeaseBlue: '#003d82', // Only for splash screen background
     shipeaseOrange: '#ff9800',
+=======
+    // Custom colors for BestDeal
+    bestdealBlue: '#003d82', // Only for splash screen background
+    bestdealOrange: '#ff9800',
+>>>>>>> origin/master
     inputBorder: '#e0e0e0', // Softer border
     inputBorderFocus: '#ff9800',
     // Standard border color (light grey)

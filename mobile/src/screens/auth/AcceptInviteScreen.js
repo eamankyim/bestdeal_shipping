@@ -150,6 +150,14 @@ export default function AcceptInviteScreen({ navigation, route }) {
         <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top }]}>
           <View style={styles.content}>
             <View style={styles.headerSection}>
+<<<<<<< HEAD
+=======
+              <Image
+                source={require('../../../assets/AppLogo.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+>>>>>>> origin/master
               <Text variant="headlineMedium" style={styles.errorTitle}>
                 Invitation Error
               </Text>
@@ -160,7 +168,11 @@ export default function AcceptInviteScreen({ navigation, route }) {
                 mode="contained"
                 onPress={handleContactAdmin}
                 style={styles.button}
+<<<<<<< HEAD
                 buttonColor={theme.colors.shipeaseOrange}
+=======
+                buttonColor={theme.colors.bestdealOrange}
+>>>>>>> origin/master
               >
                 Contact Administrator
               </Button>
@@ -263,7 +275,11 @@ export default function AcceptInviteScreen({ navigation, route }) {
               disabled={loading}
               style={styles.button}
               contentStyle={styles.buttonContent}
+<<<<<<< HEAD
               buttonColor={theme.colors.shipeaseOrange}
+=======
+              buttonColor={theme.colors.bestdealOrange}
+>>>>>>> origin/master
             >
               Create Account & Get Started
             </Button>
