@@ -15,7 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/authService';
-import { standardStyles, theme, spacing, touchTargets } from '../../theme/theme';
+import { standardStyles, theme, spacing, touchTargets, typography } from '../../theme/theme';
 import logger from '../../utils/logger';
 
 export default function ChangePasswordScreen({ navigation }) {
@@ -76,7 +76,7 @@ export default function ChangePasswordScreen({ navigation }) {
               Change Password
             </Text>
             <TextInput
-              label="Current Password"
+              placeholder="Current Password"
               value={currentPassword}
               onChangeText={setCurrentPassword}
               mode="outlined"
@@ -84,11 +84,12 @@ export default function ChangePasswordScreen({ navigation }) {
               style={styles.input}
               disabled={loading}
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
+              placeholderTextColor={theme.colors.placeholder}
             />
             <TextInput
-              label="New Password"
+              placeholder="New Password"
               value={newPassword}
               onChangeText={setNewPassword}
               mode="outlined"
@@ -96,11 +97,12 @@ export default function ChangePasswordScreen({ navigation }) {
               style={styles.input}
               disabled={loading}
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
+              placeholderTextColor={theme.colors.placeholder}
             />
             <TextInput
-              label="Confirm New Password"
+              placeholder="Confirm New Password"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               mode="outlined"
@@ -108,8 +110,9 @@ export default function ChangePasswordScreen({ navigation }) {
               style={styles.input}
               disabled={loading}
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
+              placeholderTextColor={theme.colors.placeholder}
             />
             <Button
               mode="contained"
@@ -117,6 +120,8 @@ export default function ChangePasswordScreen({ navigation }) {
               loading={loading}
               disabled={loading}
               style={styles.button}
+              contentStyle={styles.buttonContent}
+              labelStyle={styles.buttonLabel}
             >
               Change Password
             </Button>
@@ -125,6 +130,8 @@ export default function ChangePasswordScreen({ navigation }) {
               onPress={() => navigation.goBack()}
               disabled={loading}
               style={styles.button}
+              contentStyle={styles.buttonContent}
+              labelStyle={styles.buttonLabel}
             >
               Cancel
             </Button>
@@ -161,6 +168,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     minHeight: touchTargets.buttonHeight,
     borderRadius: 8, // Consistent 8px border radius (not fully curved)
+  },
+  buttonContent: {
+    minHeight: touchTargets.buttonHeight,
+  },
+  buttonLabel: {
+    fontSize: typography.button,
+    fontWeight: '600',
   },
 });
 

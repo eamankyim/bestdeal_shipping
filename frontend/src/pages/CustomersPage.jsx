@@ -319,7 +319,16 @@ const CustomersPage = () => {
           loading={loading}
           rowKey="id"
           locale={{
-            emptyText: 'No customers yet. Click "New Customer" to add your first customer.'
+            emptyText: (
+              <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                <img
+                  src="/no-customers.png"
+                  alt="No customers"
+                  style={{ width: 180, maxWidth: '70%', marginBottom: 12 }}
+                />
+                <div>No customers yet. Click "New Customer" to add your first customer.</div>
+              </div>
+            )
           }}
           pagination={{
             total: customers.length,
@@ -366,9 +375,8 @@ const CustomersPage = () => {
             <Col span={12}>
               <Form.Item
                 name="email"
-                label="Email Address"
+                label="Email Address (optional)"
                 rules={[
-                  { required: true, message: 'Please enter email address!' },
                   { type: 'email', message: 'Please enter a valid email!' }
                 ]}
               >
@@ -422,10 +430,9 @@ const CustomersPage = () => {
             <Col span={12}>
               <Form.Item
                 name="country"
-                label="Country"
-                rules={[{ required: true, message: 'Please select country!' }]}
+                label="Country (optional)"
               >
-                <Select>
+                <Select placeholder="Select country">
                   <Option value="United Kingdom">United Kingdom</Option>
                   <Option value="Ghana">Ghana</Option>
                   <Option value="Nigeria">Nigeria</Option>

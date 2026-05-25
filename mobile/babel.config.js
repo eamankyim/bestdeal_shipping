@@ -10,7 +10,4 @@ module.exports = function(api) {
 
 
 
-<<<<<<< HEAD
-=======
 
->>>>>>> origin/master

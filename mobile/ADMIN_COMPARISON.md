@@ -72,7 +72,4 @@
 - [ ] Add navigation to all new screens
 
 
-<<<<<<< HEAD
-=======
 
->>>>>>> origin/master

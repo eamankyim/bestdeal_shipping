@@ -13,6 +13,7 @@ const NotificationBell = () => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [previousUnreadCount, setPreviousUnreadCount] = useState(0);
 
@@ -57,6 +58,7 @@ const NotificationBell = () => {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
+      setLoadError(false);
       console.log('📬 Fetching notifications...');
       const response = await notificationAPI.getAll({ limit: 10 });
       console.log('📬 Notifications response:', response);
@@ -69,6 +71,7 @@ const NotificationBell = () => {
       }
     } catch (error) {
       console.error('❌ Failed to fetch notifications:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -185,7 +188,17 @@ const NotificationBell = () => {
       <Divider style={{ margin: '8px 0' }} />
 
       <div className="notification-list">
-        {notifications.length > 0 ? (
+        {loadError ? (
+          <Empty
+            image={<img src="/something-went-wrong.png" alt="Something went wrong" style={{ width: 160 }} />}
+            description="Something went wrong while loading notifications"
+            style={{ padding: '20px 0' }}
+          >
+            <Button type="primary" size="small" onClick={fetchNotifications}>
+              Retry
+            </Button>
+          </Empty>
+        ) : notifications.length > 0 ? (
           <List
             dataSource={notifications}
             loading={loading}
@@ -219,7 +232,7 @@ const NotificationBell = () => {
           />
         ) : (
           <Empty 
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            image={<img src="/no-notifications.png" alt="No notifications" style={{ width: 160 }} />}
             description="No notifications"
             style={{ padding: '24px 0' }}
           />

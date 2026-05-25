@@ -15,7 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/authService';
-import { standardStyles, theme, spacing, touchTargets } from '../../theme/theme';
+import { standardStyles, theme, spacing, touchTargets, typography } from '../../theme/theme';
 import logger from '../../utils/logger';
 
 export default function EditProfileScreen({ navigation }) {
@@ -33,7 +33,10 @@ export default function EditProfileScreen({ navigation }) {
         phone: phone || null,
       });
       if (response.success) {
-        await updateUser(response.data.user);
+        const updatedUser = response?.data?.user || response?.user || null;
+        if (updatedUser) {
+          await updateUser(updatedUser);
+        }
         Alert.alert('Success', 'Profile updated successfully');
         navigation.goBack();
       } else {
@@ -59,28 +62,30 @@ export default function EditProfileScreen({ navigation }) {
               Edit Profile
             </Text>
             <TextInput
-              label="Full Name"
+              placeholder="Full Name"
               value={name}
               onChangeText={setName}
               mode="outlined"
               style={styles.input}
               disabled={loading}
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
+              placeholderTextColor={theme.colors.placeholder}
             />
             <TextInput
-              label="Email"
+              placeholder="Email"
               value={user?.email || ''}
               mode="outlined"
               style={styles.input}
               disabled
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
+              placeholderTextColor={theme.colors.placeholder}
             />
             <TextInput
-              label="Phone"
+              placeholder="Phone"
               value={phone}
               onChangeText={setPhone}
               mode="outlined"
@@ -88,18 +93,20 @@ export default function EditProfileScreen({ navigation }) {
               style={styles.input}
               disabled={loading}
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
+              placeholderTextColor={theme.colors.placeholder}
             />
             <TextInput
-              label="Role"
+              placeholder="Role"
               value={user?.role || ''}
               mode="outlined"
               style={styles.input}
               disabled
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
+              placeholderTextColor={theme.colors.placeholder}
             />
             <Button
               mode="contained"
@@ -107,6 +114,8 @@ export default function EditProfileScreen({ navigation }) {
               loading={loading}
               disabled={loading}
               style={styles.button}
+              contentStyle={styles.buttonContent}
+              labelStyle={styles.buttonLabel}
             >
               Save Changes
             </Button>
@@ -115,6 +124,8 @@ export default function EditProfileScreen({ navigation }) {
               onPress={() => navigation.goBack()}
               disabled={loading}
               style={styles.button}
+              contentStyle={styles.buttonContent}
+              labelStyle={styles.buttonLabel}
             >
               Cancel
             </Button>
@@ -138,7 +149,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: typography.md,
     marginBottom: spacing.md,
     color: theme.colors.text,
   },
@@ -151,6 +162,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     minHeight: touchTargets.buttonHeight,
     borderRadius: 8, // Consistent 8px border radius (not fully curved)
+  },
+  buttonContent: {
+    minHeight: touchTargets.buttonHeight,
+  },
+  buttonLabel: {
+    fontSize: typography.button,
+    fontWeight: '600',
   },
 });
 

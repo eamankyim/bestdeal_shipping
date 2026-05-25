@@ -198,12 +198,13 @@ const BatchManagementPage = () => {
     }
   };
 
-  // TODO: Fetch vessel/flight options from API
+  // Vessel/flight options: MSC (not MD Sea); custom field allowed
   const vesselOptions = [
-    { value: 'MS Sea Express', label: 'MS Sea Express (Sea)', type: 'Sea' },
-    { value: 'MS Atlantic Star', label: 'MS Atlantic Star (Sea)', type: 'Sea' },
+    { value: 'MSC', label: 'MSC (Sea)', type: 'Sea' },
+    { value: 'MSC Express', label: 'MSC Express (Sea)', type: 'Sea' },
     { value: 'BA Flight 123', label: 'BA Flight 123 (Air)', type: 'Air' },
-    { value: 'AF Flight 456', label: 'AF Flight 456 (Air)', type: 'Air' }
+    { value: 'AF Flight 456', label: 'AF Flight 456 (Air)', type: 'Air' },
+    { value: '__custom__', label: 'Other (enter below)', type: 'Custom' }
   ];
 
   const batchColumns = [
@@ -235,8 +236,22 @@ const BatchManagementPage = () => {
       title: 'Jobs',
       dataIndex: 'totalParcels',
       key: 'totalParcels',
-      render: (count) => <Badge count={count} style={{ backgroundColor: '#1890ff' }} />,
+      render: (count, record) => (
+        <Space direction="vertical" size={0}>
+          <Badge count={count} style={{ backgroundColor: '#1890ff' }} />
+          {record.trackingNumber && (
+            <Text type="secondary" style={{ fontSize: '12px' }}>Container: {record.trackingNumber}</Text>
+          )}
+        </Space>
+      ),
       mobile: true,
+    },
+    {
+      title: 'Container #',
+      dataIndex: 'trackingNumber',
+      key: 'containerNumber',
+      mobile: false,
+      render: (text) => text ? <Text strong>{text}</Text> : '—',
     },
     {
       title: 'Total Weight',
@@ -462,13 +477,12 @@ const BatchManagementPage = () => {
       const batchData = {
         name: values.name,
         route: values.route,
-        vessel: values.vessel,
-        containerNumber: values.containerNumber, // Seal Number
+        vessel: values.vessel === '__custom__' ? (values.vesselCustom || '') : values.vessel,
+        containerNumber: values.containerNumber,
         departureDate: values.departureDate ? values.departureDate.toISOString() : null,
         eta: values.eta ? values.eta.toISOString() : null,
         notes: values.notes,
         jobs: selectedParcels, // Array of selected job IDs
-        batchItems: values.batchItems || [], // Batch items for Ghana delivery
       };
       
       console.log('📦 Creating batch with jobs:', batchData);
@@ -682,13 +696,26 @@ const BatchManagementPage = () => {
               <Col xs={24} sm={12}>
                 <Form.Item
                   name="containerNumber"
-                  label="Seal Number"
-                  rules={[{ required: true, message: 'Please enter seal number!' }]}
+                  label="Container Number / Seal"
+                  rules={[{ required: true, message: 'Please enter container/seal number!' }]}
                 >
-                  <Input placeholder="e.g., SEAL001234" />
+                  <Input placeholder="e.g., CONT001234 or SEAL001234" />
                 </Form.Item>
               </Col>
             </Row>
+            <Form.Item noStyle shouldUpdate={(prev, curr) => prev.vessel !== curr.vessel}>
+              {({ getFieldValue }) =>
+                getFieldValue('vessel') === '__custom__' ? (
+                  <Form.Item
+                    name="vesselCustom"
+                    label="Custom Vessel/Flight Name"
+                    rules={[{ required: true, message: 'Please enter vessel or flight name' }]}
+                  >
+                    <Input placeholder="e.g., MSC Olympia, Flight BA 456" />
+                  </Form.Item>
+                ) : null
+              }
+            </Form.Item>
           </Card>
 
           {/* Job Selection */}
@@ -739,54 +766,6 @@ const BatchManagementPage = () => {
                 emptyText: 'No jobs available for batching. Jobs must have "Arrived At Hub" status to be ready for batching.'
               }}
             />
-          </Card>
-
-          {/* Batch Items for Ghana Delivery */}
-          <Card size="small" title="Batch Items (Ghana Delivery)" style={{ marginBottom: 16 }}>
-            <Form.List name="batchItems">
-              {(fields, { add, remove }) => (
-                <>
-                  {fields.map(({ key, name, ...restField }) => (
-                    <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'itemName']}
-                        label="Item Name"
-                        rules={[{ required: true, message: 'Missing item name' }]}
-                      >
-                        <Input placeholder="Item name" />
-                      </Form.Item>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'quantity']}
-                        label="Quantity"
-                        rules={[{ required: true, message: 'Missing quantity' }]}
-                      >
-                        <InputNumber min={1} placeholder="Qty" />
-                      </Form.Item>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'description']}
-                        label="Description"
-                      >
-                        <Input placeholder="Description" />
-                      </Form.Item>
-                      <Button type="link" onClick={() => remove(name)} danger>
-                        Remove
-                      </Button>
-                    </Space>
-                  ))}
-                  <Form.Item>
-                    <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
-                      Add Batch Item
-                    </Button>
-                  </Form.Item>
-                </>
-              )}
-            </Form.List>
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              Add items that will be included in this batch for delivery in Ghana
-            </Text>
           </Card>
 
           {/* Batch Notes */}
@@ -1032,7 +1011,7 @@ const BatchManagementPage = () => {
                     </div>
                     {selectedBatch.trackingNumber && (
                       <div className="user-info-item">
-                        <div className="user-info-label">Seal Number</div>
+                        <div className="user-info-label">Container Number / Seal</div>
                         <div className="user-info-value">
                           <Text strong>{selectedBatch.trackingNumber}</Text>
                         </div>

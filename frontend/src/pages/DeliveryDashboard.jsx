@@ -96,14 +96,20 @@ const DeliveryDashboard = () => {
       color: '#1890ff',
     },
     {
-      title: 'Out for Delivery',
-      value: stats?.outForDelivery || 0,
+      title: 'Ready for Delivery',
+      value: stats?.readyForDelivery ?? 0,
       prefix: <ClockCircleOutlined />,
+      color: '#52c41a',
+    },
+    {
+      title: 'Delivery Attempted',
+      value: stats?.attempted || 0,
+      prefix: <CheckCircleOutlined />,
       color: '#faad14',
     },
     {
       title: 'Delivered',
-      value: stats?.attempted || 0,
+      value: stats?.delivered ?? 0,
       prefix: <CheckCircleOutlined />,
       color: '#52c41a',
     },
@@ -171,13 +177,15 @@ const DeliveryDashboard = () => {
       mobile: true,
       render: (status) => {
         const colors = {
-          'Out for Delivery': 'blue',
+          'Ready for Delivery': 'green',
+          'ready_for_delivery': 'green',
           'Delivery Attempted': 'orange',
           'Delivered': 'green',
+          'delivered': 'green',
         };
         return (
           <Tag color={colors[status] || 'default'}>
-            {status?.replace(/_/g, ' ').toUpperCase()}
+            {status?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
           </Tag>
         );
       }
@@ -232,10 +240,10 @@ const DeliveryDashboard = () => {
         </Col>
       </Row>
 
-      {/* Statistics Cards */}
+      {/* Statistics Cards - four in a row */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         {statsCards.map((stat, index) => (
-          <Col xs={12} sm={8} md={8} key={index}>
+          <Col xs={12} sm={12} md={6} lg={6} key={index}>
             <Card>
               <Statistic
                 title={stat.title}

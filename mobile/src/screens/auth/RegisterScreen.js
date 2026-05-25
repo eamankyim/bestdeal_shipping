@@ -11,7 +11,7 @@ import {
 import { TextInput, Button, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authService } from '../../services/authService';
-import { theme } from '../../theme/theme';
+import { theme, touchTargets, typography } from '../../theme/theme';
 
 export default function RegisterScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -76,10 +76,6 @@ export default function RegisterScreen({ navigation }) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.content}>
-<<<<<<< HEAD
-          {/* Header Section (text-only, logo image removed) */}
-          <View style={styles.headerSection}>
-=======
           {/* Header Section */}
           <View style={styles.headerSection}>
             <Image
@@ -87,35 +83,31 @@ export default function RegisterScreen({ navigation }) {
               style={styles.logo}
               resizeMode="contain"
             />
->>>>>>> origin/master
             <Text variant="displaySmall" style={styles.title}>
               Create Account
             </Text>
             <Text variant="bodyLarge" style={styles.subtitle}>
-<<<<<<< HEAD
-              Join ShipEASE Shipping today
-=======
               Join BestDeal Shipping today
->>>>>>> origin/master
             </Text>
           </View>
 
           {/* Form Section */}
           <View style={styles.formSection}>
             <TextInput
-              label="Full Name"
+              placeholder="Full Name"
               value={formData.name}
               onChangeText={(text) => setFormData({ ...formData, name: text })}
               mode="outlined"
               style={styles.input}
               left={<TextInput.Icon icon="account" />}
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
               backgroundColor="#ffffff"
+              placeholderTextColor={theme.colors.placeholder}
             />
 
             <TextInput
-              label="Email"
+              placeholder="Email"
               value={formData.email}
               onChangeText={(text) => setFormData({ ...formData, email: text })}
               mode="outlined"
@@ -123,48 +115,52 @@ export default function RegisterScreen({ navigation }) {
               autoCapitalize="none"
               style={styles.input}
               left={<TextInput.Icon icon="email" />}
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
               backgroundColor="#ffffff"
+              placeholderTextColor={theme.colors.placeholder}
             />
 
             <TextInput
-              label="Phone"
+              placeholder="Phone"
               value={formData.phone}
               onChangeText={(text) => setFormData({ ...formData, phone: text })}
               mode="outlined"
               keyboardType="phone-pad"
               style={styles.input}
               left={<TextInput.Icon icon="phone" />}
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
               backgroundColor="#ffffff"
+              placeholderTextColor={theme.colors.placeholder}
             />
 
             <TextInput
-              label="Password"
+              placeholder="Password"
               value={formData.password}
               onChangeText={(text) => setFormData({ ...formData, password: text })}
               mode="outlined"
               secureTextEntry
               style={styles.input}
               left={<TextInput.Icon icon="lock" />}
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
               backgroundColor="#ffffff"
+              placeholderTextColor={theme.colors.placeholder}
             />
 
             <TextInput
-              label="Confirm Password"
+              placeholder="Confirm Password"
               value={formData.confirmPassword}
               onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
               mode="outlined"
               secureTextEntry
               style={styles.input}
               left={<TextInput.Icon icon="lock-check" />}
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
               backgroundColor="#ffffff"
+              placeholderTextColor={theme.colors.placeholder}
             />
 
             <Button
@@ -174,11 +170,8 @@ export default function RegisterScreen({ navigation }) {
               disabled={loading}
               style={styles.button}
               contentStyle={styles.buttonContent}
-<<<<<<< HEAD
-              buttonColor={theme.colors.shipeaseOrange}
-=======
               buttonColor={theme.colors.bestdealOrange}
->>>>>>> origin/master
+              labelStyle={styles.buttonLabel}
             >
               Sign Up
             </Button>
@@ -249,7 +242,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   buttonContent: {
-    paddingVertical: 8,
+    minHeight: touchTargets.buttonHeight,
+  },
+  buttonLabel: {
+    fontSize: typography.button,
+    fontWeight: '600',
   },
   footerSection: {
     flexDirection: 'row',

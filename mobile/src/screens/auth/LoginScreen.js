@@ -7,12 +7,14 @@ import {
   ScrollView,
   Alert,
   Image,
+  ImageBackground,
+  TouchableOpacity,
 } from 'react-native';
 import { TextInput, Button, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/authService';
-import { theme, spacing, touchTargets } from '../../theme/theme';
+import { theme, spacing, touchTargets, typography } from '../../theme/theme';
 import logger from '../../utils/logger';
 
 export default function LoginScreen({ navigation }) {
@@ -58,179 +60,202 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top }]}
-        keyboardShouldPersistTaps="handled"
+    <View style={styles.container}>
+      <ImageBackground
+        source={require('../../../assets/signin-background.png')}
+        style={StyleSheet.absoluteFillObject}
+        resizeMode="cover"
+      />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        style={styles.main}
       >
-        <View style={styles.content}>
-<<<<<<< HEAD
-          {/* Brand Section (text-only, logo image removed) */}
-          <View style={styles.brandSection}>
-            <Text variant="displaySmall" style={styles.title}>
-              ShipEASE Shipping
-=======
-          {/* Logo/Brand Section */}
-          <View style={styles.brandSection}>
-            <Image
-              source={require('../../../assets/AppLogo.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-            <Text variant="displaySmall" style={styles.title}>
-              BestDeal Shipping
->>>>>>> origin/master
-            </Text>
-            <Text variant="bodyLarge" style={styles.welcomeText}>
-              Sign in to continue
-            </Text>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 8 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.content}>
+            <View style={styles.brandSection}>
+              <Image
+                source={require('../../../assets/AppLogo.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+              <Text style={styles.title}>BestDeal Shipping</Text>
+              <Text style={styles.welcomeText}>Sign in to continue</Text>
+            </View>
+
+            <View style={styles.formSection}>
+              <TextInput
+                placeholder="Email"
+                value={email}
+                onChangeText={setEmail}
+                mode="outlined"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                style={styles.input}
+                left={<TextInput.Icon icon="email-outline" />}
+                outlineColor="#d9d9d9"
+                activeOutlineColor="#ff9800"
+                textColor="#1f1f1f"
+                theme={{
+                  colors: {
+                    onSurfaceVariant: '#666666',
+                    surface: 'rgba(255,255,255,0.22)',
+                    background: 'rgba(255,255,255,0.22)',
+                  },
+                }}
+              />
+
+              <TextInput
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                mode="outlined"
+                secureTextEntry
+                style={styles.input}
+                left={<TextInput.Icon icon="lock-outline" />}
+                outlineColor="#d9d9d9"
+                activeOutlineColor="#ff9800"
+                textColor="#1f1f1f"
+                theme={{
+                  colors: {
+                    onSurfaceVariant: '#666666',
+                    surface: 'rgba(255,255,255,0.22)',
+                    background: 'rgba(255,255,255,0.22)',
+                  },
+                }}
+              />
+
+              <Button
+                mode="contained"
+                onPress={handleLogin}
+                loading={loading}
+                disabled={loading}
+                style={styles.button}
+                contentStyle={styles.buttonContent}
+                buttonColor={theme.colors.bestdealOrange}
+                labelStyle={styles.buttonLabel}
+              >
+                Sign In
+              </Button>
+
+              <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgotWrap}>
+                <Text style={styles.forgotText}>Forgot Password?</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.footerSection}>
+              <Text style={styles.footerText}>Need an account? </Text>
+              <TouchableOpacity onPress={() => {}}>
+                <Text style={styles.contactText}>Contact Administrator</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-
-          {/* Form Section */}
-          <View style={styles.formSection}>
-            <TextInput
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              mode="outlined"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              style={styles.input}
-              left={<TextInput.Icon icon="email" />}
-              outlineColor="#e0e0e0"
-              activeOutlineColor="#ff9800"
-              backgroundColor="#ffffff"
-            />
-
-            <TextInput
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              mode="outlined"
-              secureTextEntry
-              style={styles.input}
-              left={<TextInput.Icon icon="lock" />}
-              outlineColor="#e0e0e0"
-              activeOutlineColor="#ff9800"
-              backgroundColor="#ffffff"
-            />
-
-            <Button
-              mode="contained"
-              onPress={handleLogin}
-              loading={loading}
-              disabled={loading}
-              style={styles.button}
-              contentStyle={styles.buttonContent}
-<<<<<<< HEAD
-              buttonColor={theme.colors.shipeaseOrange}
-=======
-              buttonColor={theme.colors.bestdealOrange}
->>>>>>> origin/master
-            >
-              Sign In
-            </Button>
-
-            <Button
-              mode="text"
-              onPress={() => navigation.navigate('ForgotPassword')}
-              style={styles.forgotButton}
-            >
-              Forgot Password?
-            </Button>
-          </View>
-
-          {/* Footer Section */}
-          <View style={styles.footerSection}>
-            <Text variant="bodyMedium" style={styles.footerText}>
-              Need an account?{' '}
-            </Text>
-            <Text variant="bodyMedium" style={styles.contactText}>
-              Contact Administrator
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'transparent',
+  },
+  main: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  scroll: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    padding: spacing.lg,
-    paddingTop: spacing.xl * 2,
+    minHeight: '100%',
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+    justifyContent: 'space-between',
   },
   content: {
-    flex: 1,
     width: '100%',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    paddingBottom: spacing.md,
   },
   brandSection: {
     alignItems: 'center',
-    marginBottom: spacing.xl * 2,
-  },
-  logo: {
-    width: 100,
-    height: 100,
+    marginTop: spacing.xl * 2.25,
     marginBottom: spacing.md,
   },
+  logo: {
+    width: 88,
+    height: 88,
+    marginBottom: 8,
+  },
   title: {
-    fontWeight: '700',
+    fontWeight: '800',
     color: theme.colors.primary,
-    marginBottom: spacing.sm,
-    fontSize: 24,
+    marginBottom: 8,
+    fontSize: typography.title,
   },
   welcomeText: {
     color: theme.colors.placeholder,
     textAlign: 'center',
-    fontSize: 15,
+    fontSize: typography.md,
   },
   formSection: {
     width: '100%',
-    marginBottom: spacing.lg,
+    marginTop: spacing.sm,
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   input: {
     marginBottom: spacing.md,
-    backgroundColor: '#ffffff', // White background
-    borderRadius: 8, // Consistent 8px border radius
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderRadius: 12,
   },
   button: {
-    marginTop: spacing.md,
+    marginTop: 4,
     marginBottom: spacing.sm,
-    minHeight: touchTargets.buttonHeight,
-    borderRadius: 8, // Consistent 8px border radius (not fully curved)
+    borderRadius: 10,
   },
   buttonContent: {
-    paddingVertical: spacing.sm,
+    minHeight: touchTargets.buttonHeight,
   },
-  forgotButton: {
+  buttonLabel: {
+    fontSize: typography.button,
+    fontWeight: '600',
+  },
+  forgotWrap: {
     marginTop: spacing.sm,
     alignSelf: 'center',
-    minHeight: touchTargets.minHeight,
+  },
+  forgotText: {
+    color: '#d79000',
+    fontSize: typography.lg,
+    fontWeight: '600',
   },
   footerSection: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     flexWrap: 'wrap',
+    alignSelf: 'center',
   },
   footerText: {
     color: theme.colors.text,
-    fontSize: 14,
+    fontSize: typography.md,
   },
   contactText: {
     color: theme.colors.primary,
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: typography.md,
   },
 });
 

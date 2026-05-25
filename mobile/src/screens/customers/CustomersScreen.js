@@ -6,22 +6,22 @@ import {
   RefreshControl,
   TouchableOpacity,
   Alert,
+  Image,
 } from 'react-native';
 import {
   Text,
   ActivityIndicator,
-  Searchbar,
-  Divider,
-  Avatar,
   FAB,
 } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
-import { theme, spacing, touchTargets } from '../../theme/theme';
+import { spacing } from '../../theme/theme';
 import logger from '../../utils/logger';
+import { customerService } from '../../services/customerService';
+import SearchBellHeader from '../../components/common/SearchBellHeader';
 
-export default function CustomersScreen({ navigation }) {
+export default function CustomersScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [customers, setCustomers] = useState([]);
@@ -36,12 +36,20 @@ export default function CustomersScreen({ navigation }) {
   const loadCustomers = async () => {
     try {
       setLoading(true);
-      // TODO: Implement customer API service
       logger.info('Loading customers');
-      // Placeholder - will be implemented with actual API
-      setCustomers([]);
+      const response = await customerService.getCustomers({ limit: 100 });
+      const list =
+        response?.data?.customers ||
+        response?.data?.data?.customers ||
+        response?.data?.data ||
+        response?.customers ||
+        response?.data ||
+        [];
+      setCustomers(Array.isArray(list) ? list : []);
     } catch (error) {
       logger.error('Failed to load customers', error);
+      setCustomers([]);
+      Alert.alert('Error', 'Failed to load customers');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -58,81 +66,82 @@ export default function CustomersScreen({ navigation }) {
     customer.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const renderCustomerItem = ({ item }) => (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      style={styles.customerCard}
+      onPress={() => Alert.alert('Customer', `${item.name || 'Unnamed customer'}`)}
+    >
+      <View style={styles.customerTopRow}>
+        <View style={styles.avatarWrap}>
+          <Ionicons name="person-outline" size={18} color="#ff9800" />
+        </View>
+        <View style={styles.customerInfo}>
+          <Text style={styles.customerName}>{item.name || 'Unnamed customer'}</Text>
+          <Text style={styles.customerEmail}>{item.email || 'No email'}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color="#b8b8b8" />
+      </View>
+      <View style={styles.customerMetaRow}>
+        <Text style={styles.customerMetaText}>{item.phone || 'No phone'}</Text>
+        <Text style={styles.customerMetaText}>
+          {(item._count?.jobs ?? item.jobsCount ?? 0)} jobs
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+
   if (loading && !refreshing) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={[styles.loading, { paddingTop: insets.top }]}> 
+        <ActivityIndicator size="large" color="#ff9800" />
       </View>
     );
   }
 
-  const renderCustomerItem = ({ item, index }) => (
-    <View>
-      <TouchableOpacity
-        activeOpacity={0.7}
-        onPress={() => {
-          // TODO: Navigate to customer details
-        }}
-        style={styles.customerItem}
-      >
-        <View style={styles.customerItemContent}>
-          <Avatar.Text
-            size={48}
-            label={item.name?.charAt(0).toUpperCase() || 'C'}
-            style={styles.avatar}
-          />
-          <View style={styles.customerItemLeft}>
-            <Text style={styles.customerName}>{item.name || 'Unknown'}</Text>
-            <Text style={styles.customerEmail} numberOfLines={1}>
-              {item.email || 'No email'}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
-        </View>
-      </TouchableOpacity>
-      {index < filteredCustomers.length - 1 && <Divider style={styles.divider} />}
-    </View>
-  );
-
   return (
     <View style={styles.container}>
-      <View style={[styles.searchContainer, { paddingTop: insets.top }]}>
-        <Searchbar
-          placeholder="Search customers..."
-          onChangeText={setSearchQuery}
-          value={searchQuery}
-          style={styles.searchbar}
-        />
-      </View>
+      <SearchBellHeader
+        topInset={insets.top + 8}
+        placeholder="Search customers..."
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+
       <FlatList
         data={filteredCustomers}
+        keyExtractor={(item, index) => item.id || item.email || `customer-${index}`}
         renderItem={renderCustomerItem}
-        keyExtractor={(item) => item.id}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {searchQuery ? 'No customers found' : 'No customers'}
-            </Text>
-            <Text style={styles.emptySubtext}>
-              {searchQuery ? 'Try adjusting your search' : 'Customers will appear here'}
-            </Text>
+          <View style={styles.emptyWrap}>
+            <Image
+              source={require('../../../assets/no-customers.png')}
+              style={styles.emptyImage}
+              resizeMode="contain"
+            />
+
+            <Text style={styles.emptyTitle}>No customers yet</Text>
+            <Text style={styles.emptySub}>Add your first customer to get started and manage your shipments</Text>
+
+            <TouchableOpacity
+              style={styles.addButton}
+              activeOpacity={0.85}
+              onPress={() => Alert.alert('Coming Soon', 'Create Customer feature coming soon')}
+            >
+              <Ionicons name="add" size={18} color="#fff" />
+              <Text style={styles.addBtnText}>Add New Customer</Text>
+            </TouchableOpacity>
           </View>
         }
-        contentContainerStyle={{ paddingBottom: 80 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}
       />
-      
-      {/* Floating Action Button for Add Customer */}
+
       {(user?.role === 'admin' || user?.role === 'customer-service') && (
         <FAB
           icon="plus"
-          style={[styles.fab, { bottom: insets.bottom + spacing.md }]}
-          onPress={() => {
-            // TODO: Navigate to CreateCustomer screen when implemented
-            Alert.alert('Coming Soon', 'Create Customer feature coming soon');
-          }}
+          style={[styles.fab, { right: spacing.md, bottom: insets.bottom + 88 }]}
+          onPress={() => Alert.alert('Coming Soon', 'Create Customer feature coming soon')}
           color="#ffffff"
           customSize={56}
         />
@@ -144,75 +153,103 @@ export default function CustomersScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#fafafa',
   },
-  searchContainer: {
-    padding: spacing.md,
-    paddingBottom: spacing.sm,
-    backgroundColor: theme.colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.divider,
+  loading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fafafa',
   },
-  searchbar: {
-    backgroundColor: theme.colors.background,
-    elevation: 0,
-    shadowOpacity: 0,
-    shadowColor: 'transparent',
-    shadowOffset: { width: 0, height: 0 },
-    shadowRadius: 0,
+  customerCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#efefef',
+    marginHorizontal: 14,
+    marginBottom: 10,
+    padding: 12,
   },
-  customerItem: {
-    backgroundColor: theme.colors.surface,
-  },
-  customerItemContent: {
+  customerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    minHeight: touchTargets.listItemHeight,
   },
-  avatar: {
-    backgroundColor: theme.colors.primary,
-    marginRight: spacing.md,
-  },
-  customerItemLeft: {
-    flex: 1,
-    marginRight: spacing.md,
-  },
-  customerName: {
-    fontWeight: '600',
-    fontSize: 16,
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  customerEmail: {
-    color: theme.colors.placeholder,
-    fontSize: 14,
-  },
-  divider: {
-    marginLeft: spacing.md + 48 + spacing.md, // Align with content (avatar + margin)
-    backgroundColor: theme.colors.divider,
-  },
-  emptyContainer: {
-    paddingVertical: spacing.xl * 2,
+  avatarWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#fff4e8',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 200,
+    marginRight: 10,
   },
-  emptyText: {
-    color: theme.colors.text,
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: spacing.xs,
+  customerInfo: {
+    flex: 1,
   },
-  emptySubtext: {
-    color: theme.colors.placeholder,
+  customerName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#141414',
+  },
+  customerEmail: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#777',
+  },
+  customerMetaRow: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f4f4f4',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  customerMetaText: {
+    fontSize: 12,
+    color: '#8b8b8b',
+  },
+  emptyWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  emptyImage: {
+    width: 270,
+    height: 270,
+    marginBottom: 8,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111',
+    marginBottom: 8,
+  },
+  emptySub: {
+    textAlign: 'center',
+    fontSize: 13,
+    color: '#8b8b8b',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  addButton: {
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#ff9800',
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  addBtnText: {
+    color: '#fff',
+    fontWeight: '700',
     fontSize: 14,
   },
   fab: {
     position: 'absolute',
-    right: 16,
-    backgroundColor: '#ff9800', // Orange
+    backgroundColor: '#ff9800',
     elevation: 0,
     shadowOpacity: 0,
     shadowColor: 'transparent',
@@ -221,4 +258,3 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
 });
-

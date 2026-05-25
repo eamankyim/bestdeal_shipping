@@ -19,7 +19,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { batchService } from '../../services/batchService';
 import { jobService } from '../../services/jobService';
-import { standardStyles } from '../../theme/theme';
+import { standardStyles, touchTargets, typography } from '../../theme/theme';
 
 export default function CreateBatchScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -35,7 +35,6 @@ export default function CreateBatchScreen({ navigation }) {
     departureDate: '',
     estimatedArrivalDate: '',
     notes: '',
-    batchItems: [],
   });
 
   useEffect(() => {
@@ -46,7 +45,13 @@ export default function CreateBatchScreen({ navigation }) {
     try {
       const response = await jobService.getJobs({ status: 'At Warehouse' });
       if (response.success) {
-        setAvailableJobs(response.data || []);
+        const jobs =
+          response?.data?.jobs ||
+          response?.data?.data?.jobs ||
+          response?.data?.data ||
+          response?.data ||
+          [];
+        setAvailableJobs(Array.isArray(jobs) ? jobs : []);
       }
     } catch (error) {
       console.error('Error loading jobs:', error);
@@ -88,7 +93,6 @@ export default function CreateBatchScreen({ navigation }) {
         eta: formData.estimatedArrivalDate || undefined,
         notes: formData.notes || undefined,
         jobs: selectedJobs, // Backend expects 'jobs' not 'jobIds'
-        batchItems: formData.batchItems || [],
       };
 
       const response = await batchService.createBatch(batchData);
@@ -130,7 +134,7 @@ export default function CreateBatchScreen({ navigation }) {
             </Text>
 
             <TextInput
-              label="Batch Name *"
+              placeholder="Batch Name *"
               value={formData.name}
               onChangeText={(text) =>
                 setFormData({ ...formData, name: text })
@@ -138,13 +142,13 @@ export default function CreateBatchScreen({ navigation }) {
               mode="outlined"
               style={styles.input}
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
               placeholder="Enter batch name"
             />
 
             <TextInput
-              label="Seal Number *"
+              placeholder="Seal Number *"
               value={formData.sealNumber}
               onChangeText={(text) =>
                 setFormData({ ...formData, sealNumber: text })
@@ -152,13 +156,13 @@ export default function CreateBatchScreen({ navigation }) {
               mode="outlined"
               style={styles.input}
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
               placeholder="Enter seal/container number"
             />
 
             <TextInput
-              label="Route *"
+              placeholder="Route *"
               value={formData.route}
               onChangeText={(text) =>
                 setFormData({ ...formData, route: text })
@@ -166,13 +170,13 @@ export default function CreateBatchScreen({ navigation }) {
               mode="outlined"
               style={styles.input}
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
               placeholder="e.g., UK → Ghana"
             />
 
             <TextInput
-              label="Vessel Name"
+              placeholder="Vessel Name"
               value={formData.vessel}
               onChangeText={(text) =>
                 setFormData({ ...formData, vessel: text })
@@ -180,12 +184,12 @@ export default function CreateBatchScreen({ navigation }) {
               mode="outlined"
               style={styles.input}
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
             />
 
             <TextInput
-              label="Flight Number"
+              placeholder="Flight Number"
               value={formData.flightNumber}
               onChangeText={(text) =>
                 setFormData({ ...formData, flightNumber: text })
@@ -193,7 +197,7 @@ export default function CreateBatchScreen({ navigation }) {
               mode="outlined"
               style={styles.input}
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
             />
 
@@ -230,88 +234,6 @@ export default function CreateBatchScreen({ navigation }) {
               numberOfLines={3}
               style={styles.input}
             />
-
-            <Divider style={styles.divider} />
-
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Batch Items (Ghana Delivery)
-            </Text>
-            <Text variant="bodySmall" style={styles.hintText}>
-              Add items that will be included in this batch for delivery in Ghana
-            </Text>
-
-            {formData.batchItems.map((item, index) => (
-              <Card key={index} style={styles.batchItemCard} elevation={0}>
-                <Card.Content>
-                  <View style={styles.batchItemRow}>
-                    <TextInput
-                      label="Item Name *"
-                      value={item.itemName}
-                      onChangeText={(text) => {
-                        const newItems = [...formData.batchItems];
-                        newItems[index] = { ...newItems[index], itemName: text };
-                        setFormData({ ...formData, batchItems: newItems });
-                      }}
-                      mode="outlined"
-                      style={styles.batchItemInput}
-                    />
-                    <TextInput
-                      label="Quantity *"
-                      value={item.quantity?.toString() || ''}
-                      onChangeText={(text) => {
-                        const newItems = [...formData.batchItems];
-                        newItems[index] = { ...newItems[index], quantity: parseInt(text) || 0 };
-                        setFormData({ ...formData, batchItems: newItems });
-                      }}
-                      mode="outlined"
-                      keyboardType="numeric"
-                      style={styles.batchItemInput}
-                    />
-                    <Button
-                      mode="text"
-                      icon="delete"
-                      onPress={() => {
-                        const newItems = formData.batchItems.filter((_, i) => i !== index);
-                        setFormData({ ...formData, batchItems: newItems });
-                      }}
-                      textColor="#ff4d4f"
-                    >
-                      Remove
-                    </Button>
-                  </View>
-                  <TextInput
-                    label="Description"
-                    value={item.description || ''}
-                    onChangeText={(text) => {
-                      const newItems = [...formData.batchItems];
-                      newItems[index] = { ...newItems[index], description: text };
-                      setFormData({ ...formData, batchItems: newItems });
-                    }}
-                    mode="outlined"
-                    multiline
-                    numberOfLines={2}
-                    style={styles.input}
-                  />
-                </Card.Content>
-              </Card>
-            ))}
-
-            <Button
-              mode="outlined"
-              icon="plus"
-              onPress={() => {
-                setFormData({
-                  ...formData,
-                  batchItems: [
-                    ...formData.batchItems,
-                    { itemName: '', quantity: 1, description: '' },
-                  ],
-                });
-              }}
-              style={styles.addButton}
-            >
-              Add Batch Item
-            </Button>
 
             <Divider style={styles.divider} />
 
@@ -353,6 +275,8 @@ export default function CreateBatchScreen({ navigation }) {
               loading={loading}
               disabled={loading || selectedJobs.length === 0}
               style={styles.submitButton}
+              contentStyle={styles.submitButtonContent}
+              labelStyle={styles.submitButtonLabel}
             >
               Create Batch
             </Button>
@@ -443,6 +367,13 @@ const styles = StyleSheet.create({
     marginTop: 24,
     paddingVertical: 4,
     borderRadius: 8, // Consistent 8px border radius (not fully curved)
+  },
+  submitButtonContent: {
+    minHeight: touchTargets.buttonHeight,
+  },
+  submitButtonLabel: {
+    fontSize: typography.button,
+    fontWeight: '600',
   },
 });
 

@@ -67,10 +67,14 @@ export default function JobDetailScreen({ route, navigation }) {
       ]);
 
       if (jobResponse.success) {
-        setJob(jobResponse.data);
+        const normalizedJob = jobResponse.data?.job || jobResponse.data || null;
+        setJob(normalizedJob);
       }
       if (timelineResponse.success) {
-        setTimeline(timelineResponse.data || []);
+        const normalizedTimeline = Array.isArray(timelineResponse.data)
+          ? timelineResponse.data
+          : timelineResponse.data?.timeline || [];
+        setTimeline(normalizedTimeline);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to load job details');
@@ -94,6 +98,22 @@ export default function JobDetailScreen({ route, navigation }) {
 
   const handleEdit = () => {
     navigation.navigate('CreateJob', { job });
+  };
+
+  const handleRevertStatus = async (revertData) => {
+    try {
+      const response = await jobService.revertStatus(jobId, revertData);
+      if (response?.success) {
+        Alert.alert('Success', 'Job status reverted successfully');
+        setRevertStatusModalVisible(false);
+        loadJobDetails();
+      } else {
+        throw new Error(response?.message || 'Failed to revert status');
+      }
+    } catch (error) {
+      Alert.alert('Error', error?.message || 'Failed to revert status');
+      throw error;
+    }
   };
 
   const handleCollect = () => {
@@ -413,7 +433,7 @@ export default function JobDetailScreen({ route, navigation }) {
       {canEdit && (
         <FAB
           icon="pencil"
-          style={styles.fab}
+          style={[styles.fab, { right: spacing.md, bottom: insets.bottom + 88 }]}
           onPress={handleEdit}
         />
       )}
@@ -551,9 +571,6 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    margin: spacing.md,
-    right: 0,
-    bottom: 0,
     backgroundColor: '#ff9800', // Orange
     elevation: 0,
     shadowOpacity: 0,

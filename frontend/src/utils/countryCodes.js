@@ -48,9 +48,3 @@ export const PRIORITY_LEVELS = {
   OTHER: 'Other',
 };
 
-
-
-<<<<<<< HEAD
-=======
-
->>>>>>> origin/master

@@ -215,7 +215,7 @@ router.delete('/:id', authorize('admin'), uuidValidation, jobController.deleteJo
  *         description: Status updated successfully
  */
 // Drivers, delivery agents, warehouse staff, and admins can update job status
-router.patch('/:id/status', authorize('admin', 'driver', 'delivery-agent', 'warehouse'), uuidValidation, updateJobStatusValidation, jobController.updateJobStatus);
+router.patch('/:id/status', authorize('admin', 'driver', 'delivery-agent', 'delivery_agent', 'warehouse'), uuidValidation, updateJobStatusValidation, jobController.updateJobStatus);
 
 /**
  * @swagger

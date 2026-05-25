@@ -22,7 +22,7 @@ import {
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authService } from '../../services/authService';
-import { standardStyles, theme, spacing, touchTargets } from '../../theme/theme';
+import { standardStyles, theme, spacing, touchTargets, typography } from '../../theme/theme';
 import logger from '../../utils/logger';
 
 export default function InviteManagementScreen({ navigation }) {
@@ -109,16 +109,6 @@ export default function InviteManagementScreen({ navigation }) {
     try {
       // Construct invite link - adjust URL scheme based on your app configuration
       const inviteLink = invite.token 
-<<<<<<< HEAD
-        ? `shipease://accept-invite/${invite.token}` 
-        : `https://app.shipease.com/accept-invite/${invite.token || invite.id}`;
-      
-      const message = `You've been invited to join ShipEASE Shipping!\n\nEmail: ${invite.email}\nRole: ${invite.role}\n\nClick here to accept: ${inviteLink}`;
-      
-      const result = await Share.share({
-        message: message,
-        title: 'ShipEASE Invitation',
-=======
         ? `bestdeal://accept-invite/${invite.token}` 
         : `https://app.bestdeal.com/accept-invite/${invite.token || invite.id}`;
       
@@ -127,7 +117,6 @@ export default function InviteManagementScreen({ navigation }) {
       const result = await Share.share({
         message: message,
         title: 'BestDeal Invitation',
->>>>>>> origin/master
       });
 
       if (result.action === Share.sharedAction) {
@@ -202,6 +191,8 @@ export default function InviteManagementScreen({ navigation }) {
               style={styles.button}
               icon="email-plus"
               buttonColor="#ff9800"
+              contentStyle={styles.buttonContent}
+              labelStyle={styles.buttonLabel}
             >
               Send Invite
             </Button>
@@ -237,7 +228,7 @@ export default function InviteManagementScreen({ navigation }) {
                       <View style={styles.chipContainer}>
                         <Chip 
                           style={[styles.roleChip, { backgroundColor: '#ff980020' }]}
-                          textStyle={{ color: '#ff9800', fontSize: 11 }}
+                          textStyle={{ color: '#ff9800', fontSize: typography.xs }}
                         >
                           {invite.role?.toUpperCase() || 'N/A'}
                         </Chip>
@@ -248,7 +239,7 @@ export default function InviteManagementScreen({ navigation }) {
                           ]}
                           textStyle={{ 
                             color: getStatusColor(invite.status), 
-                            fontSize: 11 
+                            fontSize: typography.xs 
                           }}
                         >
                           {(invite.status || 'pending').toUpperCase()}
@@ -307,13 +298,13 @@ export default function InviteManagementScreen({ navigation }) {
               </Text>
 
               <TextInput
-                label="Email Address"
+                placeholder="Email Address"
                 value={inviteForm.email}
                 onChangeText={(text) =>
                   setInviteForm({ ...inviteForm, email: text })
                 }
                 backgroundColor="#ffffff"
-                outlineColor="#e0e0e0"
+                outlineColor="#d9d9d9"
                 activeOutlineColor="#ff9800"
                 mode="outlined"
                 keyboardType="email-address"
@@ -346,13 +337,13 @@ export default function InviteManagementScreen({ navigation }) {
 
               {inviteForm.role === 'warehouse' && (
                 <TextInput
-                  label="Warehouse Location (Optional)"
+                  placeholder="Warehouse Location (Optional)"
                   value={inviteForm.warehouseLocation}
                   onChangeText={(text) =>
                     setInviteForm({ ...inviteForm, warehouseLocation: text })
                   }
                   backgroundColor="#ffffff"
-                  outlineColor="#e0e0e0"
+                  outlineColor="#d9d9d9"
                   activeOutlineColor="#ff9800"
                   mode="outlined"
                   placeholder="e.g., Ghana Warehouse"
@@ -370,6 +361,8 @@ export default function InviteManagementScreen({ navigation }) {
                   }}
                   disabled={sendingInvite}
                   style={styles.modalButton}
+                  contentStyle={styles.buttonContent}
+                  labelStyle={styles.buttonLabel}
                 >
                   Cancel
                 </Button>
@@ -380,6 +373,8 @@ export default function InviteManagementScreen({ navigation }) {
                   disabled={sendingInvite}
                   style={styles.modalButton}
                   buttonColor="#ff9800"
+                  contentStyle={styles.buttonContent}
+                  labelStyle={styles.buttonLabel}
                 >
                   Send Invite
                 </Button>
@@ -406,7 +401,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: typography.md,
     marginBottom: spacing.sm,
     color: theme.colors.text,
   },
@@ -417,6 +412,13 @@ const styles = StyleSheet.create({
   button: {
     marginBottom: spacing.sm,
     minHeight: touchTargets.buttonHeight,
+  },
+  buttonContent: {
+    minHeight: touchTargets.buttonHeight,
+  },
+  buttonLabel: {
+    fontSize: typography.button,
+    fontWeight: '600',
   },
   chip: {
     marginTop: spacing.xs,
@@ -437,7 +439,7 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   emailText: {
-    fontSize: 16,
+    fontSize: typography.md,
     fontWeight: '600',
     color: theme.colors.text,
     marginBottom: spacing.xs,
@@ -473,10 +475,10 @@ const styles = StyleSheet.create({
   },
   dateLabel: {
     color: theme.colors.placeholder,
-    fontSize: 12,
+    fontSize: typography.xs,
   },
   dateText: {
-    fontSize: 12,
+    fontSize: typography.xs,
     color: theme.colors.text,
     fontWeight: '500',
   },

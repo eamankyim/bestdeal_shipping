@@ -29,9 +29,9 @@ const getApiBaseUrl = () => {
   } else {
     // iOS simulator: Use your computer's IP address instead of localhost
     // Find your IP: Windows: ipconfig | Mac/Linux: ifconfig
-    // Default: Using 192.168.0.167 (update if different)
+    // Default: Using 192.168.0.154 (update if different)
     // For localhost, use: 'http://localhost:4001/api'
-    return 'http://192.168.0.167:4001/api';
+    return 'http://192.168.0.154:4001/api';
   }
 };
 

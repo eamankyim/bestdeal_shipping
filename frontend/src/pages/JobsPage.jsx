@@ -17,53 +17,39 @@ import {
   Card,
   Statistic,
   Drawer,
-  Timeline,
-  Descriptions,
-  Divider,
-  Progress,
-  Avatar,
   Tabs,
+  Divider,
+  Timeline,
   Dropdown,
   Menu,
   message,
   Radio,
   Image,
-  Spin,
-  Tooltip
+  Spin
 } from 'antd';
 import { 
   PlusOutlined, 
   SearchOutlined, 
-  FilterOutlined,
   EyeOutlined,
   EditOutlined,
-  DeleteOutlined,
   UploadOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
   MoreOutlined,
-  CarOutlined,
   UserOutlined,
   EnvironmentOutlined,
-  CalendarOutlined,
   DollarOutlined,
-  DownOutlined,
-  SettingOutlined,
   MailOutlined,
   PhoneOutlined,
-  HomeOutlined,
   FileTextOutlined,
   UndoOutlined
 } from '@ant-design/icons';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import dayjs from 'dayjs';
 import ResponsiveTable from '../components/common/ResponsiveTable';
-import { JOB_STATUSES, STATUS_GROUPS, getStatusColor } from '../constants/jobStatuses';
+import { STATUS_GROUPS, getStatusColor } from '../constants/jobStatuses';
 import { jobAPI, customerAPI, authAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { hasPermission } from '../utils/permissions';
 import { compressFiles } from '../utils/fileCompression';
-import CountryCodePicker from '../components/common/CountryCodePicker';
 import DropdownWithOther from '../components/common/DropdownWithOther';
 import { FREIGHT_TYPES, PRIORITY_LEVELS } from '../utils/countryCodes';
 import StatusUpdateModal from '../components/jobs/StatusUpdateModal';
@@ -159,7 +145,6 @@ const TextFileViewer = ({ documentUrl, fileName, fileExtension }) => {
 };
 
 const JobsPage = () => {
-  const navigate = useNavigate();
   const location = useLocation();
   const { currentUser } = useAuth();
   const canViewRevenue = hasPermission(currentUser, 'financial:view');
@@ -180,7 +165,6 @@ const JobsPage = () => {
   const [loading, setLoading] = useState(false);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [loadingTeamMembers, setLoadingTeamMembers] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [apiError, setApiError] = useState(null);
@@ -216,11 +200,20 @@ const JobsPage = () => {
     };
   }, []);
 
-  // Fetch jobs, customers, and team members on mount
+  // Roles that can assign jobs and need the team members list (GET /api/auth/users is restricted to these)
+  const role = currentUser?.role ?? '';
+  const canFetchTeamMembers = ['admin', 'customer-service', 'warehouse', 'superadmin'].includes(role);
+
+  // Fetch jobs, customers, and team members on mount (team members only for roles that can assign)
   useEffect(() => {
     fetchJobs();
     fetchCustomers();
-    fetchTeamMembers();
+    if (canFetchTeamMembers) {
+      fetchTeamMembers();
+    } else {
+      setLoadingTeamMembers(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount; canFetchTeamMembers from currentUser
   }, []);
 
   // Auto-refresh jobs every 120 seconds (2 minutes) to reduce API load
@@ -251,8 +244,6 @@ const JobsPage = () => {
   const fetchJobs = async (silent = false) => {
     if (!silent) {
       setLoading(true);
-    } else {
-      setRefreshing(true);
     }
     
     try {
@@ -320,7 +311,6 @@ const JobsPage = () => {
       setJobs([]);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
@@ -365,19 +355,6 @@ const JobsPage = () => {
       setTeamMembers([]);
     } finally {
       setLoadingTeamMembers(false);
-    }
-  };
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'Urgent':
-        return 'error';
-      case 'Express':
-        return 'warning';
-      case 'Standard':
-        return 'default';
-      default:
-        return 'default';
     }
   };
 
@@ -483,26 +460,21 @@ const JobsPage = () => {
         pickupAddress: values.pickupAddress,
         deliveryAddress: values.deliveryAddress,
         pickupDate: values.pickupDate ? values.pickupDate.toISOString() : null,
-        // Receiver information (new)
+        // Receiver information (delivery address is same as receiver address)
         receiverName: values.receiverName,
-        receiverAddress: values.receiverAddress,
+        receiverAddress: values.deliveryAddress,
         receiverContact: values.receiverContact,
         parcelDetails: {
           description: values.description,
-          // Weight for air freight, dimensions for sea freight
-          weight: values.freightType === 'Air Freight' ? values.weight : null,
-          dimensions: values.freightType === 'Sea Freight' ? {
-            length: values.length,
-            width: values.width,
-            height: values.height,
-          } : null,
+          weight: values.weight ?? null,
+          dimensions: null,
           quantity: values.quantity || 1,
-          estimatedPrice: values.estimatedPrice, // Changed from 'value' to 'estimatedPrice', optional
+          estimatedPrice: values.estimatedPrice,
         },
         specialInstructions: values.specialInstructions,
         priority: values.priority || 'Standard',
         assignedDriverId: values.assignedTo || null,
-        status: values.saveAsDraft ? 'Draft' : 'Pending Collection', // New: draft option
+        status: 'Pending Collection',
       };
 
       // If creating a new customer
@@ -510,7 +482,7 @@ const JobsPage = () => {
         const newCustomer = {
           name: values.customerName,
           email: values.customerEmail,
-          phone: `${values.customerCountryCode || '+44'}${values.customerPhone}`, // Include country code
+          phone: values.customerPhone?.trim() || '',
           address: values.customerAddress,
           customerType: values.customerType || 'Individual',
         };
@@ -523,9 +495,8 @@ const JobsPage = () => {
         console.log('📦 Creating job with existing customer:', jobData);
       }
       
-      // Include receiver contact with country code if provided
-      if (values.receiverContact && values.receiverCountryCode) {
-        jobData.receiverContact = `${values.receiverCountryCode}${values.receiverContact}`;
+      if (values.receiverContact?.trim()) {
+        jobData.receiverContact = values.receiverContact.trim();
       }
       
       // Add documents if any
@@ -842,9 +813,9 @@ const JobsPage = () => {
       'batched': ['shipped'],
       'shipped': ['arrived_at_destination', 'ready_for_delivery'],
       'arrived_at_destination': ['ready_for_delivery'],
-      'ready_for_delivery': ['out_for_delivery'], // New status
-      'out_for_delivery': ['delivered', 'failed_delivery'],
-      'failed_delivery': ['out_for_delivery'],
+      'ready_for_delivery': ['delivered', 'failed_delivery'],
+      'out_for_delivery': ['delivered', 'failed_delivery'], // legacy: allow existing jobs to move forward
+      'failed_delivery': ['ready_for_delivery'],
       'delivered': [],
       'cancelled': [],
       'draft': ['pending'], // Draft can be activated
@@ -941,14 +912,8 @@ const JobsPage = () => {
           deliveryAddress: jobData.deliveryAddress,
           pickupDate: jobData.pickupDate ? dayjs(jobData.pickupDate) : null,
           receiverName: jobData.receiverName,
-          receiverAddress: jobData.receiverAddress,
-          receiverContact: jobData.receiverContact?.replace(/^\+\d+/, '') || '',
-          receiverCountryCode: jobData.receiverContact?.match(/^\+\d+/)?.[0] || '+44',
-          freightType: jobData.weight ? 'Air Freight' : 'Sea Freight',
+          receiverContact: jobData.receiverContact || '',
           weight: jobData.weight,
-          length: jobData.dimensions?.length,
-          width: jobData.dimensions?.width,
-          height: jobData.dimensions?.height,
           estimatedPrice: jobData.estimatedPrice || jobData.value,
           description: jobData.description,
           priority: jobData.priority || 'Standard',
@@ -966,14 +931,8 @@ const JobsPage = () => {
     }
   };
 
-  const handleDeleteJob = (job) => {
-    console.log('Delete job:', job.jobId);
-    message.info('Backend API not yet implemented');
-  };
-
   const handleStatusUpdate = (status) => {
     setIsStatusUpdateModalVisible(true);
-    setStatusUpdateStatus(status);
   };
 
   const handleStatusUpdateOk = async (updateData) => {
@@ -1045,8 +1004,6 @@ const JobsPage = () => {
     }
   };
   
-  const [statusUpdateStatus, setStatusUpdateStatus] = useState(null);
-
   return (
     <div>
       <div style={{ marginBottom: '24px' }}>
@@ -1152,7 +1109,16 @@ const JobsPage = () => {
           loading={loading}
           rowKey="id"
           locale={{
-            emptyText: 'No jobs yet. Click "New Job" to create your first job.'
+            emptyText: (
+              <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                <img
+                  src="/no-jobs.png"
+                  alt="No jobs"
+                  style={{ width: 180, maxWidth: '70%', marginBottom: 12 }}
+                />
+                <div>No jobs yet. Click "New Job" to create your first job.</div>
+              </div>
+            )
           }}
           pagination={{
             total: jobs.length,
@@ -1180,20 +1146,6 @@ const JobsPage = () => {
         footer={(_, { OkBtn, CancelBtn }) => (
           <>
             <CancelBtn />
-            <Button 
-              onClick={async () => {
-                try {
-                  const values = await form.validateFields();
-                  form.setFieldsValue({ saveAsDraft: true });
-                  await handleModalOk();
-                } catch (error) {
-                  console.error('Validation failed:', error);
-                }
-              }}
-              loading={submitting}
-            >
-              Save as Draft
-            </Button>
             <OkBtn />
           </>
         )}
@@ -1214,10 +1166,6 @@ const JobsPage = () => {
             fragile: false,
             insurance: false,
             customerCountry: 'United Kingdom',
-            customerCountryCode: '+44',
-            receiverCountryCode: '+44',
-            freightType: 'Air Freight',
-            saveAsDraft: false,
           }}
         >
           {/* Customer Selection */}
@@ -1270,9 +1218,8 @@ const JobsPage = () => {
                   <Col xs={24} sm={12}>
                     <Form.Item
                       name="customerEmail"
-                      label="Email Address"
+                      label="Email Address (optional)"
                       rules={[
-                        { required: true, message: 'Please enter email!' },
                         { 
                           pattern: /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, 
                           message: 'Please enter a valid email! (Double dots allowed)' 
@@ -1286,24 +1233,13 @@ const JobsPage = () => {
                 <Row gutter={16}>
                   <Col xs={24} sm={12}>
                     <Form.Item
-                      name="customerCountryCode"
-                      label="Country Code"
-                      initialValue="+44"
-                    >
-                      <CountryCodePicker />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} sm={12}>
-                    <Form.Item
                       name="customerPhone"
-                      label="Phone Number"
-                      rules={[{ required: true, message: 'Please enter phone!' }]}
+                      label="Phone Number (include country code)"
+                      rules={[{ required: true, message: 'Please enter phone with country code (e.g. +44 7700 900123)' }]}
                     >
-                      <Input placeholder="Enter phone number" />
+                      <Input placeholder="e.g. +44 7700 900123" />
                     </Form.Item>
                   </Col>
-                </Row>
-                <Row gutter={16}>
                   <Col xs={24} sm={12}>
                     <Form.Item
                       name="customerCity"
@@ -1318,10 +1254,9 @@ const JobsPage = () => {
                   <Col xs={24} sm={12}>
                     <Form.Item
                       name="customerCountry"
-                      label="Country"
-                      rules={[{ required: true, message: 'Please select country!' }]}
+                      label="Country (optional)"
                     >
-                      <Select>
+                      <Select placeholder="Select country">
                         <Option value="United Kingdom">United Kingdom</Option>
                         <Option value="Ghana">Ghana</Option>
                         <Option value="Nigeria">Nigeria</Option>
@@ -1381,8 +1316,9 @@ const JobsPage = () => {
               <Col xs={24} sm={12}>
                 <Form.Item
                   name="deliveryAddress"
-                  label="Delivery Address"
+                  label="Delivery Address (same as receiver address)"
                   rules={[{ required: true, message: 'Please enter delivery address!' }]}
+                  extra="This address is used for both delivery and receiver."
                 >
                   <TextArea rows={2} placeholder="Enter delivery address" />
                 </Form.Item>
@@ -1402,29 +1338,10 @@ const JobsPage = () => {
               </Col>
               <Col xs={24} sm={12}>
                 <Form.Item
-                  name="receiverAddress"
-                  label="Receiver Address"
-                >
-                  <TextArea rows={2} placeholder="Enter receiver address" />
-                </Form.Item>
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col xs={24} sm={12}>
-                <Form.Item
-                  name="receiverCountryCode"
-                  label="Receiver Country Code"
-                  initialValue="+44"
-                >
-                  <CountryCodePicker />
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={12}>
-                <Form.Item
                   name="receiverContact"
-                  label="Receiver Contact"
+                  label="Receiver Phone (include country code)"
                 >
-                  <Input placeholder="Enter receiver phone number" />
+                  <Input placeholder="e.g. +44 7700 900123" />
                 </Form.Item>
               </Col>
             </Row>
@@ -1503,19 +1420,7 @@ const JobsPage = () => {
           {/* Package Details */}
           <Card size="small" title="Package Details" style={{ marginBottom: 16 }}>
             <Row gutter={16}>
-              <Col xs={24} sm={12}>
-                <Form.Item
-                  name="freightType"
-                  label="Freight Type"
-                  rules={[{ required: true, message: 'Please select freight type!' }]}
-                >
-                  <DropdownWithOther
-                    options={['Air Freight', 'Sea Freight']}
-                    placeholder="Select freight type"
-                  />
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={12}>
+              <Col xs={24} sm={8}>
                 <Form.Item
                   name="packageType"
                   label="Package Type"
@@ -1527,87 +1432,19 @@ const JobsPage = () => {
                   />
                 </Form.Item>
               </Col>
-            </Row>
-            
-            {/* Conditional fields based on freight type */}
-            <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.freightType !== currentValues.freightType}>
-              {({ getFieldValue }) => {
-                const freightType = getFieldValue('freightType');
-                return (
-                  <>
-                    {freightType === 'Air Freight' && (
-                      <Row gutter={16}>
-                        <Col xs={24} sm={12}>
-                          <Form.Item
-                            name="weight"
-                            label="Weight (kg) - Air Freight"
-                            rules={[{ required: true, message: 'Please enter weight!' }]}
-                          >
-                            <InputNumber
-                              min={0.1}
-                              max={1000}
-                              step={0.1}
-                              style={{ width: '100%' }}
-                              placeholder="Enter weight"
-                            />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-                    )}
-                    {freightType === 'Sea Freight' && (
-                      <Row gutter={16}>
-                        <Col xs={24} sm={8}>
-                          <Form.Item
-                            name="length"
-                            label="Length (cm)"
-                            rules={[{ required: true, message: 'Please enter length!' }]}
-                          >
-                            <InputNumber
-                              min={0.1}
-                              style={{ width: '100%' }}
-                              placeholder="Length"
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={8}>
-                          <Form.Item
-                            name="width"
-                            label="Width (cm)"
-                            rules={[{ required: true, message: 'Please enter width!' }]}
-                          >
-                            <InputNumber
-                              min={0.1}
-                              style={{ width: '100%' }}
-                              placeholder="Width"
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={8}>
-                          <Form.Item
-                            name="height"
-                            label="Height (cm)"
-                            rules={[{ required: true, message: 'Please enter height!' }]}
-                          >
-                            <InputNumber
-                              min={0.1}
-                              style={{ width: '100%' }}
-                              placeholder="Height"
-                            />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-                    )}
-                  </>
-                );
-              }}
-            </Form.Item>
-            
-            <Row gutter={16}>
-              <Col xs={24} sm={12}>
-                <Form.Item
-                  name="estimatedPrice"
-                  label="Estimated Price (£) - Optional"
-                >
+              <Col xs={24} sm={8}>
+                <Form.Item name="weight" label="Weight (kg) - Optional">
+                  <InputNumber
+                    min={0.1}
+                    max={1000}
+                    step={0.1}
+                    style={{ width: '100%' }}
+                    placeholder="Enter weight"
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={8}>
+                <Form.Item name="estimatedPrice" label="Estimated Price (£) - Optional">
                   <InputNumber
                     min={0}
                     step={0.01}
@@ -1674,13 +1511,6 @@ const JobsPage = () => {
             >
               <Button icon={<UploadOutlined />}>Upload Files</Button>
             </Upload>
-          </Form.Item>
-          
-          <Form.Item
-            name="saveAsDraft"
-            valuePropName="checked"
-          >
-            <Switch /> Save as Draft
           </Form.Item>
         </Form>
       </Modal>
@@ -2145,8 +1975,8 @@ const JobsPage = () => {
                     <Image
                       src={documentUrl}
                       alt={currentDocument.fileName}
-                      style={{ maxHeight: '100%', maxWidth: '100%' }}
-                      preview={false}
+                      style={{ maxHeight: '100%', maxWidth: '100%', cursor: 'pointer' }}
+                      preview={{ mask: 'View larger' }}
                     />
                   </div>
                 );

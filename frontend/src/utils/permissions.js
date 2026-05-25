@@ -305,7 +305,7 @@ export const canPerformAction = (user, action, resource, resourceData = null) =>
   return actionPerm === true;
 };
 
-export default {
+const permissionsUtils = {
   hasPermission,
   hasRole,
   canAccessRoute,
@@ -313,6 +313,8 @@ export default {
   getSidebarMenuItems,
   canPerformAction,
 };
+
+export default permissionsUtils;
 
 
 

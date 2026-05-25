@@ -92,9 +92,3 @@ const CountryCodePicker = ({ value, onChange, style, disabled }) => {
 
 export default CountryCodePicker;
 
-
-
-<<<<<<< HEAD
-=======
-
->>>>>>> origin/master

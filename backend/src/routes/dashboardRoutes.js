@@ -147,6 +147,23 @@ router.get('/warehouse/ghana', authenticate, authorize('warehouse', 'admin', 'su
 
 /**
  * @swagger
+ * /api/dashboard/warehouse/uk:
+ *   get:
+ *     summary: Get UK Warehouse dashboard data
+ *     description: For users assigned to UK Warehouse
+ *     tags: [Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: UK Warehouse dashboard data retrieved successfully
+ *       403:
+ *         description: Forbidden - UK Warehouse assignment required
+ */
+router.get('/warehouse/uk', authenticate, authorize('warehouse', 'admin', 'superadmin'), dashboardController.getUKWarehouseDashboard);
+
+/**
+ * @swagger
  * /api/dashboard/driver:
  *   get:
  *     summary: Get driver dashboard data
@@ -181,7 +198,7 @@ router.get('/driver', authenticate, authorize('driver', 'admin', 'superadmin'), 
  *       403:
  *         description: Forbidden - Delivery agent role required
  */
-router.get('/delivery', authenticate, authorize('delivery-agent', 'admin', 'superadmin'), dashboardController.getDeliveryDashboard);
+router.get('/delivery', authenticate, authorize('delivery-agent', 'delivery_agent', 'admin', 'superadmin'), dashboardController.getDeliveryDashboard);
 
 /**
  * @swagger

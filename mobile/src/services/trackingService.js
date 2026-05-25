@@ -12,7 +12,4 @@ export const trackingService = {
 
 
 
-<<<<<<< HEAD
-=======
 
->>>>>>> origin/master

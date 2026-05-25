@@ -12,7 +12,7 @@ import {
 import { TextInput, Button, Text, ActivityIndicator } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authService } from '../../services/authService';
-import { theme } from '../../theme/theme';
+import { theme, touchTargets, typography } from '../../theme/theme';
 
 export default function AcceptInviteScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
@@ -150,14 +150,11 @@ export default function AcceptInviteScreen({ navigation, route }) {
         <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top }]}>
           <View style={styles.content}>
             <View style={styles.headerSection}>
-<<<<<<< HEAD
-=======
               <Image
                 source={require('../../../assets/AppLogo.png')}
                 style={styles.logo}
                 resizeMode="contain"
               />
->>>>>>> origin/master
               <Text variant="headlineMedium" style={styles.errorTitle}>
                 Invitation Error
               </Text>
@@ -168,11 +165,7 @@ export default function AcceptInviteScreen({ navigation, route }) {
                 mode="contained"
                 onPress={handleContactAdmin}
                 style={styles.button}
-<<<<<<< HEAD
-                buttonColor={theme.colors.shipeaseOrange}
-=======
                 buttonColor={theme.colors.bestdealOrange}
->>>>>>> origin/master
               >
                 Contact Administrator
               </Button>
@@ -218,31 +211,33 @@ export default function AcceptInviteScreen({ navigation, route }) {
           {/* Form Section */}
           <View style={styles.formSection}>
             <TextInput
-              label="Email Address"
+              placeholder="Email Address"
               value={inviteInfo?.email || ''}
               mode="outlined"
               style={styles.input}
               left={<TextInput.Icon icon="email" />}
               disabled
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
               backgroundColor="#ffffff"
+              placeholderTextColor={theme.colors.placeholder}
             />
 
             <TextInput
-              label="Full Name *"
+              placeholder="Full Name *"
               value={formData.name}
               onChangeText={(text) => setFormData({ ...formData, name: text })}
               mode="outlined"
               style={styles.input}
               left={<TextInput.Icon icon="account" />}
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
               backgroundColor="#ffffff"
+              placeholderTextColor={theme.colors.placeholder}
             />
 
             <TextInput
-              label="Password *"
+              placeholder="Password *"
               value={formData.password}
               onChangeText={(text) => setFormData({ ...formData, password: text })}
               mode="outlined"
@@ -250,22 +245,24 @@ export default function AcceptInviteScreen({ navigation, route }) {
               style={styles.input}
               left={<TextInput.Icon icon="lock" />}
               helperText="Minimum 6 characters"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
               backgroundColor="#ffffff"
+              placeholderTextColor={theme.colors.placeholder}
             />
 
             <TextInput
-              label="Confirm Password *"
+              placeholder="Confirm Password *"
               value={formData.confirmPassword}
               onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
               mode="outlined"
               secureTextEntry
               style={styles.input}
               left={<TextInput.Icon icon="lock-check" />}
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
               backgroundColor="#ffffff"
+              placeholderTextColor={theme.colors.placeholder}
             />
 
             <Button
@@ -275,11 +272,8 @@ export default function AcceptInviteScreen({ navigation, route }) {
               disabled={loading}
               style={styles.button}
               contentStyle={styles.buttonContent}
-<<<<<<< HEAD
-              buttonColor={theme.colors.shipeaseOrange}
-=======
               buttonColor={theme.colors.bestdealOrange}
->>>>>>> origin/master
+              labelStyle={styles.buttonLabel}
             >
               Create Account & Get Started
             </Button>
@@ -372,7 +366,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   buttonContent: {
-    paddingVertical: 8,
+    minHeight: touchTargets.buttonHeight,
+  },
+  buttonLabel: {
+    fontSize: typography.button,
+    fontWeight: '600',
   },
   backButton: {
     marginTop: 16,

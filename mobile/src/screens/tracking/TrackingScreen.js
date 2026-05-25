@@ -15,7 +15,7 @@ import {
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { trackingService } from '../../services/trackingService';
-import { statusColors, standardStyles } from '../../theme/theme';
+import { statusColors, standardStyles, touchTargets, typography } from '../../theme/theme';
 import { format } from 'date-fns';
 
 export default function TrackingScreen() {
@@ -67,7 +67,7 @@ export default function TrackingScreen() {
         <Card style={styles.card} elevation={0}>
           <Card.Content>
             <TextInput
-              label="Tracking ID"
+              placeholder="Tracking ID"
               value={trackingId}
               onChangeText={setTrackingId}
               mode="outlined"
@@ -75,7 +75,7 @@ export default function TrackingScreen() {
               style={styles.input}
               autoCapitalize="characters"
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
             />
 
@@ -86,6 +86,8 @@ export default function TrackingScreen() {
               disabled={loading}
               style={styles.trackButton}
               icon="magnify"
+              contentStyle={styles.trackButtonContent}
+              labelStyle={styles.trackButtonLabel}
             >
               Track Shipment
             </Button>
@@ -218,6 +220,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8, // Consistent 8px border radius (not fully curved)
   },
+  trackButtonContent: {
+    minHeight: touchTargets.buttonHeight,
+  },
+  trackButtonLabel: {
+    fontSize: typography.button,
+    fontWeight: '600',
+  },
   resultCard: {
     ...standardStyles,
   },
@@ -235,7 +244,7 @@ const styles = StyleSheet.create({
     height: 32,
   },
   chipText: {
-    fontSize: 12,
+    fontSize: typography.xs,
     color: '#ffffff',
   },
   section: {

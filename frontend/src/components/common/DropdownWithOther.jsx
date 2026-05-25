@@ -83,9 +83,3 @@ const DropdownWithOther = ({
 
 export default DropdownWithOther;
 
-
-
-<<<<<<< HEAD
-=======
-
->>>>>>> origin/master

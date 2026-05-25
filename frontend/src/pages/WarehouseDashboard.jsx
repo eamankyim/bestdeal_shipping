@@ -4,10 +4,8 @@ import {
   Row, 
   Col, 
   Statistic, 
-  Table, 
   Tag, 
   Typography,
-  Timeline,
   Space,
   Button,
   Progress,
@@ -18,51 +16,43 @@ import {
 import { 
   InboxOutlined,
   ShoppingOutlined,
-  ClockCircleOutlined,
-  CheckCircleOutlined,
-  TeamOutlined,
-  DollarOutlined,
   BoxPlotOutlined,
   CarOutlined,
   EyeOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { dashboardAPI, jobAPI, batchAPI } from '../utils/api';
+import { dashboardAPI, jobAPI } from '../utils/api';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 import { useAuth } from '../contexts/AuthContext';
 
 const { Title, Text } = Typography;
 
-const WarehouseDashboard = () => {
+const WarehouseDashboard = ({ dashboardApi = null, title = 'Warehouse Dashboard', isUK = false }) => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
   const [error, setError] = useState(null);
+  const api = dashboardApi || dashboardAPI.getWarehouse;
 
   // Redirect warehouse users with specific location to their dedicated dashboard
-  // Wait for currentUser to load before making decisions
   useEffect(() => {
-    // If currentUser is not loaded yet, wait
-    if (!currentUser) {
-      return;
-    }
-
-    // If user has Ghana Warehouse location, redirect immediately (don't fetch data)
+    if (!currentUser) return;
     if (currentUser.role === 'warehouse' && currentUser.warehouseLocation === 'Ghana Warehouse') {
       navigate('/ghana-warehouse', { replace: true });
       return;
     }
-
-    // Only fetch dashboard if user doesn't have a specific location
-    if (currentUser.role === 'warehouse' && !currentUser.warehouseLocation) {
+    if (isUK && currentUser.role === 'warehouse' && currentUser.warehouseLocation !== 'UK Warehouse') {
+      navigate('/warehouse-dashboard', { replace: true });
+      return;
+    }
+    if (currentUser.role === 'warehouse' && !currentUser.warehouseLocation && !isUK) {
       fetchWarehouseDashboard();
-    } else if (currentUser.role !== 'warehouse') {
-      // Admin/superadmin can access
+    } else if (currentUser.role !== 'warehouse' || isUK) {
       fetchWarehouseDashboard();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, navigate]);
+  }, [currentUser, navigate, isUK]);
 
   // Auto-refresh every 120 seconds (2 minutes) to reduce API load
   // Only refresh if there's no error and component is mounted
@@ -75,19 +65,23 @@ const WarehouseDashboard = () => {
       }
     }, 120000); // 120 seconds = 2 minutes
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- run on mount and when error changes
   }, [error]);
 
   const fetchWarehouseDashboard = async () => {
-    // Prevent API call if user has Ghana Warehouse location
     if (currentUser?.role === 'warehouse' && currentUser?.warehouseLocation === 'Ghana Warehouse') {
       navigate('/ghana-warehouse', { replace: true });
+      return;
+    }
+    if (isUK && currentUser?.role === 'warehouse' && currentUser?.warehouseLocation !== 'UK Warehouse') {
+      navigate('/warehouse-dashboard', { replace: true });
       return;
     }
 
     try {
       setLoading(true);
-      setError(null); // Clear previous errors
-      const response = await dashboardAPI.getWarehouse();
+      setError(null);
+      const response = await api();
 
       if (response.success) {
         setDashboardData(response.data);
@@ -105,7 +99,11 @@ const WarehouseDashboard = () => {
         // If user is assigned to Ghana Warehouse, redirect them immediately
         if (currentUser?.warehouseLocation === 'Ghana Warehouse') {
           navigate('/ghana-warehouse', { replace: true });
-          return; // Don't set error state, just redirect
+          return;
+        }
+        if (isUK && currentUser?.warehouseLocation !== 'UK Warehouse') {
+          navigate('/warehouse-dashboard', { replace: true });
+          return;
         }
       } else if (error?.status === 401) {
         errorMessage = 'Unauthorized. Please login again.';
@@ -156,11 +154,8 @@ const WarehouseDashboard = () => {
     jobStats, 
     batchStats, 
     jobsReadyForBatching, 
-    recentBatches, 
     jobsAtWarehouse,
-    todayActivity,
     unassignedJobs,
-    recentActivity
   } = dashboardData;
 
   // Statistics cards
@@ -204,11 +199,6 @@ const WarehouseDashboard = () => {
       console.error('Failed to fetch job details:', error);
       navigate('/jobs');
     }
-  };
-
-  // Handle view batch
-  const handleViewBatch = (batch) => {
-    navigate('/batches', { state: { selectedBatchId: batch.id } });
   };
 
   // Jobs ready for batching table
@@ -305,67 +295,22 @@ const WarehouseDashboard = () => {
     },
   ];
 
-  // Recent batches table
-  const batchColumns = [
-    {
-      title: 'Batch ID',
-      dataIndex: 'batchId',
-      key: 'batchId',
-      render: (text) => <Text strong>{text}</Text>
-    },
-    {
-      title: 'Destination',
-      dataIndex: 'destination',
-      key: 'destination',
-    },
-    {
-      title: 'Jobs',
-      dataIndex: '_count',
-      key: 'jobs',
-      render: (count) => count?.jobs || 0
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status) => {
-        const colors = {
-          'In Preparation': 'orange',
-          'Shipped': 'blue',
-          'In Transit': 'cyan',
-          'Arrived': 'green'
-        };
-        return <Tag color={colors[status] || 'default'}>{status}</Tag>;
-      }
-    },
-    {
-      title: 'Created By',
-      dataIndex: ['creator', 'name'],
-      key: 'creator',
-    },
-  ];
-
   return (
     <div style={{ padding: '24px' }} className="dashboard-page-container">
       {/* Header */}
       <Row justify="space-between" align="middle" style={{ marginBottom: '24px' }}>
         <Col>
           <Title level={2} style={{ margin: 0 }}>
-            <BoxPlotOutlined /> Warehouse Dashboard
+            <BoxPlotOutlined /> {title}
           </Title>
           <Text type="secondary" style={{ fontSize: '16px' }}>
             Manage warehouse operations and batching
           </Text>
         </Col>
         <Col>
-          <Space>
-            <Button onClick={() => navigate('/jobs')}>
-              View All Jobs
-            </Button>
-            <Button type="primary" onClick={() => navigate('/batches')}>
-              Manage Batches
-            </Button>
-          </Space>
+          <Button onClick={() => navigate('/jobs')}>
+            View All Jobs
+          </Button>
         </Col>
       </Row>
 

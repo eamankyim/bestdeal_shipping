@@ -34,7 +34,7 @@ function JobsStack() {
       <Stack.Screen 
         name="JobsList" 
         component={JobsScreen}
-        options={{ title: 'Jobs' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen 
         name="JobDetail" 
@@ -144,7 +144,28 @@ function MainTabs() {
           return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#ff9800', // Orange
-        tabBarInactiveTintColor: 'gray',
+        tabBarInactiveTintColor: '#7b7b7b',
+        tabBarStyle: {
+          position: 'absolute',
+          left: 16,
+          right: 16,
+          bottom: 16,
+          borderRadius: 16,
+          height: 68,
+          paddingTop: 8,
+          paddingBottom: 8,
+          borderTopWidth: 0,
+          backgroundColor: '#ffffff',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.06,
+          shadowRadius: 10,
+          elevation: 6,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '500',
+        },
         headerShown: false,
       })}
     >

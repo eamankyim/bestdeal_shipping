@@ -184,7 +184,7 @@ export const showAlertToast = (alertMessage, description, type = 'info', duratio
   }
 };
 
-export default {
+const toastUtils = {
   success: showSuccess,
   error: showError,
   warning: showWarning,
@@ -195,6 +195,8 @@ export default {
   showValidationError,
   showAlertToast,
 };
+
+export default toastUtils;
 
 
 

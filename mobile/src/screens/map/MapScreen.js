@@ -59,7 +59,13 @@ export default function MapScreen() {
       const response = await jobService.getJobs(filters);
       
       if (response.success) {
-        setJobs(response.data || []);
+        const list =
+          response?.data?.jobs ||
+          response?.data?.data?.jobs ||
+          response?.data?.data ||
+          response?.data ||
+          [];
+        setJobs(Array.isArray(list) ? list : []);
       }
     } catch (error) {
       console.error('Error loading jobs:', error);

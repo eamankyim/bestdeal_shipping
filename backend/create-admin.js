@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const { hashPassword } = require('./src/utils/passwordUtils');
 
@@ -6,11 +7,7 @@ const prisma = new PrismaClient();
 async function createAdmin() {
   console.log('👤 Creating admin user...\n');
 
-<<<<<<< HEAD
-  const email = 'admin@shipease.com';
-=======
-  const email = 'admin@bestdeal.com';
->>>>>>> origin/master
+  const email = 'admin@gmail.com';
   const password = '111111@1A';
   const name = 'Admin User';
 

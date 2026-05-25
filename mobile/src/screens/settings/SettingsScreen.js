@@ -15,7 +15,7 @@ import {
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
-import { standardStyles, theme, spacing, touchTargets } from '../../theme/theme';
+import { standardStyles, theme, spacing, touchTargets, typography } from '../../theme/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import logger from '../../utils/logger';
 
@@ -119,6 +119,8 @@ export default function SettingsScreen({ navigation }) {
               mode="outlined"
               onPress={handleClearCache}
               style={styles.button}
+              contentStyle={styles.buttonContent}
+              labelStyle={styles.buttonLabel}
               icon="delete"
             >
               Clear Cache
@@ -163,13 +165,20 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: typography.md,
     marginBottom: spacing.md,
     color: theme.colors.text,
   },
   button: {
     marginBottom: spacing.sm,
     minHeight: touchTargets.buttonHeight,
+  },
+  buttonContent: {
+    minHeight: touchTargets.buttonHeight,
+  },
+  buttonLabel: {
+    fontSize: typography.button,
+    fontWeight: '600',
   },
 });
 

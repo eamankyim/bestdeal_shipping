@@ -261,3 +261,33 @@ body {
     overflow-x: hidden;
   }
 }
+
+/* Collection photos – aligned grid of thumbnails */
+.collection-photos-upload .ant-upload-wrapper {
+  display: block;
+}
+.collection-photos-upload .ant-upload-list-picture-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+.collection-photos-upload .ant-upload-list-picture-card .ant-upload-list-item,
+.collection-photos-upload .ant-upload-list-picture-card .ant-upload-list-item-container {
+  width: 100px !important;
+  height: 100px !important;
+  margin: 0 !important;
+}
+.collection-photos-upload .ant-upload-select-picture-card {
+  width: 100px !important;
+  height: 100px !important;
+  margin: 0 !important;
+}
+@media (max-width: 576px) {
+  .collection-photos-upload .ant-upload-list-picture-card .ant-upload-list-item,
+  .collection-photos-upload .ant-upload-list-picture-card .ant-upload-list-item-container,
+  .collection-photos-upload .ant-upload-select-picture-card {
+    width: 88px !important;
+    height: 88px !important;
+  }
+}

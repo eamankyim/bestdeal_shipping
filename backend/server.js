@@ -9,7 +9,7 @@ if (process.env.VERCEL) {
 } else {
   // Local development mode - start the server
   const prisma = require('./src/config/database');
-  const PORT = process.env.PORT || 5000;
+  const PORT = process.env.PORT || 4001;
 
   // Start server
   const server = app.listen(PORT, () => {

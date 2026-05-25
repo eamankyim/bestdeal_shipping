@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { TextInput, Button, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { theme } from '../../theme/theme';
+import { theme, touchTargets, typography } from '../../theme/theme';
 
 export default function ForgotPasswordScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -50,7 +50,7 @@ export default function ForgotPasswordScreen({ navigation }) {
           {/* Form Section */}
           <View style={styles.formSection}>
             <TextInput
-              label="Email"
+              placeholder="Email"
               value={email}
               onChangeText={setEmail}
               mode="outlined"
@@ -58,9 +58,11 @@ export default function ForgotPasswordScreen({ navigation }) {
               autoCapitalize="none"
               style={styles.input}
               left={<TextInput.Icon icon="email" />}
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
               backgroundColor="#ffffff"
+              textColor={theme.colors.text}
+              placeholderTextColor={theme.colors.placeholder}
             />
 
             <Button
@@ -70,11 +72,8 @@ export default function ForgotPasswordScreen({ navigation }) {
               disabled={loading}
               style={styles.button}
               contentStyle={styles.buttonContent}
-<<<<<<< HEAD
-              buttonColor={theme.colors.shipeaseOrange}
-=======
               buttonColor={theme.colors.bestdealOrange}
->>>>>>> origin/master
+              labelStyle={styles.buttonLabel}
             >
               Send Reset Link
             </Button>
@@ -139,7 +138,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   buttonContent: {
-    paddingVertical: 8,
+    minHeight: touchTargets.buttonHeight,
+  },
+  buttonLabel: {
+    fontSize: typography.button,
+    fontWeight: '600',
   },
   footerSection: {
     alignItems: 'center',

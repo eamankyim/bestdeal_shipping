@@ -101,7 +101,4 @@ processAssets().catch(console.error);
 
 
 
-<<<<<<< HEAD
-=======
 
->>>>>>> origin/master

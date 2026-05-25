@@ -28,7 +28,6 @@ import {
   CheckCircleOutlined, 
   ClockCircleOutlined, 
   UploadOutlined,
-  SignatureOutlined,
   EditOutlined,
   EyeOutlined,
   UserOutlined,
@@ -52,6 +51,9 @@ const DriverDashboardPage = () => {
   const { currentUser } = useAuth();
   const canViewRevenue = hasPermission(currentUser, 'financial:view');
   const [completionModalVisible, setCompletionModalVisible] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
+  const [previewImageUrlToRevoke, setPreviewImageUrlToRevoke] = useState(null);
+  const [completionSubmitting, setCompletionSubmitting] = useState(false);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
   const [assignedJobs, setAssignedJobs] = useState([]);
@@ -331,7 +333,7 @@ const DriverDashboardPage = () => {
               icon={<PlayCircleOutlined />}
               onClick={(e) => {
                 e.stopPropagation();
-                handleStartJourney(record);
+                handleCompleteCollection(record);
               }}
             >
               Mark as Collected
@@ -451,19 +453,63 @@ const DriverDashboardPage = () => {
     setCompletionModalVisible(true);
   };
 
+  const fileListToBase64 = (fileList) => {
+    if (!fileList || !fileList.length) return Promise.resolve([]);
+    const promises = fileList.map((item) => {
+      const file = item.originFileObj || item;
+      if (!file) return Promise.resolve(null);
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () =>
+          resolve({
+            fileData: reader.result,
+            fileName: file.name || `proof-${Date.now()}.jpg`,
+            mimeType: file.type || 'image/jpeg',
+          });
+        reader.readAsDataURL(file);
+      });
+    });
+    return Promise.all(promises).then((arr) => arr.filter(Boolean));
+  };
+
   const handleCompletionSubmit = async (values) => {
+    if (!selectedJob?.id) return;
+    const raw = values.collectionPhotos;
+    const fileList = Array.isArray(raw) ? raw : (raw?.fileList || []);
+    if (!fileList.length) {
+      message.error('Please upload at least 1 proof photo (max 10).');
+      return;
+    }
+    if (fileList.length > 10) {
+      message.error('Maximum 10 photos allowed.');
+      return;
+    }
+    setCompletionSubmitting(true);
     try {
-      // TODO: API call to update job status to "Collected"
-      // PUT /api/jobs/:jobId/status
-      // Body: { status: 'Collected', ...values }
-      
-      console.log('Confirming collection for job:', selectedJob?.jobId, values);
-      message.success('Collection confirmed! Job updated to "Collected"');
-      setCompletionModalVisible(false);
-      form.resetFields();
-      setSelectedJob(null);
+      const proofImages = await fileListToBase64(fileList);
+      if (!proofImages.length) {
+        message.error('Could not read photos. Please try again.');
+        setCompletionSubmitting(false);
+        return;
+      }
+      const response = await jobAPI.updateStatus(selectedJob.id, {
+        status: 'collected',
+        notes: values.collectionNotes || 'Collection completed with proof photos',
+        proofImages,
+      });
+      if (response.success) {
+        message.success('Collection confirmed! Job updated to Collected.');
+        setCompletionModalVisible(false);
+        form.resetFields();
+        setSelectedJob(null);
+        await fetchMyJobs();
+      } else {
+        message.error(response.message || 'Failed to complete collection.');
+      }
     } catch (error) {
-      message.error('Failed to complete collection. Please try again.');
+      message.error(error.message || 'Failed to complete collection. Please try again.');
+    } finally {
+      setCompletionSubmitting(false);
     }
   };
 
@@ -516,17 +562,27 @@ const DriverDashboardPage = () => {
             <Timeline>
               {recentCollections.map((collection, index) => (
                 <Timeline.Item 
-                  key={index} 
+                  key={collection.id || index} 
                   dot={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
                 >
                   <div>
-                    <Text strong>{collection.action}</Text>
+                    <Text strong>{collection.customer}</Text>
+                    {collection.trackingId && (
+                      <>
+                        {' · '}
+                        <Text strong style={{ color: '#1890ff' }}>{collection.trackingId}</Text>
+                      </>
+                    )}
                     <br />
-                    <Text type="secondary">{collection.customer} - {collection.location}</Text>
-                    <br />
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      {collection.time}
-                    </Text>
+                    <Text type="secondary">{collection.pickupAddress || collection.location}</Text>
+                    {collection.pickupDate && collection.pickupDate !== 'N/A' && (
+                      <>
+                        <br />
+                        <Text type="secondary" style={{ fontSize: '12px' }}>
+                          {collection.pickupDate}
+                        </Text>
+                      </>
+                    )}
                   </div>
                 </Timeline.Item>
               ))}
@@ -550,71 +606,50 @@ const DriverDashboardPage = () => {
         >
           {/* Collection Proof Section */}
           <Card size="small" title="Collection Proof" style={{ marginBottom: 16 }}>
-            <Row gutter={[16, 16]}>
-              <Col span={12}>
-                <Form.Item
-                  name="collectionPhotos"
-                  label="Collection Photos"
-                  rules={[{ required: true, message: 'Please upload at least one photo' }]}
-                >
-                  <Upload
-                    listType="picture-card"
-                    maxCount={5}
-                    beforeUpload={() => false}
-                    accept="image/*"
-                  >
-                    <div>
-                      <UploadOutlined />
-                      <div style={{ marginTop: 8 }}>Upload Photos</div>
-                    </div>
-                  </Upload>
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  name="customerSignature"
-                  label="Customer Signature"
-                  rules={[{ required: true, message: 'Please capture customer signature' }]}
-                >
-                  <div style={{ 
-                    border: '1px dashed #d9d9d9', 
-                    borderRadius: '6px', 
-                    padding: '20px', 
-                    textAlign: 'center',
-                    background: '#fafafa'
-                  }}>
-                    <SignatureOutlined style={{ fontSize: '24px', color: '#999' }} />
-                    <div style={{ marginTop: 8, color: '#999' }}>
-                      Signature capture will be implemented
-                    </div>
-                  </div>
-                </Form.Item>
-              </Col>
-            </Row>
+            <Form.Item
+              name="collectionPhotos"
+              label="Collection Photos (1–10 required)"
+              valuePropName="fileList"
+              getValueFromEvent={(e) => (e?.fileList ? e.fileList.slice(-10) : e)}
+              rules={[
+                { required: true, message: 'Please upload at least one photo' },
+                {
+                  validator: (_, val) => {
+                    const list = Array.isArray(val) ? val : (val?.fileList || []);
+                    if (list.length < 1) return Promise.reject(new Error('Minimum 1 photo required'));
+                    if (list.length > 10) return Promise.reject(new Error('Maximum 10 photos allowed'));
+                    return Promise.resolve();
+                  },
+                },
+              ]}
+              className="collection-photos-upload"
+            >
+              <Upload
+                listType="picture-card"
+                maxCount={10}
+                beforeUpload={() => false}
+                accept="image/*"
+                onPreview={(file) => {
+                  if (file.url) {
+                    setPreviewImage(file.url);
+                    setPreviewImageUrlToRevoke(null);
+                  } else if (file.originFileObj) {
+                    const url = URL.createObjectURL(file.originFileObj);
+                    setPreviewImage(url);
+                    setPreviewImageUrlToRevoke(url);
+                  }
+                }}
+              >
+                <div>
+                  <UploadOutlined />
+                  <div style={{ marginTop: 8 }}>Upload 1–10 Photos</div>
+                </div>
+              </Upload>
+            </Form.Item>
           </Card>
 
           {/* Collection Details Section */}
           <Card size="small" title="Collection Details" style={{ marginBottom: 16 }}>
-            <Row gutter={[16, 16]}>
-              <Col span={12}>
-                <Form.Item
-                  name="collectionTime"
-                  label="Actual Collection Time"
-                  rules={[{ required: true, message: 'Please enter collection time' }]}
-                >
-                  <Input placeholder="e.g., 14:30" />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  name="packageCondition"
-                  label="Package Condition"
-                  rules={[{ required: true, message: 'Please select package condition' }]}
-                >
-                  <Input placeholder="e.g., Good, Damaged, etc." />
-                </Form.Item>
-              </Col>
-            </Row>
             <Row gutter={[16, 16]}>
               <Col span={24}>
                 <Form.Item
@@ -625,34 +660,6 @@ const DriverDashboardPage = () => {
                     rows={3} 
                     placeholder="Any additional notes about the collection, customer interaction, or package condition"
                   />
-                </Form.Item>
-              </Col>
-            </Row>
-          </Card>
-
-          {/* Confirmation Section */}
-          <Card size="small" title="Confirmation" style={{ marginBottom: 16 }}>
-            <Row gutter={[16, 16]}>
-              <Col span={12}>
-                <Form.Item
-                  name="customerName"
-                  label="Customer Name Confirmed"
-                  rules={[{ required: true, message: 'Please confirm customer name' }]}
-                >
-                  <Input 
-                    placeholder="Customer name" 
-                    defaultValue={selectedJob?.customer}
-                    disabled
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  name="packageCount"
-                  label="Package Count"
-                  rules={[{ required: true, message: 'Please enter package count' }]}
-                >
-                  <Input placeholder="e.g., 2 boxes, 1 envelope" />
                 </Form.Item>
               </Col>
             </Row>
@@ -671,12 +678,36 @@ const DriverDashboardPage = () => {
                 htmlType="submit"
                 size="large"
                 icon={<CheckCircleOutlined />}
+                loading={completionSubmitting}
+                disabled={completionSubmitting}
               >
                 Confirm Collection
               </Button>
             </Space>
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Image preview modal – view photo larger */}
+      <Modal
+        open={!!previewImage}
+        onCancel={() => {
+          if (previewImageUrlToRevoke) URL.revokeObjectURL(previewImageUrlToRevoke);
+          setPreviewImage(null);
+          setPreviewImageUrlToRevoke(null);
+        }}
+        footer={null}
+        width="90vw"
+        style={{ top: 24 }}
+        styles={{ body: { padding: 8, textAlign: 'center', minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center' } }}
+      >
+        {previewImage && (
+          <img
+            src={previewImage}
+            alt="Preview"
+            style={{ maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain' }}
+          />
+        )}
       </Modal>
 
       {/* Job Details Side Drawer */}
@@ -695,7 +726,7 @@ const DriverDashboardPage = () => {
                   {selectedJob.status === 'assigned' && (
                     <Menu.Item
                       key="collected"
-                      onClick={() => handleUpdateStatus('collected', 'Driver collected package from customer')}
+                      onClick={() => setCompletionModalVisible(true)}
                       disabled={updatingStatus}
                     >
                       Mark as Collected

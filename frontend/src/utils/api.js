@@ -284,6 +284,7 @@ export const trackingAPI = {
 export const dashboardAPI = {
   getWarehouse: () => api.get('/dashboard/warehouse'),
   getGhanaWarehouse: () => api.get('/dashboard/warehouse/ghana'),
+  getUKWarehouse: () => api.get('/dashboard/warehouse/uk'),
   getDriver: () => api.get('/dashboard/driver'),
   getDelivery: () => api.get('/dashboard/delivery'),
   getFinance: () => api.get('/dashboard/finance'),

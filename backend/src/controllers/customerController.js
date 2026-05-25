@@ -149,16 +149,16 @@ exports.updateCustomer = asyncHandler(async (req, res) => {
     return sendError(res, 404, 'Customer not found');
   }
 
-  // Update customer
+  // Update customer: only update provided fields; empty string preserves original (don't reset)
   const customer = await prisma.customer.update({
     where: { id },
     data: {
       ...(name && { name }),
-      ...(email !== undefined && { email }),
-      ...(phone !== undefined && { phone }),
-      ...(address !== undefined && { address }),
+      ...(email !== undefined && { email: email === '' ? existingCustomer.email : email }),
+      ...(phone !== undefined && { phone: phone === '' ? existingCustomer.phone : phone }),
+      ...(address !== undefined && { address: address === '' ? existingCustomer.address : address }),
       ...(customerType && { customerType }),
-      ...(notes !== undefined && { notes }),
+      ...(notes !== undefined && { notes: notes === '' ? existingCustomer.notes : notes }),
     },
     include: {
       creator: {

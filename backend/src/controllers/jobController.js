@@ -23,6 +23,18 @@ exports.getAllJobs = asyncHandler(async (req, res) => {
 
   const skip = (page - 1) * limit;
 
+  // Normalize role for consistent matching (case-insensitive, hyphen and spaces to underscore)
+  const role = typeof req.user.role === 'string'
+    ? req.user.role.toLowerCase().replace(/-/g, '_').replace(/\s+/g, '_')
+    : '';
+
+  console.log('📋 GET /api/jobs', {
+    userId: req.user.id,
+    email: req.user.email,
+    rawRole: req.user.role,
+    normalizedRole: role,
+  });
+
   // Build filter based on user role
   const where = {
     ...(status && { status }),
@@ -37,34 +49,47 @@ exports.getAllJobs = asyncHandler(async (req, res) => {
     }),
   };
 
-  // Apply role-based filtering
-  switch (req.user.role) {
+  // Apply role-based filtering (role normalized above)
+  switch (role) {
     case 'driver':
       // Drivers only see jobs assigned to them
       where.assignedDriverId = req.user.id;
       break;
-    
-    case 'delivery-agent':
-      // Delivery agents only see jobs assigned to them
-      where.assignedDeliveryAgentId = req.user.id;
+
+    case 'delivery_agent': {
+      // Same as delivery dashboard: jobs in delivery statuses that are assigned to this agent OR unassigned
+      const deliveryStatuses = [
+        'Ready for Delivery',
+        'ready_for_delivery',
+        'Delivery Attempted',
+        'Delivered',
+        'delivered',
+      ];
+      where.status = { in: deliveryStatuses };
+      where.OR = [
+        { assignedDeliveryAgentId: req.user.id },
+        { assignedDeliveryAgentId: null },
+      ];
       break;
-    
+    }
+
     case 'warehouse':
       // Warehouse staff see jobs at their location or in transit
-      // TODO: Add warehouse location filtering when warehouse assignment is implemented
-      // For now, they can see all jobs (will be filtered by location later)
       break;
-    
-    case 'customer-service':
+
+    case 'customer_service':
     case 'finance':
     case 'admin':
+    case 'superadmin':
       // These roles can see all jobs
       break;
-    
+
     default:
       // Unknown role, restrict to their own created jobs
       where.createdBy = req.user.id;
   }
+
+  console.log('📋 GET /api/jobs filter', { role, where: JSON.stringify(where) });
 
   // Get jobs
   const [jobs, total] = await Promise.all([
@@ -116,6 +141,8 @@ exports.getAllJobs = asyncHandler(async (req, res) => {
     prisma.job.count({ where }),
   ]);
 
+  console.log('📋 GET /api/jobs result', { total, returned: jobs.length, page, limit });
+
   return sendPaginatedResponse(res, jobs, page, limit, total);
 });
 
@@ -148,6 +175,7 @@ exports.getJobById = asyncHandler(async (req, res) => {
       },
       batch: true,
       timeline: {
+        take: 100,
         include: {
           updater: {
             select: {
@@ -159,14 +187,23 @@ exports.getJobById = asyncHandler(async (req, res) => {
         orderBy: { timestamp: 'asc' },
       },
       documents: {
-        include: {
+        take: 50,
+        orderBy: { uploadedAt: 'desc' },
+        select: {
+          id: true,
+          documentType: true,
+          fileName: true,
+          fileUrl: true,
+          fileSize: true,
+          mimeType: true,
+          uploadedAt: true,
+          uploadedBy: true,
           uploader: {
             select: {
               name: true,
             },
           },
         },
-        orderBy: { uploadedAt: 'desc' },
       },
       creator: {
         select: {
@@ -185,9 +222,21 @@ exports.getJobById = asyncHandler(async (req, res) => {
   if (req.user.role === 'driver' && job.assignedDriverId !== req.user.id) {
     return sendError(res, 403, 'Access denied. You can only view jobs assigned to you');
   }
-  
-  if (req.user.role === 'delivery-agent' && job.assignedDeliveryAgentId !== req.user.id) {
-    return sendError(res, 403, 'Access denied. You can only view jobs assigned to you');
+
+  const isDeliveryAgent = req.user.role === 'delivery-agent' || req.user.role === 'delivery_agent';
+  if (isDeliveryAgent) {
+    const assignedToMe = job.assignedDeliveryAgentId === req.user.id;
+    const deliveryStatuses = [
+      'Ready for Delivery',
+      'ready_for_delivery',
+      'Delivery Attempted',
+      'Delivered',
+      'delivered',
+    ];
+    const unassignedInDelivery = job.assignedDeliveryAgentId === null && deliveryStatuses.includes(job.status);
+    if (!assignedToMe && !unassignedInDelivery) {
+      return sendError(res, 403, 'Access denied. You can only view jobs assigned to you or ready for delivery');
+    }
   }
 
   return sendSuccess(res, 200, 'Job retrieved successfully', { job });
@@ -376,20 +425,22 @@ exports.updateJob = asyncHandler(async (req, res) => {
     return sendError(res, 404, 'Job not found');
   }
 
-  // Update job
+  // Update job: only update provided fields; don't reset original details when omitted
   const job = await prisma.job.update({
     where: { id },
     data: {
       ...(pickupAddress && { pickupAddress }),
       ...(deliveryAddress && { deliveryAddress }),
       ...(pickupDate && { pickupDate: new Date(pickupDate) }),
-      ...(parcelDetails?.description !== undefined && { description: parcelDetails.description }),
-      ...(parcelDetails?.weight && { weight: parcelDetails.weight }),
-      ...(parcelDetails?.dimensions?.length && { dimensionsLength: parcelDetails.dimensions.length }),
-      ...(parcelDetails?.dimensions?.width && { dimensionsWidth: parcelDetails.dimensions.width }),
-      ...(parcelDetails?.dimensions?.height && { dimensionsHeight: parcelDetails.dimensions.height }),
-      ...(parcelDetails?.value !== undefined && { value: parcelDetails.value }),
-      ...(parcelDetails?.quantity && { quantity: parcelDetails.quantity }),
+      ...(parcelDetails && parcelDetails.description !== undefined && { description: parcelDetails.description }),
+      ...(parcelDetails && 'weight' in parcelDetails && { weight: parcelDetails.weight ?? existingJob.weight }),
+      ...(parcelDetails?.dimensions && (parcelDetails.dimensions.length != null || parcelDetails.dimensions.width != null || parcelDetails.dimensions.height != null) && {
+        ...(parcelDetails.dimensions.length != null && { dimensionsLength: parcelDetails.dimensions.length }),
+        ...(parcelDetails.dimensions.width != null && { dimensionsWidth: parcelDetails.dimensions.width }),
+        ...(parcelDetails.dimensions.height != null && { dimensionsHeight: parcelDetails.dimensions.height }),
+      }),
+      ...(parcelDetails && 'value' in parcelDetails && { value: parcelDetails.value ?? existingJob.value }),
+      ...(parcelDetails?.quantity != null && { quantity: parcelDetails.quantity }),
       ...(specialInstructions !== undefined && { specialInstructions }),
       ...(priority && { priority }),
     },
@@ -408,7 +459,7 @@ exports.updateJob = asyncHandler(async (req, res) => {
  */
 exports.updateJobStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { status, notes = '' } = req.body;
+  const { status, notes = '', proofImages } = req.body;
 
   // Get current job
   const job = await prisma.job.findUnique({
@@ -424,9 +475,27 @@ exports.updateJobStatus = asyncHandler(async (req, res) => {
     if (job.assignedDriverId !== req.user.id) {
       return sendError(res, 403, 'Access denied. You can only update jobs assigned to you');
     }
-  } else if (req.user.role === 'delivery-agent') {
-    if (job.assignedDeliveryAgentId !== req.user.id) {
-      return sendError(res, 403, 'Access denied. You can only update jobs assigned to you');
+  } else if (req.user.role === 'delivery-agent' || req.user.role === 'delivery_agent') {
+    const assignedToMe = job.assignedDeliveryAgentId === req.user.id;
+    const deliveryStatuses = [
+      'Ready for Delivery',
+      'ready_for_delivery',
+      'Delivery Attempted',
+      'Delivered',
+      'delivered',
+    ];
+    const unassignedInDelivery = job.assignedDeliveryAgentId === null && deliveryStatuses.includes(job.status);
+    if (!assignedToMe && !unassignedInDelivery) {
+      return sendError(res, 403, 'Access denied. You can only update jobs assigned to you or ready for delivery');
+    }
+  }
+
+  // When marking as collected, require 1–10 proof images from drivers
+  const normalizedStatus = (status || '').toLowerCase();
+  if (req.user.role === 'driver' && normalizedStatus === 'collected') {
+    const images = Array.isArray(proofImages) ? proofImages : [];
+    if (images.length < 1 || images.length > 10) {
+      return sendError(res, 400, 'Collection requires between 1 and 10 proof images');
     }
   }
 
@@ -454,6 +523,29 @@ exports.updateJobStatus = asyncHandler(async (req, res) => {
       updatedBy: req.user.id,
     },
   });
+
+  // When status is collected, save proof images as job documents
+  if (normalizedStatus === 'collected' && Array.isArray(proofImages) && proofImages.length > 0) {
+    for (let i = 0; i < proofImages.length; i++) {
+      const img = proofImages[i];
+      if (!img || !img.fileData) continue;
+      const base64Data = (typeof img.fileData === 'string' && img.fileData.includes(','))
+        ? img.fileData.split(',')[1] || img.fileData
+        : img.fileData;
+      const fileBuffer = Buffer.from(base64Data, 'base64');
+      await prisma.jobDocument.create({
+        data: {
+          jobId: id,
+          documentType: 'photo',
+          fileName: img.fileName || `collection-proof-${i + 1}.jpg`,
+          fileData: fileBuffer,
+          fileSize: fileBuffer.length,
+          mimeType: img.mimeType || 'image/jpeg',
+          uploadedBy: req.user.id,
+        },
+      });
+    }
+  }
 
   // Auto-create draft invoice when job is delivered
   if (status === 'delivered') {
@@ -487,22 +579,28 @@ exports.assignDriver = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { driverId } = req.body;
 
-  // Check if driver exists
-  const driver = await prisma.user.findUnique({
+  // Check that the user exists and is a driver or delivery agent
+  const assignee = await prisma.user.findUnique({
     where: { id: driverId },
   });
 
-  if (!driver || driver.role !== 'driver') {
+  if (!assignee) {
     return sendError(res, 400, 'Invalid driver ID');
   }
+  if (assignee.role !== 'driver' && assignee.role !== 'delivery_agent') {
+    return sendError(res, 400, 'Invalid driver ID');
+  }
+
+  const isDriver = assignee.role === 'driver';
+  const updateData = {
+    status: 'Assigned',
+    ...(isDriver ? { assignedDriverId: driverId } : { assignedDeliveryAgentId: driverId }),
+  };
 
   // Update job
   const job = await prisma.job.update({
     where: { id },
-    data: {
-      assignedDriverId: driverId,
-      status: 'Assigned',
-    },
+    data: updateData,
     include: {
       customer: true,
       assignedDriver: {
@@ -519,15 +617,15 @@ exports.assignDriver = asyncHandler(async (req, res) => {
     data: {
       jobId: id,
       status: 'Assigned',
-      notes: `Assigned to driver ${driver.name}`,
+      notes: `Assigned to ${isDriver ? 'driver' : 'delivery agent'} ${assignee.name}`,
       updatedBy: req.user.id,
     },
   });
 
-  // Send notification to driver
+  // Send notification to assignee
   try {
     await notifyDriverAssignment(job, driverId, req.user.id);
-    console.log(`📬 Notification sent to driver for job ${job.trackingId}`);
+    console.log(`📬 Notification sent for job ${job.trackingId}`);
   } catch (error) {
     console.error('⚠️ Failed to send driver assignment notification:', error);
   }
@@ -604,7 +702,7 @@ exports.assignDeliveryAgent = asyncHandler(async (req, res) => {
     where: { id: deliveryAgentId },
   });
 
-  if (!agent || agent.role !== 'delivery-agent') {
+  if (!agent || (agent.role !== 'delivery-agent' && agent.role !== 'delivery_agent')) {
     return sendError(res, 400, 'Invalid delivery agent ID');
   }
 
@@ -669,6 +767,7 @@ exports.getDocument = asyncHandler(async (req, res) => {
       job: {
         select: {
           id: true,
+          status: true,
           assignedDriverId: true,
           assignedDeliveryAgentId: true,
         },
@@ -684,9 +783,21 @@ exports.getDocument = asyncHandler(async (req, res) => {
   if (req.user.role === 'driver' && document.job.assignedDriverId !== req.user.id) {
     return sendError(res, 403, 'Access denied');
   }
-  
-  if (req.user.role === 'delivery-agent' && document.job.assignedDeliveryAgentId !== req.user.id) {
-    return sendError(res, 403, 'Access denied');
+
+  const isDeliveryAgentDoc = req.user.role === 'delivery-agent' || req.user.role === 'delivery_agent';
+  if (isDeliveryAgentDoc) {
+    const assignedToMe = document.job.assignedDeliveryAgentId === req.user.id;
+    const deliveryStatuses = [
+      'Ready for Delivery',
+      'ready_for_delivery',
+      'Delivery Attempted',
+      'Delivered',
+      'delivered',
+    ];
+    const unassignedInDelivery = document.job.assignedDeliveryAgentId === null && deliveryStatuses.includes(document.job.status);
+    if (!assignedToMe && !unassignedInDelivery) {
+      return sendError(res, 403, 'Access denied');
+    }
   }
 
   if (!document.fileData) {

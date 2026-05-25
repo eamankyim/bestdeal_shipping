@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   View,
   StyleSheet,
@@ -6,319 +6,290 @@ import {
   Alert,
   TouchableOpacity,
 } from 'react-native';
-import {
-  Text,
-  Avatar,
-  List,
-  Divider,
-} from 'react-native-paper';
+import { Text, Avatar } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/authService';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { standardStyles, theme, spacing, touchTargets } from '../../theme/theme';
+import { spacing, touchTargets, typography } from '../../theme/theme';
 
 export default function ProfileScreen({ navigation }) {
-  const { user, signOut, updateUser } = useAuth();
+  const { user, signOut } = useAuth();
   const insets = useSafeAreaInsets();
-  const [loading, setLoading] = useState(false);
+
+  const displayRole = (user?.role || 'user').replace('-', ' ');
 
   const handleLogout = async () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await authService.logout();
-            } catch (error) {
-              console.error('Logout error:', error);
-            } finally {
-              await signOut();
-            }
-          },
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await authService.logout();
+          } catch (error) {
+            console.error('Logout error:', error);
+          } finally {
+            await signOut();
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
-  const refreshUserData = async () => {
-    try {
-      setLoading(true);
-      const response = await authService.getCurrentUser();
-      if (response.success) {
-        await updateUser(response.data.user);
-        Alert.alert('Success', 'Profile updated');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to refresh profile');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const adminItems = [
+    { icon: 'people-outline', title: 'Team Members', route: 'TeamMembers' },
+    { icon: 'mail-outline', title: 'Invite Management', route: 'InviteManagement' },
+    { icon: 'shield-outline', title: 'Role Management', route: 'RoleManagement' },
+    { icon: 'business-outline', title: 'Organisation Settings', route: 'OrganisationSettings' },
+  ];
+
+  const managementItems = [
+    { icon: 'people-outline', title: 'Customers', route: 'Customers' },
+    { icon: 'cube-outline', title: 'Batch Jobs', route: 'BatchJobs' },
+    { icon: 'add-circle-outline', title: 'Create Batch', route: 'CreateBatch' },
+  ];
+
+  const moreItems = [
+    { icon: 'document-text-outline', title: 'Invoices', route: 'Invoices' },
+    { icon: 'bar-chart-outline', title: 'Reports', route: 'Reports' },
+  ];
 
   return (
-    <ScrollView 
-      style={styles.container}
-      contentContainerStyle={{ paddingTop: insets.top }}
-    >
-      {/* Profile Header - WhatsApp Style */}
-      <View style={styles.profileHeader}>
-        <Avatar.Text
-          size={100}
-          label={user?.name?.charAt(0).toUpperCase() || 'U'}
-          style={styles.avatar}
-        />
-        <Text variant="headlineSmall" style={styles.name}>
-          {user?.name || 'User'}
-        </Text>
-        <Text variant="bodyMedium" style={styles.status}>
-          {user?.role?.charAt(0).toUpperCase() + user?.role?.slice(1) || 'User'}
-        </Text>
-      </View>
-
-      {/* Menu Items - WhatsApp Style */}
-      <View style={styles.menuSection}>
-        {/* Account Info */}
-        <View style={styles.menuGroup}>
-          <TouchableOpacity 
-            style={styles.menuItem}
-            onPress={() => navigation.navigate('EditProfile')}
-          >
-            <Ionicons name="person-outline" size={24} color={theme.colors.text} style={styles.menuIcon} />
-            <Text style={styles.menuText}>Edit Profile</Text>
-            <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
-          </TouchableOpacity>
-          <Divider style={styles.divider} />
-          <TouchableOpacity 
-            style={styles.menuItem}
-            onPress={() => navigation.navigate('ChangePassword')}
-          >
-            <Ionicons name="lock-closed-outline" size={24} color={theme.colors.text} style={styles.menuIcon} />
-            <Text style={styles.menuText}>Change Password</Text>
-            <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingTop: insets.top + 10, paddingBottom: 110 }}>
+      <View style={styles.content}>
+        <View style={styles.headerRow}>
+          <Text style={styles.pageTitle}>Account</Text>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('Settings')}>
+            <Ionicons name="settings-outline" size={18} color="#333" />
           </TouchableOpacity>
         </View>
 
-        {/* Settings */}
-        <View style={styles.menuGroup}>
-          <TouchableOpacity 
-            style={styles.menuItem}
-            onPress={() => navigation.navigate('Settings')}
-          >
-            <Ionicons name="settings-outline" size={24} color={theme.colors.text} style={styles.menuIcon} />
-            <Text style={styles.menuText}>Settings</Text>
-            <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
-          </TouchableOpacity>
+        <View style={styles.profileCard}>
+          <Avatar.Text
+            size={50}
+            label={user?.name?.charAt(0)?.toUpperCase() || 'A'}
+            style={styles.avatar}
+            labelStyle={styles.avatarLabel}
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.profileName}>{user?.name || 'Admin User'}</Text>
+            <Text style={styles.profileEmail}>{user?.email || 'admin@bestdeal.com'}</Text>
+            <View style={styles.roleRow}>
+              <Ionicons name="star" size={11} color="#fff2cf" />
+              <Ionicons name="star" size={11} color="#fff2cf" />
+              <Ionicons name="star" size={11} color="#fff2cf" />
+              <Text style={styles.profileRole}>({displayRole})</Text>
+            </View>
+          </View>
         </View>
 
-        {/* Management - Role Based */}
-        {(user?.role === 'admin' || user?.role === 'customer-service') && (
-          <View style={styles.menuGroup}>
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={() => navigation.navigate('Customers')}
-            >
-              <Ionicons name="people-outline" size={24} color={theme.colors.text} style={styles.menuIcon} />
-              <Text style={styles.menuText}>Customers</Text>
-              <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
-            </TouchableOpacity>
-          </View>
-        )}
+        <Text style={styles.groupTitle}>Manage Account</Text>
+        <View style={styles.groupCard}>
+          <MenuItem icon="person-outline" title="Edit Profile" onPress={() => navigation.navigate('EditProfile')} />
+          <MenuItem icon="lock-closed-outline" title="Change Password" onPress={() => navigation.navigate('ChangePassword')} />
+          <MenuItem icon="settings-outline" title="Settings" onPress={() => navigation.navigate('Settings')} noBorder />
+        </View>
 
-        {/* Batch Management */}
-        {(user?.role === 'admin' || user?.role === 'warehouse_staff') && (
-          <View style={styles.menuGroup}>
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={() => navigation.navigate('BatchJobs')}
-            >
-              <Ionicons name="cube-outline" size={24} color={theme.colors.text} style={styles.menuIcon} />
-              <Text style={styles.menuText}>Batch Jobs</Text>
-              <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
-            </TouchableOpacity>
-            <Divider style={styles.divider} />
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={() => navigation.navigate('CreateBatch')}
-            >
-              <Ionicons name="add-circle-outline" size={24} color={theme.colors.text} style={styles.menuIcon} />
-              <Text style={styles.menuText}>Create Batch</Text>
-              <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
-            </TouchableOpacity>
-          </View>
-        )}
+        <Text style={styles.groupTitle}>Management</Text>
+        <View style={styles.groupCard}>
+          {managementItems.map((item, idx) => (
+            <MenuItem
+              key={item.title}
+              icon={item.icon}
+              title={item.title}
+              onPress={() => navigation.navigate(item.route)}
+              noBorder={idx === managementItems.length - 1}
+            />
+          ))}
+        </View>
 
-        {/* Finance */}
-        {(user?.role === 'admin' || user?.role === 'finance') && (
-          <View style={styles.menuGroup}>
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={() => navigation.navigate('Invoices')}
-            >
-              <Ionicons name="document-text-outline" size={24} color={theme.colors.text} style={styles.menuIcon} />
-              <Text style={styles.menuText}>Invoices</Text>
-              <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
-            </TouchableOpacity>
-            <Divider style={styles.divider} />
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={() => navigation.navigate('Reports')}
-            >
-              <Ionicons name="bar-chart-outline" size={24} color={theme.colors.text} style={styles.menuIcon} />
-              <Text style={styles.menuText}>Reports</Text>
-              <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
-            </TouchableOpacity>
-          </View>
-        )}
+        <Text style={styles.groupTitle}>More</Text>
+        <View style={styles.groupCard}>
+          {moreItems.map((item, idx) => (
+            <MenuItem
+              key={item.title}
+              icon={item.icon}
+              title={item.title}
+              onPress={() => navigation.navigate(item.route)}
+              noBorder={idx === moreItems.length - 1}
+            />
+          ))}
+        </View>
 
-        {/* Admin Features */}
         {(user?.role === 'admin' || user?.role === 'superadmin') && (
-          <View style={styles.menuGroup}>
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={() => navigation.navigate('TeamMembers')}
-            >
-              <Ionicons name="people-outline" size={24} color={theme.colors.text} style={styles.menuIcon} />
-              <Text style={styles.menuText}>Team Members</Text>
-              <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
-            </TouchableOpacity>
-            <Divider style={styles.divider} />
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={() => navigation.navigate('InviteManagement')}
-            >
-              <Ionicons name="mail-outline" size={24} color={theme.colors.text} style={styles.menuIcon} />
-              <Text style={styles.menuText}>Invite Management</Text>
-              <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
-            </TouchableOpacity>
-            <Divider style={styles.divider} />
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={() => navigation.navigate('RoleManagement')}
-            >
-              <Ionicons name="shield-outline" size={24} color={theme.colors.text} style={styles.menuIcon} />
-              <Text style={styles.menuText}>Role Management</Text>
-              <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
-            </TouchableOpacity>
-            <Divider style={styles.divider} />
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={() => navigation.navigate('OrganisationSettings')}
-            >
-              <Ionicons name="business-outline" size={24} color={theme.colors.text} style={styles.menuIcon} />
-              <Text style={styles.menuText}>Organisation Settings</Text>
-              <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
-            </TouchableOpacity>
-          </View>
+          <>
+            <Text style={styles.groupTitle}>Business</Text>
+            <View style={styles.groupCard}>
+              {adminItems.map((item, idx) => (
+                <MenuItem
+                  key={item.title}
+                  icon={item.icon}
+                  title={item.title}
+                  onPress={() => navigation.navigate(item.route)}
+                  noBorder={idx === adminItems.length - 1}
+                />
+              ))}
+            </View>
+          </>
         )}
 
-        {/* Help & Support */}
-        <View style={styles.menuGroup}>
-          <TouchableOpacity 
-            style={styles.menuItem}
-<<<<<<< HEAD
-            onPress={() => Alert.alert('Help & Support', 'Contact support at support@shipease.com')}
-=======
+        <Text style={styles.groupTitle}>Support</Text>
+        <View style={styles.groupCard}>
+          <MenuItem
+            icon="help-circle-outline"
+            title="Help & Support"
             onPress={() => Alert.alert('Help & Support', 'Contact support at support@bestdeal.com')}
->>>>>>> origin/master
-          >
-            <Ionicons name="help-circle-outline" size={24} color={theme.colors.text} style={styles.menuIcon} />
-            <Text style={styles.menuText}>Help & Support</Text>
-            <Ionicons name="chevron-forward" size={20} color="#c7c7cc" />
-          </TouchableOpacity>
+          />
+          <MenuItem
+            icon="mail-outline"
+            title="Contact Administrator"
+            onPress={() => Alert.alert('Contact Admin', 'Send an email to admin@bestdeal.com')}
+            noBorder
+          />
         </View>
 
-        {/* Logout */}
-        <View style={styles.menuGroup}>
-          <TouchableOpacity 
-            style={styles.menuItem}
-            onPress={handleLogout}
-          >
-            <Ionicons name="log-out-outline" size={24} color="#ff4d4f" style={styles.menuIcon} />
-            <Text style={[styles.menuText, styles.logoutText]}>Logout</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={18} color="#d64545" />
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
 
-        {/* Version */}
-<<<<<<< HEAD
-        <Text style={styles.version}>ShipEASE Shipping App v1.0.0</Text>
-=======
         <Text style={styles.version}>BestDeal Shipping App v1.0.0</Text>
->>>>>>> origin/master
       </View>
     </ScrollView>
+  );
+}
+
+function MenuItem({ icon, title, onPress, noBorder = false }) {
+  return (
+    <TouchableOpacity style={[styles.menuItem, noBorder && styles.noBorder]} onPress={onPress} activeOpacity={0.75}>
+      <Ionicons name={icon} size={18} color="#222" style={styles.menuIcon} />
+      <Text style={styles.menuText}>{title}</Text>
+      <Ionicons name="chevron-forward" size={18} color="#bfbfbf" />
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#f8f8f8',
   },
-  profileHeader: {
+  content: {
+    paddingHorizontal: 14,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.md,
-    backgroundColor: theme.colors.surface,
+    marginBottom: 12,
   },
-  avatar: {
-    backgroundColor: theme.colors.primary,
-    marginBottom: spacing.md,
+  pageTitle: {
+    fontSize: typography.title,
+    fontWeight: '700',
+    color: '#111',
   },
-  name: {
-    fontWeight: '600',
-    fontSize: 22,
-    marginBottom: spacing.xs,
-    color: theme.colors.text,
+  iconBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  status: {
-    color: theme.colors.placeholder,
-    fontSize: 15,
-  },
-  menuSection: {
-    paddingTop: spacing.md,
-  },
-  menuGroup: {
-    backgroundColor: theme.colors.surface,
-    marginBottom: spacing.md,
-  },
-  menuItem: {
+  profileCard: {
+    backgroundColor: '#ff9800',
+    borderRadius: 14,
+    padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    minHeight: touchTargets.listItemHeight,
+    gap: 12,
+    marginBottom: 14,
+  },
+  avatar: {
+    backgroundColor: '#f6f6f6',
+  },
+  avatarLabel: {
+    color: '#222',
+    fontWeight: '700',
+  },
+  profileName: {
+    color: '#fff',
+    fontSize: typography.md,
+    fontWeight: '700',
+  },
+  profileEmail: {
+    marginTop: 2,
+    color: '#fff6ea',
+    fontSize: typography.xs,
+  },
+  profileRole: {
+    marginTop: 1,
+    color: '#fff6ea',
+    fontSize: typography.xs,
+    textTransform: 'capitalize',
+  },
+  roleRow: {
+    marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  groupTitle: {
+    marginTop: 8,
+    marginBottom: 8,
+    fontSize: typography.xs,
+    color: '#777',
+    fontWeight: '600',
+  },
+  groupCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#f2f2f2',
+    marginBottom: 10,
+  },
+  menuItem: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f3f3',
+  },
+  noBorder: {
+    borderBottomWidth: 0,
   },
   menuIcon: {
-    marginRight: spacing.md,
-    width: 28,
+    marginRight: 10,
   },
   menuText: {
     flex: 1,
-    fontSize: 16,
-    color: theme.colors.text,
+    fontSize: typography.sm,
+    color: '#1e1e1e',
+    fontWeight: '500',
+  },
+  logoutBtn: {
+    marginTop: 8,
+    minHeight: touchTargets.buttonHeight,
+    borderRadius: 10,
+    backgroundColor: '#fff2f2',
+    borderWidth: 1,
+    borderColor: '#fde6e6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
   logoutText: {
-    color: '#ff4d4f',
-  },
-  divider: {
-    marginLeft: spacing.md + 28, // Align with text (icon width + margin)
-    backgroundColor: theme.colors.divider,
+    color: '#d64545',
+    fontSize: typography.sm,
+    fontWeight: '700',
   },
   version: {
     textAlign: 'center',
-    color: theme.colors.placeholder,
-    fontSize: 12,
-    paddingVertical: spacing.lg,
-    marginBottom: spacing.xl,
+    color: '#9b9b9b',
+    fontSize: typography.xs,
+    marginTop: spacing.md,
   },
 });
-
-
-

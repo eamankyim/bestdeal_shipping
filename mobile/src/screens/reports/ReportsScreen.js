@@ -12,12 +12,11 @@ import {
   Button,
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../../hooks/useAuth';
 import { standardStyles, theme, spacing, touchTargets } from '../../theme/theme';
 import logger from '../../utils/logger';
+import { dashboardService } from '../../services/dashboardService';
 
-export default function ReportsScreen({ navigation }) {
-  const { user } = useAuth();
+export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -30,12 +29,13 @@ export default function ReportsScreen({ navigation }) {
   const loadReports = async () => {
     try {
       setLoading(true);
-      // TODO: Implement reports API service
       logger.info('Loading reports');
-      // Placeholder - will be implemented with actual API
-      setReportData(null);
+      const response = await dashboardService.getFinanceDashboard();
+      const payload = response?.data || response || null;
+      setReportData(payload);
     } catch (error) {
       logger.error('Failed to load reports', error);
+      setReportData(null);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -74,6 +74,31 @@ export default function ReportsScreen({ navigation }) {
             </Text>
           </Card.Content>
         </Card>
+
+        {reportData ? (
+          <Card style={styles.card} elevation={0}>
+            <Card.Content>
+              <Text variant="titleMedium" style={styles.sectionTitle}>
+                Finance Snapshot
+              </Text>
+              <Text variant="bodyMedium" style={styles.metricText}>
+                Total Invoices: {reportData?.invoiceStats?.total || 0}
+              </Text>
+              <Text variant="bodyMedium" style={styles.metricText}>
+                Pending Invoices: {reportData?.invoiceStats?.pending || 0}
+              </Text>
+              <Text variant="bodyMedium" style={styles.metricText}>
+                Paid Invoices: {reportData?.invoiceStats?.paid || 0}
+              </Text>
+              <Text variant="bodyMedium" style={styles.metricText}>
+                Total Revenue: GBP {Number(reportData?.revenueStats?.totalRevenue || 0).toFixed(2)}
+              </Text>
+              <Text variant="bodyMedium" style={styles.metricText}>
+                Pending Revenue: GBP {Number(reportData?.revenueStats?.pendingRevenue || 0).toFixed(2)}
+              </Text>
+            </Card.Content>
+          </Card>
+        ) : null}
 
         <Card style={styles.card} elevation={0}>
           <Card.Content>
@@ -163,6 +188,10 @@ const styles = StyleSheet.create({
   emptySubtext: {
     textAlign: 'center',
     color: theme.colors.placeholder,
+  },
+  metricText: {
+    color: theme.colors.text,
+    marginBottom: spacing.xs,
   },
 });
 

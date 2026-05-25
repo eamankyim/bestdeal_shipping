@@ -63,9 +63,10 @@ const LoginPage = () => {
       let dashboardPath = '/dashboard';
       
       if (userRole === 'warehouse') {
-        // If user has Ghana Warehouse location, redirect to Ghana Warehouse dashboard
         if (warehouseLocation === 'Ghana Warehouse') {
           dashboardPath = '/ghana-warehouse';
+        } else if (warehouseLocation === 'UK Warehouse') {
+          dashboardPath = '/uk-warehouse';
         } else {
           dashboardPath = '/warehouse-dashboard';
         }

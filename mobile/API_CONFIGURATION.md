@@ -79,7 +79,4 @@ The app logs the configured API URL on startup. Check the console logs for:
 ```
 
 
-<<<<<<< HEAD
-=======
 
->>>>>>> origin/master

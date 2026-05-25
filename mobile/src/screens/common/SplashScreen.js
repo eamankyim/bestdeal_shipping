@@ -5,8 +5,9 @@ import {
   Animated,
   Image,
   Dimensions,
+  ImageBackground,
 } from 'react-native';
-import { Text, Button } from 'react-native-paper';
+import { Text, ActivityIndicator } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme, spacing, touchTargets } from '../../theme/theme';
 
@@ -18,7 +19,7 @@ export default function SplashScreen({ onFinish, onGetStarted }) {
   const logoScaleAnim = useRef(new Animated.Value(0.8)).current;
   const nameRevealAnim = useRef(new Animated.Value(0)).current;
   const nameOpacityAnim = useRef(new Animated.Value(0)).current;
-  const buttonAnim = useRef(new Animated.Value(0)).current;
+  const loadingAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Logo animation
@@ -51,28 +52,29 @@ export default function SplashScreen({ onFinish, onGetStarted }) {
           useNativeDriver: true,
         }),
       ]),
-      Animated.delay(300), // Small delay before button appears
-      Animated.timing(buttonAnim, {
+      Animated.delay(300), // Small delay before loading appears
+      Animated.timing(loadingAnim, {
         toValue: 1,
         duration: 500,
         useNativeDriver: true,
       }),
     ]).start();
 
-    // Don't auto navigate - let user click button instead
+    // Auto finish after splash display
+    const timer = setTimeout(() => {
+      if (onFinish) onFinish();
+    }, 2800);
+
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleGetStarted = () => {
-    if (onGetStarted) {
-      onGetStarted();
-    } else if (onFinish) {
-      onFinish();
-    }
-  };
-
   return (
-    <View style={styles.container}>
+    <ImageBackground
+      source={require('../../../assets/splash-background.png')}
+      style={styles.container}
+      resizeMode="cover"
+    >
       <View style={styles.content}>
         {/* Logo */}
         <Animated.View
@@ -84,15 +86,11 @@ export default function SplashScreen({ onFinish, onGetStarted }) {
             },
           ]}
         >
-<<<<<<< HEAD
-          {/* Logo image removed to avoid old BestDeal branding */}
-=======
           <Image
             source={require('../../../assets/AppLogo.png')}
             style={styles.logo}
             resizeMode="contain"
           />
->>>>>>> origin/master
         </Animated.View>
 
         {/* App Name with Reveal Animation */}
@@ -121,25 +119,21 @@ export default function SplashScreen({ onFinish, onGetStarted }) {
               },
             ]}
           >
-<<<<<<< HEAD
-            ShipEASE Shipping App
-=======
             BestDeal Shipping App
->>>>>>> origin/master
           </Animated.Text>
         </View>
       </View>
 
-      {/* Get Started Button - Outside content to allow full width */}
+      {/* Loading Indicator */}
       <Animated.View
         style={[
-          styles.buttonContainer,
+          styles.loadingContainer,
           {
-            opacity: buttonAnim,
+            opacity: loadingAnim,
             paddingBottom: insets.bottom + spacing.md,
             transform: [
               {
-                translateY: buttonAnim.interpolate({
+                translateY: loadingAnim.interpolate({
                   inputRange: [0, 1],
                   outputRange: [20, 0],
                 }),
@@ -148,36 +142,28 @@ export default function SplashScreen({ onFinish, onGetStarted }) {
           },
         ]}
       >
-        <Button
-          mode="contained"
-          onPress={handleGetStarted}
-          style={styles.getStartedButton}
-          contentStyle={styles.buttonContent}
-          labelStyle={styles.buttonLabel}
-          buttonColor="#ff9800"
-        >
-          Get Started
-        </Button>
+        <ActivityIndicator animating size={20} color="#ffffff" />
+        <Text style={styles.loadingText}>Loading...</Text>
       </Animated.View>
-    </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#000d1f', // Very dark blue
+    justifyContent: 'space-between',
   },
   content: {
     alignItems: 'center',
     justifyContent: 'center',
+    flex: 1,
+    paddingTop: 60,
   },
   logoContainer: {
     width: width * 0.4,
     height: width * 0.4,
-    marginBottom: 0,
+    marginBottom: 6,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -196,15 +182,15 @@ const styles = StyleSheet.create({
     left: 0,
     width: width,
     height: '100%',
-    backgroundColor: '#000d1f',
+    backgroundColor: 'transparent',
     zIndex: 1,
   },
   appName: {
-    color: '#ffffff',
+    color: '#f29000',
     fontWeight: 'bold',
-    fontSize: 24,
+    fontSize: 34,
   },
-  buttonContainer: {
+  loadingContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
@@ -212,21 +198,14 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  getStartedButton: {
-    borderRadius: 8,
-    elevation: 0,
-    shadowOpacity: 0,
-    width: '100%',
-    alignSelf: 'stretch',
-  },
-  buttonContent: {
-    paddingVertical: spacing.sm,
-    minHeight: touchTargets.buttonHeight,
-  },
-  buttonLabel: {
-    fontSize: 16,
-    fontWeight: '600',
+  loadingText: {
+    marginTop: 8,
+    fontSize: 18,
+    color: '#ffffff',
+    fontWeight: '500',
   },
 });
 

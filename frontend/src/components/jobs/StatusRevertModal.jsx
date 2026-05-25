@@ -125,9 +125,3 @@ const StatusRevertModal = ({
 
 export default StatusRevertModal;
 
-
-
-<<<<<<< HEAD
-=======
-
->>>>>>> origin/master

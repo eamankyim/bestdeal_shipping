@@ -9,19 +9,17 @@ import {
 import {
   Card,
   Text,
-  Button,
   ActivityIndicator,
-  Searchbar,
   Chip,
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../../hooks/useAuth';
 import { standardStyles, theme, spacing, touchTargets } from '../../theme/theme';
 import { format } from 'date-fns';
 import logger from '../../utils/logger';
+import SearchBellHeader from '../../components/common/SearchBellHeader';
+import { invoiceService } from '../../services/invoiceService';
 
-export default function InvoicesScreen({ navigation }) {
-  const { user } = useAuth();
+export default function InvoicesScreen() {
   const insets = useSafeAreaInsets();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,24 +27,30 @@ export default function InvoicesScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState(null);
 
-  useEffect(() => {
-    loadInvoices();
-  }, []);
-
   const loadInvoices = async () => {
     try {
       setLoading(true);
-      // TODO: Implement invoice API service
       logger.info('Loading invoices');
-      // Placeholder - will be implemented with actual API
-      setInvoices([]);
+      const statusParam = statusFilter ? statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1) : undefined;
+      const response = await invoiceService.getInvoices({ limit: 100, status: statusParam });
+      const list =
+        response?.data?.invoices ||
+        response?.invoices ||
+        response?.data ||
+        [];
+      setInvoices(Array.isArray(list) ? list : []);
     } catch (error) {
       logger.error('Failed to load invoices', error);
+      setInvoices([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    loadInvoices();
+  }, [statusFilter]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -54,7 +58,7 @@ export default function InvoicesScreen({ navigation }) {
   };
 
   const getStatusColor = (status) => {
-    switch (status) {
+    switch ((status || '').toLowerCase()) {
       case 'paid':
         return '#4caf50';
       case 'pending':
@@ -69,8 +73,9 @@ export default function InvoicesScreen({ navigation }) {
   const filteredInvoices = invoices.filter((invoice) => {
     const matchesSearch =
       invoice.invoiceNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      invoice.customerName?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = !statusFilter || invoice.status === statusFilter;
+      invoice.customer?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus =
+      !statusFilter || (invoice.status || '').toLowerCase() === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -84,43 +89,41 @@ export default function InvoicesScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.searchContainer, { paddingTop: insets.top }]}>
-        <Searchbar
-          placeholder="Search invoices..."
-          onChangeText={setSearchQuery}
-          value={searchQuery}
-          style={styles.searchbar}
-        />
-        <View style={styles.filterContainer}>
-          <Chip
-            selected={statusFilter === null}
-            onPress={() => setStatusFilter(null)}
-            style={styles.filterChip}
-          >
-            All
-          </Chip>
-          <Chip
-            selected={statusFilter === 'paid'}
-            onPress={() => setStatusFilter('paid')}
-            style={styles.filterChip}
-          >
-            Paid
-          </Chip>
-          <Chip
-            selected={statusFilter === 'pending'}
-            onPress={() => setStatusFilter('pending')}
-            style={styles.filterChip}
-          >
-            Pending
-          </Chip>
-          <Chip
-            selected={statusFilter === 'overdue'}
-            onPress={() => setStatusFilter('overdue')}
-            style={styles.filterChip}
-          >
-            Overdue
-          </Chip>
-        </View>
+      <SearchBellHeader
+        topInset={insets.top}
+        placeholder="Search invoices..."
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+      <View style={styles.filterContainer}>
+        <Chip
+          selected={statusFilter === null}
+          onPress={() => setStatusFilter(null)}
+          style={styles.filterChip}
+        >
+          All
+        </Chip>
+        <Chip
+          selected={statusFilter === 'paid'}
+          onPress={() => setStatusFilter('paid')}
+          style={styles.filterChip}
+        >
+          Paid
+        </Chip>
+        <Chip
+          selected={statusFilter === 'pending'}
+          onPress={() => setStatusFilter('pending')}
+          style={styles.filterChip}
+        >
+          Pending
+        </Chip>
+        <Chip
+          selected={statusFilter === 'overdue'}
+          onPress={() => setStatusFilter('overdue')}
+          style={styles.filterChip}
+        >
+          Overdue
+        </Chip>
       </View>
       <ScrollView
         style={styles.scrollView}
@@ -148,7 +151,7 @@ export default function InvoicesScreen({ navigation }) {
                     <View>
                       <Text variant="titleMedium">{invoice.invoiceNumber}</Text>
                       <Text variant="bodySmall" style={styles.customerName}>
-                        {invoice.customerName}
+                        {invoice.customer?.name || 'Unknown customer'}
                       </Text>
                     </View>
                     <Chip
@@ -163,7 +166,7 @@ export default function InvoicesScreen({ navigation }) {
                   </View>
                   <View style={styles.invoiceDetails}>
                     <Text variant="bodyMedium" style={styles.amount}>
-                      £{invoice.amount?.toFixed(2)}
+                      £{Number(invoice.total || 0).toFixed(2)}
                     </Text>
                     <Text variant="bodySmall" style={styles.date}>
                       {invoice.dueDate
@@ -186,20 +189,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  searchContainer: {
-    padding: spacing.md,
-    backgroundColor: theme.colors.background,
-  },
-  searchbar: {
-    ...standardStyles,
-    elevation: 0,
-    shadowOpacity: 0,
-    marginBottom: spacing.sm,
-  },
   filterContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    backgroundColor: theme.colors.background,
   },
   filterChip: {
     marginRight: spacing.xs,

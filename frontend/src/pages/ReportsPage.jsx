@@ -4,7 +4,6 @@ import {
   Col, 
   Card, 
   Tabs, 
-  Table, 
   Button, 
   Typography, 
   Tag, 
@@ -16,11 +15,9 @@ import {
   Alert
 } from 'antd';
 import { 
-  BarChartOutlined,
   PlusOutlined,
   DownloadOutlined,
   ShareAltOutlined,
-  FilterOutlined,
   SearchOutlined
 } from '@ant-design/icons';
 import ResponsiveTable from '../components/common/ResponsiveTable';
@@ -33,7 +30,6 @@ const { RangePicker } = DatePicker;
 const ReportsPage = () => {
   const { currentUser } = useAuth();
   const canViewRevenue = hasPermission(currentUser, 'financial:view');
-  const [activeTab, setActiveTab] = useState('overview');
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [dateRange, setDateRange] = useState(null);

@@ -12,15 +12,11 @@ import {
   Button,
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { standardStyles, theme, spacing, touchTargets } from '../../theme/theme';
+import { standardStyles, theme, spacing, touchTargets, typography } from '../../theme/theme';
 
 export default function OrganisationSettingsScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-<<<<<<< HEAD
-  const [companyName, setCompanyName] = useState('ShipEASE');
-=======
   const [companyName, setCompanyName] = useState('Best Deal');
->>>>>>> origin/master
   const [businessReg, setBusinessReg] = useState('');
   const [vatNumber, setVatNumber] = useState('');
   const [address, setAddress] = useState('');
@@ -41,37 +37,37 @@ export default function OrganisationSettingsScreen({ navigation }) {
               Organisation Settings
             </Text>
             <TextInput
-              label="Company Name"
+              placeholder="Company Name"
               value={companyName}
               onChangeText={setCompanyName}
               mode="outlined"
               style={styles.input}
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
             />
             <TextInput
-              label="Business Registration"
+              placeholder="Business Registration"
               value={businessReg}
               onChangeText={setBusinessReg}
               mode="outlined"
               style={styles.input}
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
             />
             <TextInput
-              label="VAT Number"
+              placeholder="VAT Number"
               value={vatNumber}
               onChangeText={setVatNumber}
               mode="outlined"
               style={styles.input}
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
             />
             <TextInput
-              label="Company Address"
+              placeholder="Company Address"
               value={address}
               onChangeText={setAddress}
               mode="outlined"
@@ -79,13 +75,15 @@ export default function OrganisationSettingsScreen({ navigation }) {
               numberOfLines={3}
               style={styles.input}
               backgroundColor="#ffffff"
-              outlineColor="#e0e0e0"
+              outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
             />
             <Button
               mode="contained"
               onPress={handleSave}
               style={styles.button}
+              contentStyle={styles.buttonContent}
+              labelStyle={styles.buttonLabel}
             >
               Save Changes
             </Button>
@@ -93,6 +91,8 @@ export default function OrganisationSettingsScreen({ navigation }) {
               mode="outlined"
               onPress={() => navigation.goBack()}
               style={styles.button}
+              contentStyle={styles.buttonContent}
+              labelStyle={styles.buttonLabel}
             >
               Cancel
             </Button>
@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: typography.md,
     marginBottom: spacing.md,
     color: theme.colors.text,
   },
@@ -129,6 +129,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     minHeight: touchTargets.buttonHeight,
     borderRadius: 8, // Consistent 8px border radius (not fully curved)
+  },
+  buttonContent: {
+    minHeight: touchTargets.buttonHeight,
+  },
+  buttonLabel: {
+    fontSize: typography.button,
+    fontWeight: '600',
   },
 });
 

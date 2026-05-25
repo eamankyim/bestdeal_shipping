@@ -10,7 +10,6 @@ import {
   Card,
   Text,
   ActivityIndicator,
-  Searchbar,
   Avatar,
   Chip,
   Button,
@@ -23,6 +22,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { authService } from '../../services/authService';
 import { standardStyles, theme, spacing, touchTargets } from '../../theme/theme';
 import logger from '../../utils/logger';
+import SearchBellHeader from '../../components/common/SearchBellHeader';
 
 export default function TeamMembersScreen({ navigation }) {
   const { user } = useAuth();
@@ -86,14 +86,12 @@ export default function TeamMembersScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.searchContainer, { paddingTop: insets.top }]}>
-        <Searchbar
-          placeholder="Search team members..."
-          onChangeText={setSearchQuery}
-          value={searchQuery}
-          style={styles.searchbar}
-        />
-      </View>
+      <SearchBellHeader
+        topInset={insets.top}
+        placeholder="Search team members..."
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -167,7 +165,7 @@ export default function TeamMembersScreen({ navigation }) {
       {/* Floating Action Button for Invite */}
       <FAB
         icon="plus"
-        style={[styles.fab, { bottom: insets.bottom + 16 }]}
+        style={[styles.fab, { right: spacing.md, bottom: insets.bottom + 88 }]}
         onPress={() => navigation.navigate('InviteManagement')}
         color="#ffffff"
         customSize={56}
@@ -182,20 +180,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  searchContainer: {
-    padding: spacing.md,
-    backgroundColor: theme.colors.background,
-  },
-  searchbar: {
-    ...standardStyles,
-    elevation: 0,
-    shadowOpacity: 0,
-  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 80, // Space for FAB
+    paddingBottom: 140, // Keep content clear of raised FAB
   },
   card: {
     marginHorizontal: spacing.md,
@@ -223,7 +212,6 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    right: 16,
     backgroundColor: '#ff9800',
     elevation: 0,
     shadowOpacity: 0,
