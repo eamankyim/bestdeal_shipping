@@ -1,5 +1,5 @@
 /**
- * Delete all application data and all users except the superadmin.
+ * Delete all application data and all users except one superadmin.
  *
  * Defaults to a dry run. To execute the destructive cleanup, pass --confirm or set
  * CONFIRM_DELETE_ALL_DATA=true.
@@ -8,12 +8,13 @@
  *   npm run cleanup:keep-superadmin
  *   npm run cleanup:keep-superadmin -- --confirm
  *   npm run cleanup:keep-superadmin -- --superadmin-email=admin@example.com --confirm
+ *   npm run cleanup:keep-superadmin -- --include-system-data --confirm
  */
 
-require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
 const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
 
 const DATA_MODELS = [
   { label: 'Invoice items', model: 'invoiceItem' },
@@ -35,6 +36,23 @@ const SYSTEM_MODELS = [
   { label: 'Roles', model: 'role' },
 ];
 
+function loadDatabaseEnv() {
+  if (process.env.DATABASE_URL) {
+    return;
+  }
+
+  ['.env', '.env.production'].forEach((fileName) => {
+    if (process.env.DATABASE_URL) {
+      return;
+    }
+
+    const envPath = path.join(__dirname, fileName);
+    if (fs.existsSync(envPath)) {
+      dotenv.config({ path: envPath, override: false });
+    }
+  });
+}
+
 function hasFlag(flag) {
   return process.argv.includes(flag);
 }
@@ -55,11 +73,37 @@ function envIsTrue(name) {
   return String(process.env[name] || '').toLowerCase() === 'true';
 }
 
+function maskDatabaseUrl(databaseUrl) {
+  if (!databaseUrl) {
+    return '(missing)';
+  }
+
+  try {
+    const parsedUrl = new URL(databaseUrl);
+    if (parsedUrl.username) {
+      parsedUrl.username = '***';
+    }
+    if (parsedUrl.password) {
+      parsedUrl.password = '***';
+    }
+
+    for (const key of Array.from(parsedUrl.searchParams.keys())) {
+      if (/password|token|secret|key/i.test(key)) {
+        parsedUrl.searchParams.set(key, '***');
+      }
+    }
+
+    return parsedUrl.toString();
+  } catch {
+    return databaseUrl.replace(/\/\/([^:/?#]+)(:[^@/?#]*)?@/, '//***:***@');
+  }
+}
+
 function formatCount(value) {
   return String(value).padStart(6, ' ');
 }
 
-async function countRows(models) {
+async function countRows(prisma, models) {
   const entries = await Promise.all(
     models.map(async ({ label, model }) => [label, await prisma[model].count()])
   );
@@ -67,7 +111,7 @@ async function countRows(models) {
   return Object.fromEntries(entries);
 }
 
-async function getSuperadminToKeep(superadminEmail) {
+async function getSuperadminToKeep(prisma, superadminEmail) {
   const where = {
     role: 'superadmin',
     ...(superadminEmail
@@ -111,7 +155,7 @@ async function getSuperadminToKeep(superadminEmail) {
   return superadmins[0];
 }
 
-async function printPlan({ superadmin, deleteSystemData }) {
+async function printPlan(prisma, { superadmin, deleteSystemData }) {
   const userCount = await prisma.user.count();
   const usersToDelete = await prisma.user.count({
     where: {
@@ -120,8 +164,8 @@ async function printPlan({ superadmin, deleteSystemData }) {
       },
     },
   });
-  const dataCounts = await countRows(DATA_MODELS);
-  const systemCounts = deleteSystemData ? await countRows(SYSTEM_MODELS) : {};
+  const dataCounts = await countRows(prisma, DATA_MODELS);
+  const systemCounts = deleteSystemData ? await countRows(prisma, SYSTEM_MODELS) : {};
 
   console.log('Cleanup plan');
   console.log('============');
@@ -153,7 +197,7 @@ async function deleteManyWithReport(tx, { label, model }) {
   return result.count;
 }
 
-async function executeCleanup({ superadmin, deleteSystemData }) {
+async function executeCleanup(prisma, { superadmin, deleteSystemData }) {
   console.log('');
   console.log('Executing destructive cleanup...');
   console.log('================================');
@@ -186,7 +230,7 @@ async function executeCleanup({ superadmin, deleteSystemData }) {
   );
 }
 
-async function verifyResult(superadminId, deleteSystemData) {
+async function verifyResult(prisma, superadminId, deleteSystemData) {
   const remainingUsers = await prisma.user.findMany({
     select: {
       id: true,
@@ -198,8 +242,8 @@ async function verifyResult(superadminId, deleteSystemData) {
       createdAt: 'asc',
     },
   });
-  const remainingDataCounts = await countRows(DATA_MODELS);
-  const remainingSystemCounts = deleteSystemData ? await countRows(SYSTEM_MODELS) : {};
+  const remainingDataCounts = await countRows(prisma, DATA_MODELS);
+  const remainingSystemCounts = deleteSystemData ? await countRows(prisma, SYSTEM_MODELS) : {};
 
   const unexpectedUsers = remainingUsers.filter((user) => user.id !== superadminId);
   const remainingDataTotal = Object.values(remainingDataCounts).reduce((sum, count) => sum + count, 0);
@@ -225,30 +269,46 @@ async function verifyResult(superadminId, deleteSystemData) {
 }
 
 async function main() {
+  loadDatabaseEnv();
+
+  console.log(`Database target: ${maskDatabaseUrl(process.env.DATABASE_URL)}`);
+
+  if (!process.env.DATABASE_URL) {
+    throw new Error(
+      'DATABASE_URL is not set. Provide it via the Docker/container environment or backend .env/.env.production before running cleanup.'
+    );
+  }
+
+  const prisma = new PrismaClient();
   const confirmed = hasFlag('--confirm') || envIsTrue('CONFIRM_DELETE_ALL_DATA');
   const deleteSystemData = hasFlag('--include-system-data') || envIsTrue('DELETE_SYSTEM_DATA');
   const superadminEmail = getArgValue('--superadmin-email') || process.env.SUPERADMIN_EMAIL;
-  const superadmin = await getSuperadminToKeep(superadminEmail);
 
-  console.log('');
-  console.log('WARNING: This script deletes app data and all non-superadmin users.');
-  console.log('It never creates or modifies a superadmin account.');
-  console.log('');
+  try {
+    const superadmin = await getSuperadminToKeep(prisma, superadminEmail);
 
-  await printPlan({ superadmin, deleteSystemData });
-
-  if (!confirmed || hasFlag('--dry-run')) {
     console.log('');
-    console.log('Dry run only. No rows were deleted.');
-    console.log('To delete data, re-run with --confirm or CONFIRM_DELETE_ALL_DATA=true.');
-    return;
+    console.log('WARNING: This script deletes app data and all non-superadmin users.');
+    console.log('It never creates or modifies a superadmin account.');
+    console.log('');
+
+    await printPlan(prisma, { superadmin, deleteSystemData });
+
+    if (!confirmed || hasFlag('--dry-run')) {
+      console.log('');
+      console.log('Dry run only. No rows were deleted.');
+      console.log('To delete data, re-run with --confirm or CONFIRM_DELETE_ALL_DATA=true.');
+      return;
+    }
+
+    await executeCleanup(prisma, { superadmin, deleteSystemData });
+    await verifyResult(prisma, superadmin.id, deleteSystemData);
+
+    console.log('');
+    console.log('Cleanup completed successfully.');
+  } finally {
+    await prisma.$disconnect();
   }
-
-  await executeCleanup({ superadmin, deleteSystemData });
-  await verifyResult(superadmin.id, deleteSystemData);
-
-  console.log('');
-  console.log('Cleanup completed successfully.');
 }
 
 main()
@@ -256,7 +316,4 @@ main()
     console.error('');
     console.error('Cleanup aborted:', error.message);
     process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
   });
