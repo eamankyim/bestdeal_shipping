@@ -4,6 +4,7 @@ const { generateToken, generateRefreshToken, verifyRefreshToken } = require('../
 const { sendSuccess, sendError } = require('../utils/responseUtils');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { autoSeedIfNeeded } = require('../utils/seedUtils');
+const { sendInvitationEmail } = require('../services/emailService');
 const crypto = require('crypto');
 
 /**
@@ -398,7 +399,6 @@ exports.sendInvite = asyncHandler(async (req, res) => {
     },
   });
 
-  // TODO: Send email with invitation link
   // Use FRONTEND_URL, PRODUCTION_URL, or extract from CORS_ORIGINS, fallback to localhost for development
   let frontendUrl = process.env.FRONTEND_URL;
   
@@ -422,6 +422,18 @@ exports.sendInvite = asyncHandler(async (req, res) => {
   frontendUrl = frontendUrl.replace(/\/$/, '');
   
   const inviteLink = `${frontendUrl}/accept-invite/${token}`;
+  let emailDelivery;
+  try {
+    emailDelivery = await sendInvitationEmail({
+      to: invitation.email,
+      role: invitation.role,
+      inviteLink,
+      inviterName: invitation.inviter?.name,
+    });
+  } catch (error) {
+    console.error('Invitation email delivery failed:', error.message);
+    emailDelivery = { sent: false, reason: 'SMTP delivery failed' };
+  }
 
   return sendSuccess(res, 201, 'Invitation sent successfully', {
     invitation: {
@@ -431,6 +443,7 @@ exports.sendInvite = asyncHandler(async (req, res) => {
       inviteLink,
       expiresAt: invitation.expiresAt,
     },
+    emailDelivery,
   });
 });
 
