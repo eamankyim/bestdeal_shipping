@@ -42,6 +42,7 @@ const InviteManagement = () => {
   const [inviteLinkModalVisible, setInviteLinkModalVisible] = useState(false);
   const [generatedInviteLink, setGeneratedInviteLink] = useState('');
   const [generatedInviteEmail, setGeneratedInviteEmail] = useState('');
+  const [emailDeliveryStatus, setEmailDeliveryStatus] = useState(null);
   const [inviteForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [fetchingInvites, setFetchingInvites] = useState(true);
@@ -168,6 +169,13 @@ const InviteManagement = () => {
       console.log('👤 Role:', values.role);
       console.log('═══════════════════════════════════════════════');
       
+      const emailDelivery = response?.data?.emailDelivery;
+      setEmailDeliveryStatus(
+        emailDelivery
+          ? { sent: emailDelivery.sent === true, reason: emailDelivery.reason }
+          : null
+      );
+
       // Store link and email to show in modal
       setGeneratedInviteLink(inviteLink);
       setGeneratedInviteEmail(values.email);
@@ -211,7 +219,11 @@ const InviteManagement = () => {
       
       inviteForm.resetFields();
       
-      message.success('Invitation created! Copy the link to send to the user.');
+      if (emailDelivery?.sent === true) {
+        message.success(`Invitation email sent to ${values.email}`);
+      } else {
+        message.success('Invitation created! Copy the link to send to the user.');
+      }
       
     } catch (error) {
       console.error('═══════════════════════════════════════════════');
@@ -541,6 +553,11 @@ const InviteManagement = () => {
     },
   ];
 
+  const closeInviteLinkModal = () => {
+    setInviteLinkModalVisible(false);
+    setEmailDeliveryStatus(null);
+  };
+
   const handleResendInvite = async (invite) => {
     try {
       // In real app, this would resend the email
@@ -765,11 +782,11 @@ const InviteManagement = () => {
           </Space>
         }
         open={inviteLinkModalVisible}
-        onCancel={() => setInviteLinkModalVisible(false)}
+        onCancel={closeInviteLinkModal}
         footer={[
           <Button 
             key="close" 
-            onClick={() => setInviteLinkModalVisible(false)}
+            onClick={closeInviteLinkModal}
           >
             Close
           </Button>,
@@ -792,13 +809,34 @@ const InviteManagement = () => {
         ]}
         width={700}
       >
-        <Alert
-          message="Email Service Not Yet Configured"
-          description="Copy the link below and send it to the user manually via email or messaging app. Email integration will be added later."
-          type="info"
-          showIcon
-          style={{ marginBottom: '20px' }}
-        />
+        {emailDeliveryStatus?.sent === true ? (
+          <Alert
+            message="Invitation email sent"
+            description={`An invitation email was sent to ${generatedInviteEmail}. They can also use the link below if needed.`}
+            type="success"
+            showIcon
+            style={{ marginBottom: '20px' }}
+          />
+        ) : (
+          <Alert
+            message={
+              emailDeliveryStatus?.sent === false
+                ? 'Invitation email not sent'
+                : 'Share invitation link'
+            }
+            description={
+              <>
+                {emailDeliveryStatus?.reason && (
+                  <span>{emailDeliveryStatus.reason}. </span>
+                )}
+                Copy the link below and send it to the user manually via email or messaging app.
+              </>
+            }
+            type={emailDeliveryStatus?.sent === false ? 'warning' : 'info'}
+            showIcon
+            style={{ marginBottom: '20px' }}
+          />
+        )}
 
         <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f0f5ff', borderRadius: '8px' }}>
           <Space direction="vertical" size={4} style={{ width: '100%' }}>
@@ -837,7 +875,9 @@ const InviteManagement = () => {
             <Text>2. Send it to the user via email, WhatsApp, or any messaging app</Text>
             <Text>3. User clicks the link and creates their account</Text>
             <Text type="secondary" style={{ fontSize: '12px', marginTop: '8px' }}>
-              ⚠️ Link expires in 7 days. Email integration coming soon.
+              {emailDeliveryStatus?.sent === true
+                ? 'Link expires in 7 days. The recipient can also use the link above.'
+                : '⚠️ Link expires in 7 days. Copy and share the link manually if the invitation email was not delivered.'}
             </Text>
           </Space>
         </div>
