@@ -178,13 +178,13 @@ async function seedSettings() {
   const settings = [
     {
       key: 'company_name',
-      value: 'Best Deal App',
+      value: 'ShipEASE App',
       description: 'Company name',
       type: 'string',
     },
     {
       key: 'company_email',
-      value: 'info@bestdeal.com',
+      value: 'info@shipease.com',
       description: 'Company contact email',
       type: 'string',
     },

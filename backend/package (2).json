@@ -1,0 +1,59 @@
+{
+  "name": "shipease-backend",
+  "version": "1.0.0",
+  "description": "ShipEASE Backend API - Shipping Management System",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "build": "prisma generate && echo 'Prisma Client generated successfully'",
+    "postinstall": "prisma generate",
+    "vercel-build": "prisma generate && prisma db push --accept-data-loss --skip-generate",
+    "create-admin": "node create-admin.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:push": "prisma db push",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "node prisma/seed.js",
+    "seed:roles": "node seed-roles-only.js",
+    "db:reset": "prisma migrate reset --force",
+    "check:users": "node check-users.js",
+    "verify:all-users": "node verify-all-users.js",
+    "activate:all-users": "node activate-all-users.js",
+    "normalize:emails": "node normalize-emails.js",
+    "test:warehouse-user": "node create-test-warehouse-user.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "shipping",
+    "logistics",
+    "express",
+    "prisma",
+    "postgresql"
+  ],
+  "author": "ShipEASE Team",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^2.4.3",
+    "browser-image-compression": "^2.0.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.1",
+    "express-rate-limit": "^7.4.1",
+    "express-validator": "^7.2.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-dist": "^5.0.0",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "@craco/craco": "^7.1.0",
+    "babel-plugin-transform-remove-console": "^6.9.4",
+    "nodemon": "^3.1.7",
+    "prisma": "^5.22.0"
+  }
+}

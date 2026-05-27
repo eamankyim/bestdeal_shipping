@@ -5,15 +5,13 @@ import {
   Card, 
   Row, 
   Col, 
-  Progress, 
   Timeline, 
   Tag, 
   Typography, 
   Space,
-  message,
-  Divider
+  message
 } from 'antd';
-import { SearchOutlined, CarOutlined, CheckCircleOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, MailOutlined, EnvironmentOutlined, InboxOutlined, CalendarOutlined } from '@ant-design/icons';
+import { SearchOutlined, CheckCircleOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, MailOutlined, EnvironmentOutlined, InboxOutlined, CalendarOutlined } from '@ant-design/icons';
 import { trackingAPI } from '../utils/api';
 import { getStatusColor } from '../constants/jobStatuses';
 import { useAuth } from '../contexts/AuthContext';

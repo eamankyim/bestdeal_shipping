@@ -1,13 +1,13 @@
 {
   "version": 2,
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run vercel-build",
   "installCommand": "npm install",
   "builds": [
     {
       "src": "server.js",
       "use": "@vercel/node",
       "config": {
-        "maxLambdaSize": "10mb"
+        "maxLambdaSize": "50mb"
       }
     }
   ],
@@ -18,7 +18,8 @@
     }
   ],
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "VERCEL": "1"
   }
 }
 

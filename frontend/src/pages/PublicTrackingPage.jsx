@@ -11,8 +11,6 @@ import {
   Timeline,
   Spin,
   Empty,
-  Result,
-  Divider,
   message
 } from 'antd';
 import { 
@@ -27,7 +25,6 @@ import { trackingAPI } from '../utils/api';
 import { getStatusColor } from '../constants/jobStatuses';
 
 const { Title, Text } = Typography;
-const { Search } = Input;
 
 const PublicTrackingPage = () => {
   const [trackingId, setTrackingId] = useState('');

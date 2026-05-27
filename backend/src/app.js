@@ -117,7 +117,7 @@ app.use('/api/', apiLimiter);
 app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'BestDeal Shipping app API is running',
+    message: 'ShipEASE Shipping app API is running',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
   });
@@ -136,7 +136,7 @@ app.use('/api/notifications', notificationRoutes);
 // Swagger Documentation (Multiple paths for convenience)
 const swaggerOptions = {
   customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'Best Deal Shipping App API Documentation',
+  customSiteTitle: 'ShipEASE Shipping App API Documentation',
   swaggerOptions: {
     persistAuthorization: true,
   },

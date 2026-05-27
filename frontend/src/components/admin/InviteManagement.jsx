@@ -268,8 +268,8 @@ const InviteManagement = () => {
   // Share link using Web Share API or fallback
   const shareLink = async (link, email) => {
     const shareData = {
-      title: 'Best Deal App Invitation',
-      text: `You have been invited to join Best Deal App. Please click the link to create your account.`,
+      title: 'ShipEASE App Invitation',
+      text: `You have been invited to join ShipEASE App. Please click the link to create your account.`,
       url: link,
     };
 
@@ -290,9 +290,9 @@ const InviteManagement = () => {
       copyToClipboard(link);
       
       // Create email template
-      const subject = encodeURIComponent('Best Deal App Invitation');
+      const subject = encodeURIComponent('ShipEASE App Invitation');
       const body = encodeURIComponent(
-        `You have been invited to join Best Deal App!\n\n` +
+        `You have been invited to join ShipEASE App!\n\n` +
         `Click the link below to create your account:\n${link}\n\n` +
         `This link expires in 7 days.`
       );

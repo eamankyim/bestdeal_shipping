@@ -257,6 +257,8 @@ export const jobAPI = {
   delete: (id) => api.delete(`/jobs/${id}`),
   assignDriver: (id, driverId) => api.post(`/jobs/${id}/assign-driver`, { driverId }),
   assignDeliveryAgent: (id, deliveryAgentId) => api.post(`/jobs/${id}/assign-delivery-agent`, { deliveryAgentId }),
+  recordPayment: (id, paymentData) => api.post(`/jobs/${id}/payment`, paymentData),
+  revertStatus: (id, data) => api.post(`/jobs/${id}/revert-status`, data),
 };
 
 export const batchAPI = {
@@ -282,6 +284,7 @@ export const trackingAPI = {
 export const dashboardAPI = {
   getWarehouse: () => api.get('/dashboard/warehouse'),
   getGhanaWarehouse: () => api.get('/dashboard/warehouse/ghana'),
+  getUKWarehouse: () => api.get('/dashboard/warehouse/uk'),
   getDriver: () => api.get('/dashboard/driver'),
   getDelivery: () => api.get('/dashboard/delivery'),
   getFinance: () => api.get('/dashboard/finance'),

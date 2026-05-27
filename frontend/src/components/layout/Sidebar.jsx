@@ -88,6 +88,12 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
       roles: ['warehouse', 'admin', 'superadmin'],
     },
     {
+      key: '/uk-warehouse',
+      icon: <DashboardOutlined />,
+      label: 'Dashboard',
+      roles: ['warehouse', 'admin', 'superadmin'],
+    },
+    {
       key: '/delivery-agent',
       icon: <RocketOutlined />,
       label: 'My Deliveries',
@@ -147,11 +153,18 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
       
       // Special handling for Ghana Warehouse menu item
       if (item.key === '/ghana-warehouse') {
-        // Show to admin/superadmin (always)
         if (currentUser.role === 'admin' || currentUser.role === 'superadmin') return true;
-        // Show to warehouse users ONLY if they have warehouseLocation = "Ghana Warehouse"
         if (currentUser.role === 'warehouse') {
           return currentUser.warehouseLocation === 'Ghana Warehouse';
+        }
+        return false;
+      }
+
+      // UK Warehouse Dashboard - show when user has UK Warehouse location
+      if (item.key === '/uk-warehouse') {
+        if (currentUser.role === 'admin' || currentUser.role === 'superadmin') return true;
+        if (currentUser.role === 'warehouse') {
+          return currentUser.warehouseLocation === 'UK Warehouse';
         }
         return false;
       }

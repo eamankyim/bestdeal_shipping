@@ -8,6 +8,7 @@ import {
   Modal, 
   Form, 
   Input, 
+  InputNumber,
   Select, 
   DatePicker, 
   Typography, 
@@ -197,12 +198,13 @@ const BatchManagementPage = () => {
     }
   };
 
-  // TODO: Fetch vessel/flight options from API
+  // Vessel/flight options: MSC (not MD Sea); custom field allowed
   const vesselOptions = [
-    { value: 'MS Sea Express', label: 'MS Sea Express (Sea)', type: 'Sea' },
-    { value: 'MS Atlantic Star', label: 'MS Atlantic Star (Sea)', type: 'Sea' },
+    { value: 'MSC', label: 'MSC (Sea)', type: 'Sea' },
+    { value: 'MSC Express', label: 'MSC Express (Sea)', type: 'Sea' },
     { value: 'BA Flight 123', label: 'BA Flight 123 (Air)', type: 'Air' },
-    { value: 'AF Flight 456', label: 'AF Flight 456 (Air)', type: 'Air' }
+    { value: 'AF Flight 456', label: 'AF Flight 456 (Air)', type: 'Air' },
+    { value: '__custom__', label: 'Other (enter below)', type: 'Custom' }
   ];
 
   const batchColumns = [
@@ -234,8 +236,22 @@ const BatchManagementPage = () => {
       title: 'Jobs',
       dataIndex: 'totalParcels',
       key: 'totalParcels',
-      render: (count) => <Badge count={count} style={{ backgroundColor: '#1890ff' }} />,
+      render: (count, record) => (
+        <Space direction="vertical" size={0}>
+          <Badge count={count} style={{ backgroundColor: '#1890ff' }} />
+          {record.trackingNumber && (
+            <Text type="secondary" style={{ fontSize: '12px' }}>Container: {record.trackingNumber}</Text>
+          )}
+        </Space>
+      ),
       mobile: true,
+    },
+    {
+      title: 'Container #',
+      dataIndex: 'trackingNumber',
+      key: 'containerNumber',
+      mobile: false,
+      render: (text) => text ? <Text strong>{text}</Text> : '—',
     },
     {
       title: 'Total Weight',
@@ -461,7 +477,7 @@ const BatchManagementPage = () => {
       const batchData = {
         name: values.name,
         route: values.route,
-        vessel: values.vessel,
+        vessel: values.vessel === '__custom__' ? (values.vesselCustom || '') : values.vessel,
         containerNumber: values.containerNumber,
         departureDate: values.departureDate ? values.departureDate.toISOString() : null,
         eta: values.eta ? values.eta.toISOString() : null,
@@ -680,12 +696,26 @@ const BatchManagementPage = () => {
               <Col xs={24} sm={12}>
                 <Form.Item
                   name="containerNumber"
-                  label="Container Number (Optional)"
+                  label="Container Number / Seal"
+                  rules={[{ required: true, message: 'Please enter container/seal number!' }]}
                 >
-                  <Input placeholder="e.g., CONT001234" />
+                  <Input placeholder="e.g., CONT001234 or SEAL001234" />
                 </Form.Item>
               </Col>
             </Row>
+            <Form.Item noStyle shouldUpdate={(prev, curr) => prev.vessel !== curr.vessel}>
+              {({ getFieldValue }) =>
+                getFieldValue('vessel') === '__custom__' ? (
+                  <Form.Item
+                    name="vesselCustom"
+                    label="Custom Vessel/Flight Name"
+                    rules={[{ required: true, message: 'Please enter vessel or flight name' }]}
+                  >
+                    <Input placeholder="e.g., MSC Olympia, Flight BA 456" />
+                  </Form.Item>
+                ) : null
+              }
+            </Form.Item>
           </Card>
 
           {/* Job Selection */}
@@ -979,10 +1009,84 @@ const BatchManagementPage = () => {
                         <Text>{selectedBatch.eta}</Text>
                       </div>
                     </div>
+                    {selectedBatch.trackingNumber && (
+                      <div className="user-info-item">
+                        <div className="user-info-label">Container Number / Seal</div>
+                        <div className="user-info-value">
+                          <Text strong>{selectedBatch.trackingNumber}</Text>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </Card>
               </Col>
             </Row>
+
+            {/* Jobs in Batch - Tabular View */}
+            {selectedBatch.jobs && selectedBatch.jobs.length > 0 && (
+              <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+                <Col span={24}>
+                  <Card 
+                    size="small" 
+                    title={<span className="user-info-title">Jobs in Batch ({selectedBatch.jobs.length})</span>}
+                    className="user-info-card"
+                    style={{ 
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                      borderRadius: 8
+                    }}
+                  >
+                    <Table
+                      columns={[
+                        {
+                          title: 'Job ID',
+                          dataIndex: 'trackingId',
+                          key: 'trackingId',
+                          render: (text) => <Text strong>{text}</Text>,
+                        },
+                        {
+                          title: 'Customer',
+                          dataIndex: 'customer',
+                          key: 'customer',
+                          render: (customer) => customer?.name || 'N/A',
+                        },
+                        {
+                          title: 'Status',
+                          dataIndex: 'status',
+                          key: 'status',
+                          render: (status) => (
+                            <Tag color={
+                              status === 'delivered' ? 'green' :
+                              status === 'batched' ? 'purple' :
+                              status === 'shipped' ? 'blue' :
+                              'default'
+                            }>
+                              {status?.replace(/_/g, ' ').toUpperCase()}
+                            </Tag>
+                          ),
+                        },
+                        {
+                          title: 'Weight',
+                          dataIndex: 'weight',
+                          key: 'weight',
+                          render: (weight) => `${weight || 0} kg`,
+                        },
+                        {
+                          title: 'Value',
+                          dataIndex: 'value',
+                          key: 'value',
+                          render: (value) => `£${value || 0}`,
+                        },
+                      ]}
+                      dataSource={selectedBatch.jobs}
+                      rowKey="id"
+                      pagination={false}
+                      size="small"
+                      scroll={{ x: 'max-content' }}
+                    />
+                  </Card>
+                </Col>
+              </Row>
+            )}
           </div>
         )}
       </Drawer>

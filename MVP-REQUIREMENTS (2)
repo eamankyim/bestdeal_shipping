@@ -1,0 +1,465 @@
+Door-to-Door Delivery Web App – Software Requirements Specification (SRS)
+Version: 1.0
+ Date: 2025-08-17
+ Author: Ororo Solutions
+
+1. Purpose & Scope
+The goal is to build a door-to-door delivery management web application for a UK-to-Ghana logistics business. The app will support customers, drivers, warehouse staff, delivery agents, and admins to manage the end-to-end shipping process:
+Customer booking → pickup by drivers (or drop-off at partner point) → UK warehouse intake → shipment to Ghana → Ghana warehouse intake → last-mile delivery to customer.
+
+
+1.1 Goals
+Provide an online portal for customers to request collections and shipments.
+
+
+Digitize warehouse intake and shipment batching.
+
+
+Automate shipment status tracking across the full delivery journey.
+
+
+Enable online/mobile payments (UK cards, Ghana mobile money).
+
+
+Provide transparent notifications to customers.
+
+
+Provide lightweight reporting for operations and finance.
+
+
+1.2 Future Scope
+Native mobile apps (iOS/Android).
+
+
+AI-based route optimization for drivers.
+
+Payment integration
+
+
+Full customs system integration.
+
+
+Customer loyalty program & referrals.
+
+
+
+2. Actors & Roles
+Officer 1: Creates shipment requests, records paid invoices, tracks shipment.
+Customer: Tracks shipment.
+
+
+UK Driver: Collects parcels, uploads proof of collection, delivers to UK warehouse.
+
+
+UK Warehouse Staff: Scans parcels, groups into shipments, manages inventory.
+
+
+Ghana Warehouse Staff: Receives shipments, scans parcels in, prepares for last-mile delivery.
+
+
+Ghana Delivery Agent: Delivers parcels, captures Proof of Delivery (PoD).
+
+
+Admin: Manages users, pricing tables, service fees, partners, reports.
+
+
+
+3. Assumptions & Constraints
+ETA & Tracking: ETA from carriers (air/sea) is manual entry or external API.
+
+
+Payments: Manual input
+Documents: Invoice number, ID number (optional), package description, value, weight.
+
+
+Compliance: GDPR (UK clients), Ghana Data Protection Act, secure handling of IDs & payments.
+
+
+
+4. High-Level User Journeys
+Booking & Collection → Customer books pickup or drop-off → Driver collects → Warehouse receives.
+
+
+Shipment Prep → Warehouse scans, batches, assigns to container/vessel/flight.
+
+
+Transit → Shipment departs UK → status auto/manual updated.
+
+
+Arrival in Ghana → Ghana warehouse scans, stores parcels.
+
+
+Last-Mile Delivery → Delivery agent assigned → Parcel delivered with PoD.
+
+
+Completion → Status set to “Delivered/Closed,” customer notified.
+
+
+
+5. Functional Requirements
+5.1 Authentication & Access Control
+Email/password login for staff and drivers.
+
+
+
+Role-based access ( Driver, Warehouse Staff, Delivery Agent, Admin).
+
+
+5.2 Shipment Booking (Entering customer’s info)
+Form fields: Pickup address, contact, package details (weight, value, type).
+
+
+Option to select Pickup or Drop-off.
+
+
+Auto-generate Tracking ID.
+
+
+Info can be edited until “Collected.”
+
+
+5.3 Collection (Driver – UK)
+Job assignment system (manual by staff or auto by system).
+
+
+View pickup addresses on map.
+
+
+Mark as Collected, upload photo/signature.
+
+
+Drop-off confirmation at UK warehouse.
+
+
+5.4 Warehouse Management
+Scan parcels at intake (QR/barcode).
+
+
+Assign parcels to shipment batches.
+
+
+Record vessel/flight details, ETA, bill of lading/airway bill.
+
+
+Export/import docs (manual uploads).
+
+
+5.5 Shipment Tracking
+Status flow:
+ Booked → Collected → At UK Warehouse → In Transit → Arrived Ghana → At Ghana Warehouse → Out for Delivery → Delivered → Closed.
+
+
+Support “On Hold,” “Cancelled,” and “Returned.”
+
+
+Timeline visible to customers.
+
+
+5.6 Invoicing & Payments
+Auto-generate shipping charges (weight-based or flat fee).
+
+
+Invoices emailed, sms + available in app.
+
+
+Accept payment and payment recorded in system, receipt is emailed to customers.
+
+
+
+
+
+5.7 Delivery (Ghana Agent)
+Assigned delivery jobs by warehouse staff/admin.
+
+
+Route view with multiple stops.
+
+
+Capture PoD (signature, photo).
+
+
+Mark “Delivered” or “Failed Attempt.”
+
+
+5.8 Notifications & Messaging
+Notifications via email/SMS/in-app at major milestones: pickup scheduled, collected, in transit, arrived, delivered.
+
+
+Messaging thread between customer & staff (per shipment).
+
+
+5.9 Reporting & Exports
+Filter by shipment status, date, driver, customer.
+
+
+Summaries: shipments per week, revenue, delivery success rate.
+
+
+Export to CSV/XLSX.
+
+
+5.10 Admin Settings
+Manage users & roles.
+
+
+Configure pricing tables (per kg, per route, per service).
+
+
+Manage partner warehouses & agents.
+
+
+
+6. Non-Functional Requirements
+Security: HTTPS, JWT, role-based access.
+
+
+Availability: 99% uptime target.
+
+
+Performance: <3s load on Ghana mobile networks.
+
+
+Usability: Mobile-first design.
+
+
+Auditability: Logs of actions (pickup, delivery, payments).
+
+
+Accessibility: WCAG 2.1 AA compliance.
+
+
+
+7. Detailed User Stories (with Acceptance Criteria)
+7.1 Customer
+US-C-01 Create Shipment
+Given I book pickup, when I submit details, then I receive a Tracking ID.
+
+
+US-C-02 Track Shipment
+Given I have a Tracking ID, I can receive notifications on real-time status until delivery.
+
+
+US-C-03 Pay Invoice
+Given I receive an invoice, when I pay, then I get a receipt & confirmation.
+
+
+7.2 Driver (UK)
+US-D-01 Accept Pickup
+Given a job assignment, when I accept, I see customer details on my dashboard.
+
+
+US-D-02 Complete Pickup
+Given I collected a parcel, when I mark “Collected” and upload proof, status updates for staff & customer.
+
+
+7.3 Warehouse Staff
+US-W-01 Intake Parcel
+Given I scan a parcel, it appears in warehouse inventory.
+
+
+US-W-02 Create Shipment Batch
+Given multiple parcels, I can group them and assign vessel/flight/ETA.
+
+
+7.4 Delivery Agent (Ghana)
+US-G-01 Assigned Delivery
+Given I am assigned jobs, I see list with routes.
+
+
+US-G-02 Capture PoD
+Given I deliver, when I capture signature/photo, status updates to Delivered.
+
+
+7.5 Admin
+US-A-01 Configure Pricing
+Given I update price per kg, new bookings use updated rates.
+
+
+US-A-02 View Reports
+Given shipments are ongoing, when I open dashboard, I see shipments count, revenue, and pending deliveries.
+
+
+
+8. Data Elements (Field Catalog)
+Customer: Name, phone, email, address.
+
+
+Shipment: Tracking ID, status, package description, weight, value, pickup/drop-off address, ETA, vessel/flight, BL/AWB.
+
+
+Invoice: Number, line items (base fee, per kg, service charges), totals, currency.
+
+
+Payments (Inbound): Amount, method, reference, receipt.
+
+
+Delivery (Outbound): Assigned agent, PoD photo/signature, notes.
+
+
+
+9. Status & Workflow Rules
+“Collected” requires driver proof.
+
+
+“At UK Warehouse” requires intake scan.
+
+
+“In Transit” requires batch assigned & departure.
+
+
+“Delivered” requires PoD.
+
+
+
+10. Integrations
+
+
+Email/SMS (SendGrid, Hubtel/Twilio).
+
+
+Cloud storage (S3/Cloudinary) for parcel photos/PoD.
+
+
+
+11. API (High-Level)
+POST /auth/login – Staff/driver login.
+
+
+POST /shipments – Customer creates shipment.
+
+
+GET /shipments/:id – View shipment status.
+
+
+POST /drivers/:id/collect – Mark collection.
+
+
+POST /warehouse/intake – Scan parcel at warehouse.
+
+
+POST /shipments/:id/invoice – Generate invoice.
+
+
+POST /shipments/:id/delivery – Mark delivered + PoD.
+
+
+GET /admin/reports – Operational & financial reports.
+
+
+
+12. Screens & UI
+Staff 1: Book Shipment, Shipments, Paid  Invoice, Track Shipment.
+
+
+Driver: Assigned Jobs, Map View, Collection Proof.
+
+
+Warehouse Staff: Intake Scan, Batch Management, Shipment List.
+
+
+Delivery Agent: Delivery Jobs, Capture PoD.
+
+
+Admin: Dashboard, Reports, Users/Roles, Pricing, Integrations.
+
+
+
+13. Reporting & KPIs
+Shipment volume per period.
+
+
+Average collection → delivery time.
+
+
+Revenue by route/service.
+
+
+Delivery success rate.
+
+
+
+14. Security & Compliance Details
+HTTPS, CSRF protection, input validation.
+
+
+Encrypted storage for IDs.
+
+
+Expiring URLs for files/photos.
+
+
+Activity logs for financial & shipment actions.
+
+
+
+15. Error Handling & Fallbacks
+
+
+If ETA API fails → allow manual entry.
+
+
+File upload errors → clear validation messages.
+
+
+
+16. Acceptance Criteria (MVP)
+Customer can book shipment & get Tracking ID.
+
+
+Driver can collect parcel & upload proof.
+
+
+Warehouse staff can scan & batch parcels.
+
+
+Shipment status updates through transit to delivery.
+
+
+
+Delivery agent can capture PoD.
+
+
+Notifications trigger at major milestones.
+
+
+
+ 17. Risks & Mitigations
+External dependency downtime: Provide manual overrides.
+
+
+
+Failed deliveries: Allow reschedule & retry flow.
+
+
+
+18. Future Enhancements (Post-MVP)
+Mobile apps for drivers & customers.
+
+
+Route optimization & live driver tracking.
+
+
+Customer self-service shipping cost estimator.
+Payment integration
+
+
+Partner integration (other warehouses, agents).
+
+
+
+19. Glossary
+PoD: Proof of Delivery.
+
+
+ETA: Estimated Time of Arrival.
+
+
+AWB: Air Waybill.
+
+
+BL: Bill of Lading.
+
+
+
+📌 End of SRS
+

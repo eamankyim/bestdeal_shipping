@@ -201,6 +201,110 @@ exports.getWarehouseDashboard = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @route   GET /api/dashboard/warehouse/uk
+ * @desc    Get UK Warehouse dashboard data (same as main warehouse; for users assigned to UK Warehouse)
+ * @access  Private (Warehouse role with UK Warehouse location, or admin/superadmin)
+ */
+exports.getUKWarehouseDashboard = asyncHandler(async (req, res) => {
+  if (req.user.role === 'warehouse' && req.user.warehouseLocation !== 'UK Warehouse') {
+    if (!req.user.warehouseLocation) {
+      return sendError(res, 403, 'Access denied. You are not assigned to UK Warehouse. Please contact an administrator to assign you to UK Warehouse in Settings → Team Members.');
+    }
+    return sendError(res, 403, `Access denied. You are assigned to ${req.user.warehouseLocation}. Please use your assigned warehouse dashboard.`);
+  }
+
+  try {
+    const totalJobs = await prisma.job.count();
+    const jobsByStatus = await prisma.job.groupBy({
+      by: ['status'],
+      _count: { id: true },
+    });
+    const jobStats = {
+      total: totalJobs,
+      pendingCollection: jobsByStatus.find(s => s.status === 'Pending Collection')?._count.id || 0,
+      collected: jobsByStatus.find(s => s.status === 'Collected')?._count.id || 0,
+      atWarehouse: (jobsByStatus.find(s => s.status === 'At Warehouse')?._count.id || 0) +
+        (jobsByStatus.find(s => s.status === 'arrived_at_warehouse')?._count.id || 0),
+      arrivedAtWarehouse: jobsByStatus.find(s => s.status === 'arrived_at_warehouse')?._count.id || 0,
+      batched: jobsByStatus.find(s => s.status === 'batched')?._count.id || 0,
+      shipped: jobsByStatus.find(s => s.status === 'shipped')?._count.id || 0,
+      inTransit: jobsByStatus.find(s => s.status === 'In Transit')?._count.id || 0,
+      outForDelivery: jobsByStatus.find(s => s.status === 'Out for Delivery')?._count.id || 0,
+    };
+
+    const totalBatches = await prisma.batch.count();
+    const batchesByStatus = await prisma.batch.groupBy({
+      by: ['status'],
+      _count: { id: true },
+    });
+    const batchStats = {
+      total: totalBatches,
+      inPreparation: batchesByStatus.find(s => s.status === 'In Preparation')?._count.id || 0,
+      shipped: batchesByStatus.find(s => s.status === 'Shipped')?._count.id || 0,
+      inTransit: batchesByStatus.find(s => s.status === 'In Transit')?._count.id || 0,
+      arrived: batchesByStatus.find(s => s.status === 'Arrived')?._count.id || 0,
+    };
+
+    const jobsReadyForBatching = await prisma.job.findMany({
+      where: { status: 'arrived_at_warehouse' },
+      include: { customer: { select: { name: true, email: true, phone: true } } },
+      orderBy: { createdAt: 'asc' },
+      take: 10,
+    });
+    const readyForBatchingAggregates = await prisma.job.aggregate({
+      where: { status: 'arrived_at_warehouse' },
+      _sum: { weight: true, value: true },
+      _count: { id: true },
+    });
+    const jobsAtWarehouse = await prisma.job.findMany({
+      where: { status: { in: ['At Warehouse', 'Collected', 'arrived_at_warehouse'] } },
+      include: { customer: { select: { name: true, phone: true } }, assignedDriver: { select: { name: true } } },
+      orderBy: { createdAt: 'asc' },
+      take: 10,
+    });
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayActivity = await prisma.job.count({
+      where: { updatedAt: { gte: today } },
+    });
+    const unassignedJobs = await prisma.job.count({
+      where: { status: 'Pending Collection', assignedDriverId: null },
+    });
+    const recentActivity = await prisma.jobTimeline.findMany({
+      include: { job: { select: { trackingId: true } }, updater: { select: { name: true } } },
+      orderBy: { timestamp: 'desc' },
+      take: 10,
+    });
+
+    const recentBatchesCorrect = await prisma.batch.findMany({
+      include: { creator: { select: { name: true, email: true } }, _count: { select: { jobs: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+
+    return sendSuccess(res, 200, 'UK Warehouse dashboard data retrieved successfully', {
+      warehouseLocation: 'UK Warehouse',
+      jobStats,
+      batchStats,
+      jobsReadyForBatching: {
+        count: readyForBatchingAggregates._count.id,
+        totalWeight: parseFloat(readyForBatchingAggregates._sum.weight || 0),
+        totalValue: parseFloat(readyForBatchingAggregates._sum.value || 0),
+        jobs: jobsReadyForBatching,
+      },
+      recentBatches: recentBatchesCorrect,
+      jobsAtWarehouse,
+      todayActivity,
+      unassignedJobs,
+      recentActivity,
+    });
+  } catch (error) {
+    console.error('Error fetching UK warehouse dashboard:', error);
+    return sendError(res, 500, 'Failed to fetch UK warehouse dashboard data', [error.message]);
+  }
+});
+
+/**
  * @route   GET /api/dashboard/warehouse/ghana
  * @desc    Get Ghana Warehouse dashboard data (filtered by Ghana Warehouse location)
  * @access  Private (Warehouse role)
@@ -594,13 +698,28 @@ exports.getDeliveryDashboard = asyncHandler(async (req, res) => {
   try {
     const agentId = req.user.id;
 
-    // Get agent's assigned deliveries
+    console.log('📋 GET /api/dashboard/delivery', {
+      userId: agentId,
+      email: req.user.email,
+      role: req.user.role,
+    });
+
+    const deliveryStatuses = [
+      'Ready for Delivery',
+      'ready_for_delivery',
+      'Delivery Attempted',
+      'Delivered',
+      'delivered',
+    ];
+
+    // Get deliveries: assigned to this agent OR unassigned (so agent can see and claim "Ready for Delivery" jobs)
     const assignedDeliveries = await prisma.job.findMany({
       where: {
-        assignedDeliveryAgentId: agentId,
-        status: {
-          in: ['Out for Delivery', 'Delivery Attempted'],
-        },
+        status: { in: deliveryStatuses },
+        OR: [
+          { assignedDeliveryAgentId: agentId },
+          { assignedDeliveryAgentId: null },
+        ],
       },
       include: {
         customer: {
@@ -618,9 +737,23 @@ exports.getDeliveryDashboard = asyncHandler(async (req, res) => {
 
     const stats = {
       total: assignedDeliveries.length,
-      outForDelivery: assignedDeliveries.filter(j => j.status === 'Out for Delivery').length,
+      readyForDelivery: assignedDeliveries.filter(j =>
+        ['Ready for Delivery', 'ready_for_delivery'].includes(j.status)
+      ).length,
       attempted: assignedDeliveries.filter(j => j.status === 'Delivery Attempted').length,
+      delivered: assignedDeliveries.filter(j =>
+        ['Delivered', 'delivered'].includes(j.status)
+      ).length,
     };
+
+    const assignedToAgentAnyStatus = await prisma.job.count({
+      where: { assignedDeliveryAgentId: agentId },
+    });
+    console.log('📋 GET /api/dashboard/delivery result', {
+      assignedCount: assignedDeliveries.length,
+      assignedToAgentAnyStatus,
+      statusesInFilter: ['Ready for Delivery', 'ready_for_delivery', 'Delivery Attempted', 'Delivered', 'delivered'],
+    });
 
     return sendSuccess(res, 200, 'Delivery dashboard data retrieved successfully', {
       stats,

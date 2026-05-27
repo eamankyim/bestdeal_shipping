@@ -3,7 +3,6 @@ import {
   Row, 
   Col, 
   Card, 
-  Table, 
   Button, 
   Modal, 
   Form, 
@@ -14,9 +13,7 @@ import {
   Tag, 
   Space,
   message,
-  Badge,
   Drawer,
-  Descriptions,
   Divider,
   Tabs,
   Statistic,
@@ -28,7 +25,6 @@ import {
   FileTextOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  DollarOutlined,
   DownloadOutlined,
   EyeOutlined,
   EditOutlined,
@@ -36,8 +32,7 @@ import {
   PrinterOutlined,
   MailOutlined
 } from '@ant-design/icons';
-import { invoiceAPI, customerAPI, jobAPI } from '../utils/api';
-import { useAuth } from '../contexts/AuthContext';
+import { invoiceAPI } from '../utils/api';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 
 const { Title, Text } = Typography;
@@ -45,12 +40,10 @@ const { Option } = Select;
 const { TextArea } = Input;
 
 const InvoiceManagementPage = () => {
-  const { currentUser } = useAuth();
   const [invoiceModalVisible, setInvoiceModalVisible] = useState(false);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [invoiceForm] = Form.useForm();
-  const [activeTab, setActiveTab] = useState('invoices');
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sendingInvoice, setSendingInvoice] = useState(false);
@@ -58,11 +51,6 @@ const InvoiceManagementPage = () => {
   
   // Available shipments is now redundant since we auto-create invoice drafts
   const availableShipments = [];
-
-  // Fetch invoices on mount
-  useEffect(() => {
-    fetchInvoices();
-  }, []);
 
   const fetchInvoices = async () => {
     setLoading(true);
@@ -112,6 +100,12 @@ const InvoiceManagementPage = () => {
       setLoading(false);
     }
   };
+
+  // Fetch invoices on mount
+  useEffect(() => {
+    fetchInvoices();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, []);
 
   const updateStats = (invoiceList) => {
     const totalInvoices = invoiceList.length;
@@ -504,7 +498,7 @@ const InvoiceManagementPage = () => {
     try {
       const shippingCost = calculateShippingCost(values.weight, values.service);
       const totalAmount = shippingCost + (values.value * 0.01);
-      
+
       // TODO: Replace with actual API call
       message.info('Backend API not yet implemented');
       setInvoiceModalVisible(false);

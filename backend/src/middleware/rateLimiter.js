@@ -2,15 +2,22 @@ const rateLimit = require('express-rate-limit');
 
 /**
  * General API rate limiter
- * Increased limit for production to handle:
+ * Increased limit to handle:
  * - Multiple tabs/browsers per user
  * - Auto-refresh intervals (30-120 seconds)
  * - Multiple users behind NAT/proxy
  * - Notification polling
+ * - Jobs page loading jobs + customers + users in parallel
+ * In development we use a higher default so normal usage doesn't hit 429.
  */
+const isDev = process.env.NODE_ENV !== 'production';
+const envMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10);
+const defaultMax = isDev ? 5000 : 1000;
+const apiMax = envMax > 0 ? envMax : defaultMax;
+// In development, ensure at least 2000 so parallel page loads don't hit 429
 const apiLimiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000, // Increased from 100 to 1000
+  max: isDev ? Math.max(apiMax, 2000) : apiMax,
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.',
@@ -20,20 +27,21 @@ const apiLimiter = rateLimit({
 });
 
 /**
- * Strict rate limiter for auth endpoints
- * Limits based on IP address to prevent brute force attacks
- * This applies to the IP address making the requests, not to a specific email account
- * After 5 failed login attempts from the same IP in 15 minutes, all further attempts are blocked
+ * Rate limiter for auth endpoints (login)
+ * Only counts failed attempts. Configurable via env.
  */
+const AUTH_WINDOW_MS = parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS) || 5 * 60 * 1000; // 5 minutes
+const AUTH_MAX_ATTEMPTS = parseInt(process.env.AUTH_RATE_LIMIT_MAX) || 20; // 20 failed attempts per window
+
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 failed login attempts per window per IP address
+  windowMs: AUTH_WINDOW_MS,
+  max: AUTH_MAX_ATTEMPTS,
   skipSuccessfulRequests: true, // Only count failed attempts (successful logins don't count)
   standardHeaders: true,
   legacyHeaders: false,
   message: {
     success: false,
-    message: 'Too many authentication attempts from this IP address. Please try again in 15 minutes.',
+    message: `Too many login attempts from this IP. Please try again in ${Math.round(AUTH_WINDOW_MS / 60000)} minutes.`,
   },
 });
 

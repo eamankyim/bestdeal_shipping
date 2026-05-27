@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: shipease_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shipease_shipping
+      POSTGRES_USER: shipease_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - shipease_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: shipease_backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://shipease_user:${DB_PASSWORD}@postgres:5432/shipease_shipping?schema=public
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - PRODUCTION_URL=${PRODUCTION_URL}
+      - PORT=${BACKEND_PORT:-4001}
+    ports:
+      - "${BACKEND_PORT:-4001}:${BACKEND_PORT:-4001}"
+    depends_on:
+      - postgres
+    networks:
+      - shipease_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: shipease_frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=${FRONTEND_PORT:-3000}
+    ports:
+      - "${FRONTEND_PORT:-3000}:${FRONTEND_PORT:-3000}"
+    depends_on:
+      - backend
+    networks:
+      - shipease_network
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: shipease_nginx
+    restart: unless-stopped
+    ports:
+      # Using test ports first (8080 for HTTP, 8443 for HTTPS)
+      # Will switch to 80/443 after verification
+      - "${NGINX_HTTP_PORT:-8080}:80"
+      - "${NGINX_HTTPS_PORT:-8443}:443"
+    volumes:
+      # Mount SSL certificates
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - shipease_network
+
+volumes:
+  postgres_data:
+
+networks:
+  shipease_network:
+    driver: bridge
