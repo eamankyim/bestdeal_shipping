@@ -633,7 +633,6 @@ const InvoiceManagementPage = () => {
         <Tabs 
           defaultActiveKey="invoices" 
           items={tabItems}
-          onChange={setActiveTab}
         />
       </Card>
 

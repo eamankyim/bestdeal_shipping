@@ -279,7 +279,6 @@ const ReportsPage = () => {
         <Tabs 
           defaultActiveKey="overview" 
           items={tabItems}
-          onChange={setActiveTab}
         />
       </Card>
     </div>
