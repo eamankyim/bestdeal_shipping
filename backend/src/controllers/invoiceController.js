@@ -1,5 +1,6 @@
 const prisma = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/responseUtils');
+const { sendInvoiceEmail } = require('../services/emailService');
 
 /**
  * Auto-create draft invoice for delivered job
@@ -283,10 +284,19 @@ exports.sendInvoice = async (req, res) => {
       }
     });
 
-    // TODO: Send email notification to customer
-    console.log(`📧 Invoice ${sentInvoice.invoiceNumber} sent to ${sentInvoice.customer.email}`);
+    let emailDelivery;
+    try {
+      emailDelivery = await sendInvoiceEmail({ invoice: sentInvoice });
+    } catch (error) {
+      console.error('Invoice email delivery failed:', error.message);
+      emailDelivery = { sent: false, reason: 'SMTP delivery failed' };
+    }
+    console.log(`📧 Invoice ${sentInvoice.invoiceNumber} email delivery: ${emailDelivery.sent ? 'sent' : 'skipped'}`);
 
-    return sendSuccess(res, 200, 'Invoice sent successfully', { invoice: sentInvoice });
+    return sendSuccess(res, 200, 'Invoice sent successfully', {
+      invoice: sentInvoice,
+      emailDelivery,
+    });
 
   } catch (error) {
     console.error('Error sending invoice:', error);
