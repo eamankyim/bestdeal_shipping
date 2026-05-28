@@ -683,6 +683,37 @@ exports.getInvitations = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @route   DELETE /api/auth/invitations/:id
+ * @desc    Delete an expired invitation (Admin only)
+ * @access  Admin
+ */
+exports.deleteExpiredInvitation = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const invitation = await prisma.invitation.findUnique({
+    where: { id },
+  });
+
+  if (!invitation) {
+    return sendError(res, 404, 'Invitation not found');
+  }
+
+  if (invitation.status === 'accepted') {
+    return sendError(res, 400, 'Accepted invitations cannot be deleted');
+  }
+
+  if (new Date(invitation.expiresAt) >= new Date()) {
+    return sendError(res, 400, 'Only expired invitations can be deleted');
+  }
+
+  await prisma.invitation.delete({
+    where: { id },
+  });
+
+  return sendSuccess(res, 200, 'Expired invitation deleted successfully');
+});
+
+/**
  * @route   GET /api/auth/users
  * @desc    Get all users/team members (Admin only)
  * @access  Admin

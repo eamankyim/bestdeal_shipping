@@ -28,7 +28,8 @@ import {
   CopyOutlined,
   LinkOutlined,
   EyeOutlined,
-  ShareAltOutlined
+  ShareAltOutlined,
+  DeleteOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { authAPI } from '../../utils/api';
@@ -47,8 +48,9 @@ const InviteManagement = () => {
   const [loading, setLoading] = useState(false);
   const [fetchingInvites, setFetchingInvites] = useState(true);
   const [invitations, setInvitations] = useState([]);
+  const [deletingInviteId, setDeletingInviteId] = useState(null);
   
-  const { sendInvite, pendingInvites } = useAuth();
+  const { pendingInvites } = useAuth();
 
   // Fetch invitations from backend on mount
   useEffect(() => {
@@ -77,6 +79,7 @@ const InviteManagement = () => {
           invitedBy: invite.inviter?.name || invite.inviter?.email || 'Unknown',
           invitedAt: new Date(invite.createdAt).toLocaleString(),
           expiresAt: new Date(invite.expiresAt).toLocaleString(),
+          expiresAtRaw: invite.expiresAt,
           status: invite.status,
           token: invite.token,
         }));
@@ -192,6 +195,7 @@ const InviteManagement = () => {
         invitedBy: 'You',
         invitedAt: new Date().toLocaleString(),
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleString(),
+        expiresAtRaw: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         status: 'pending',
       };
       
@@ -343,7 +347,11 @@ const InviteManagement = () => {
     }
   };
 
-  const isExpired = (expiresAt) => {
+  const isExpired = (inviteOrExpiresAt) => {
+    const expiresAt = typeof inviteOrExpiresAt === 'object'
+      ? inviteOrExpiresAt.expiresAtRaw || inviteOrExpiresAt.expiresAt
+      : inviteOrExpiresAt;
+
     return new Date(expiresAt) < new Date();
   };
 
@@ -399,8 +407,8 @@ const InviteManagement = () => {
       title: 'Expires',
       dataIndex: 'expiresAt',
       key: 'expiresAt',
-      render: (expiresAt) => {
-        const expired = isExpired(expiresAt);
+      render: (expiresAt, record) => {
+        const expired = isExpired(record);
         return (
           <Tag color={expired ? 'error' : 'processing'}>
             {expired ? 'Expired' : expiresAt}
@@ -412,7 +420,7 @@ const InviteManagement = () => {
       title: 'Status',
       key: 'status',
       render: (_, record) => {
-        const expired = isExpired(record.expiresAt);
+        const expired = isExpired(record);
         const status = expired ? 'expired' : record.status;
         return (
           <Tag color={getStatusColor(status)} icon={getStatusIcon(status)}>
@@ -426,7 +434,7 @@ const InviteManagement = () => {
       title: 'Actions',
       key: 'actions',
       render: (_, record) => {
-        const expired = isExpired(record.expiresAt);
+        const expired = isExpired(record);
         const isAccepted = record.status === 'accepted';
         const isPending = record.status === 'pending';
         
@@ -547,6 +555,19 @@ const InviteManagement = () => {
                 Cancel
               </Button>
             </Tooltip>
+            {expired && !isAccepted && (
+              <Tooltip title="Delete expired invitation">
+                <Button
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  loading={deletingInviteId === record.id}
+                  onClick={() => handleDeleteExpiredInvite(record)}
+                >
+                  Delete
+                </Button>
+              </Tooltip>
+            )}
           </Space>
         );
       },
@@ -576,10 +597,32 @@ const InviteManagement = () => {
     }
   };
 
+  const handleDeleteExpiredInvite = (invite) => {
+    Modal.confirm({
+      title: 'Delete expired invitation?',
+      content: `This will remove the expired invitation for ${invite.email}, allowing a new invite to be sent to the same email.`,
+      okText: 'Delete',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        setDeletingInviteId(invite.id);
+        try {
+          await authAPI.deleteExpiredInvitation(invite.id);
+          setInvitations(prev => prev.filter(item => item.id !== invite.id));
+          message.success('Expired invitation deleted. You can invite this email again.');
+          fetchInvitations();
+        } catch (error) {
+          message.error(error.message || 'Failed to delete expired invitation');
+        } finally {
+          setDeletingInviteId(null);
+        }
+      },
+    });
+  };
+
   // Calculate statistics from local invitations list
   const totalInvites = invitations.length;
-  const pendingInvitesCount = invitations.filter(inv => !isExpired(inv.expiresAt) && inv.status === 'pending').length;
-  const expiredInvitesCount = invitations.filter(inv => isExpired(inv.expiresAt)).length;
+  const pendingInvitesCount = invitations.filter(inv => !isExpired(inv) && inv.status === 'pending').length;
+  const expiredInvitesCount = invitations.filter(inv => isExpired(inv)).length;
 
   return (
     <div>
@@ -650,6 +693,7 @@ const InviteManagement = () => {
           rowKey="id"
           pagination={false}
           size="small"
+          loading={fetchingInvites}
           locale={{
             emptyText: 'No pending invitations. Click "Send New Invite" to invite team members.',
           }}

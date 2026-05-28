@@ -367,6 +367,9 @@ router.post('/send-invite', authenticate, authorize('admin'), authController.sen
 // Only admin can view invitations
 router.get('/invitations', authenticate, authorize('admin'), authController.getInvitations);
 
+// Only admin can delete expired invitations
+router.delete('/invitations/:id', authenticate, authorize('admin'), authController.deleteExpiredInvitation);
+
 /**
  * @swagger
  * /api/auth/users:

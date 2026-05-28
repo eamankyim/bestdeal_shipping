@@ -226,6 +226,7 @@ export const authAPI = {
   getInviteByToken: (token) => api.get(`/auth/invite/${token}`, { auth: false }),
   acceptInvite: (token, userData) => api.post(`/auth/accept-invite/${token}`, userData, { auth: false }),
   getInvitations: () => api.get('/auth/invitations'),
+  deleteExpiredInvitation: (inviteId) => api.delete(`/auth/invitations/${inviteId}`),
   getUsers: (params) => api.get('/auth/users', { params }),
   getRoles: () => api.get('/auth/roles'),
   changePassword: (currentPassword, newPassword) => api.patch('/auth/change-password', { currentPassword, newPassword }),
