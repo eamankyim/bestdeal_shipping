@@ -29,6 +29,13 @@ export const API_ENDPOINTS = {
     UPDATE: (id) => `/customers/${id}`,
     JOBS: (id) => `/customers/${id}/jobs`,
   },
+  NOTIFICATIONS: {
+    LIST: '/notifications',
+    UNREAD_COUNT: '/notifications/unread-count',
+    MARK_READ: (id) => `/notifications/${id}/read`,
+    MARK_ALL_READ: '/notifications/mark-all-read',
+    CLEAR_ALL: '/notifications/clear-all',
+  },
 };
 
 // Job Statuses
@@ -46,6 +53,7 @@ export const JOB_STATUSES = {
   READY_FOR_DELIVERY: 'Ready for Delivery',
   OUT_FOR_DELIVERY: 'Out for Delivery',
   DELIVERED: 'Delivered',
+  FAILED_DELIVERY: 'Failed Delivery',
   DRAFT: 'Draft',
 };
 
@@ -79,6 +87,18 @@ export const STORAGE_KEYS = {
   USER_DATA: 'userData',
   NOTIFICATION_SETTINGS: 'notificationSettings',
 };
+
+/**
+ * App Store / Play Console metadata URLs.
+ * Pages live in the web frontend at /privacy and /support.
+ * They become public only after frontend deploy to Contabo (bestdealshippingapp.com).
+ */
+export const STORE_METADATA = {
+  PRIVACY_POLICY_URL: 'https://bestdealshippingapp.com/privacy',
+  SUPPORT_URL: 'https://bestdealshippingapp.com/support',
+  SUPPORT_EMAIL: 'support@icreationsglobal.com',
+};
+
 
 
 

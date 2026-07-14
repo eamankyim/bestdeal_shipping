@@ -16,6 +16,12 @@ import {
 } from 'react-native-paper';
 import { jobService } from '../../services/jobService';
 
+/** Coerce API money values (number | string Decimal | null) to a finite number. */
+function toMoneyNumber(value) {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export default function PaymentRecordingModal({
   visible,
   onDismiss,
@@ -23,8 +29,9 @@ export default function PaymentRecordingModal({
   invoiceAmount = 0,
   onPaymentRecorded,
 }) {
+  const amount = toMoneyNumber(invoiceAmount);
   const [paymentType, setPaymentType] = useState('full');
-  const [amountPaid, setAmountPaid] = useState(invoiceAmount.toString());
+  const [amountPaid, setAmountPaid] = useState(amount.toFixed(2));
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [paymentReference, setPaymentReference] = useState('');
   const [notes, setNotes] = useState('');
@@ -33,12 +40,12 @@ export default function PaymentRecordingModal({
   useEffect(() => {
     if (visible && job) {
       setPaymentType('full');
-      setAmountPaid(invoiceAmount.toString());
+      setAmountPaid(amount.toFixed(2));
       setPaymentMethod('Cash');
       setPaymentReference('');
       setNotes('');
     }
-  }, [visible, job, invoiceAmount]);
+  }, [visible, job, amount]);
 
   const handleSubmit = async () => {
     if (paymentType === 'part' && (!amountPaid || parseFloat(amountPaid) <= 0)) {
@@ -46,8 +53,8 @@ export default function PaymentRecordingModal({
       return;
     }
 
-    if (paymentType === 'part' && parseFloat(amountPaid) > invoiceAmount) {
-      Alert.alert('Error', `Payment amount cannot exceed invoice amount of £${invoiceAmount.toFixed(2)}`);
+    if (paymentType === 'part' && parseFloat(amountPaid) > amount) {
+      Alert.alert('Error', `Payment amount cannot exceed invoice amount of £${amount.toFixed(2)}`);
       return;
     }
 
@@ -55,7 +62,7 @@ export default function PaymentRecordingModal({
     try {
       const paymentData = {
         paymentType: paymentType, // 'full' or 'part'
-        amountPaid: paymentType === 'full' ? invoiceAmount : parseFloat(amountPaid),
+        amountPaid: paymentType === 'full' ? amount : parseFloat(amountPaid),
         paymentMethod: paymentMethod, // 'POS', 'Bank', 'Cash'
         paymentReference: paymentReference || '',
         notes: notes || '',
@@ -71,7 +78,7 @@ export default function PaymentRecordingModal({
         }
         // Reset form
         setPaymentType('full');
-        setAmountPaid(invoiceAmount.toString());
+        setAmountPaid(amount.toFixed(2));
         setPaymentMethod('Cash');
         setPaymentReference('');
         setNotes('');
@@ -87,7 +94,7 @@ export default function PaymentRecordingModal({
   };
 
   const remainingBalance = paymentType === 'part' 
-    ? (invoiceAmount - (parseFloat(amountPaid) || 0)).toFixed(2)
+    ? (amount - (parseFloat(amountPaid) || 0)).toFixed(2)
     : '0.00';
 
   return (
@@ -107,7 +114,7 @@ export default function PaymentRecordingModal({
               Job: {job?.trackingId || 'N/A'}
             </Text>
             <Text variant="bodyMedium" style={styles.invoiceAmount}>
-              Invoice Amount: £{invoiceAmount.toFixed(2)}
+              Invoice Amount: £{amount.toFixed(2)}
             </Text>
 
             <Divider style={styles.divider} />
@@ -120,7 +127,7 @@ export default function PaymentRecordingModal({
               value={paymentType}
             >
               <RadioButton.Item
-                label={`Full Payment (£${invoiceAmount.toFixed(2)})`}
+                label={`Full Payment (£${amount.toFixed(2)})`}
                 value="full"
               />
               <RadioButton.Item

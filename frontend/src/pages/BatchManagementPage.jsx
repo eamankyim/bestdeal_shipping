@@ -43,7 +43,7 @@ import {
   ApartmentOutlined,
   CalendarOutlined
 } from '@ant-design/icons';
-import { JOB_STATUSES, BATCH_STATUSES, getBatchStatusColor } from '../constants/jobStatuses';
+import { JOB_STATUSES, BATCH_STATUSES, getBatchStatusColor, getStatusColor, formatJobStatusLabel } from '../constants/jobStatuses';
 import { jobAPI, batchAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import ResponsiveTable from '../components/common/ResponsiveTable';
@@ -1054,13 +1054,8 @@ const BatchManagementPage = () => {
                           dataIndex: 'status',
                           key: 'status',
                           render: (status) => (
-                            <Tag color={
-                              status === 'delivered' ? 'green' :
-                              status === 'batched' ? 'purple' :
-                              status === 'shipped' ? 'blue' :
-                              'default'
-                            }>
-                              {status?.replace(/_/g, ' ').toUpperCase()}
+                            <Tag color={getStatusColor(status)}>
+                              {formatJobStatusLabel(status)}
                             </Tag>
                           ),
                         },

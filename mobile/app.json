@@ -17,6 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.bestdeal.shipping",
+      "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "This app needs access to camera to capture proof of delivery and collection photos.",
         "NSLocationWhenInUseUsageDescription": "This app needs location access to show pickup and delivery locations on the map.",
@@ -29,6 +30,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.bestdeal.shipping",
+      "versionCode": 1,
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
@@ -54,8 +56,12 @@
           "locationAlwaysAndWhenInUsePermission": "Allow BestDeal Shipping to use your location to show pickup and delivery locations."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "5d53a9a3-91b3-49c0-b72e-28b82087ba26"
+      }
+    },
+    "owner": "eamankyim"
   }
 }
-
-

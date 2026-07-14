@@ -1,5 +1,63 @@
 // Job Status Constants for ShipEASE App System
 
+const SMALL_WORDS = new Set(['a', 'an', 'and', 'at', 'for', 'from', 'in', 'of', 'on', 'or', 'the', 'to']);
+
+/** Canonical snake_case → readable Title Case (handles API Title Case + snake_case) */
+export const JOB_STATUS_LABELS = {
+  pending: 'Pending',
+  pending_collection: 'Pending Collection',
+  assigned: 'Assigned',
+  en_route_to_customer: 'En Route to Customer',
+  collected: 'Collected',
+  collection_failed: 'Collection Failed',
+  returning_to_warehouse: 'Returning to Warehouse',
+  at_warehouse: 'At Warehouse',
+  arrived_at_hub: 'Arrived at Hub',
+  arrived_at_warehouse: 'Arrived at Warehouse',
+  at_uk_warehouse: 'At UK Warehouse',
+  at_ghana_warehouse: 'At Ghana Warehouse',
+  batched: 'Batched',
+  shipped: 'Shipped',
+  in_transit: 'In Transit',
+  arrived_at_destination: 'Arrived at Destination',
+  arrived: 'Arrived at Destination',
+  ready_for_delivery: 'Ready for Delivery',
+  out_for_delivery: 'Out for Delivery',
+  delivered: 'Delivered',
+  failed_delivery: 'Failed Delivery',
+  cancelled: 'Cancelled',
+  closed: 'Closed',
+  draft: 'Draft',
+};
+
+export function normalizeJobStatusKey(status) {
+  if (!status) return '';
+  return String(status)
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+}
+
+function titleCaseWords(text) {
+  return text
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word, index) => {
+      const lower = word.toLowerCase();
+      if (index > 0 && SMALL_WORDS.has(lower)) return lower;
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(' ');
+}
+
+/** out_for_delivery / "out for delivery" → "Out for Delivery" */
+export function formatJobStatusLabel(status) {
+  if (!status) return '';
+  const key = normalizeJobStatusKey(status);
+  if (JOB_STATUS_LABELS[key]) return JOB_STATUS_LABELS[key];
+  return titleCaseWords(String(status).replace(/_/g, ' ').trim());
+}
+
 export const JOB_STATUSES = {
   PENDING_COLLECTION: 'Pending Collection',
   ASSIGNED: 'Assigned',
@@ -58,31 +116,57 @@ export const STATUS_GROUPS = {
   }
 };
 
-// Status colors for consistent UI
+// Status colors for consistent UI (Ant Design Tag colors)
 export const STATUS_COLORS = {
-  [JOB_STATUSES.PENDING_COLLECTION]: 'default',
-  [JOB_STATUSES.ASSIGNED]: 'blue',
+  [JOB_STATUSES.PENDING_COLLECTION]: 'gold',
+  [JOB_STATUSES.ASSIGNED]: 'orange',
   [JOB_STATUSES.EN_ROUTE_TO_CUSTOMER]: 'processing',
-  [JOB_STATUSES.COLLECTED]: 'success',
-  [JOB_STATUSES.RETURNING_TO_WAREHOUSE]: 'processing',
-  [JOB_STATUSES.AT_WAREHOUSE]: 'cyan',
+  [JOB_STATUSES.COLLECTED]: 'cyan',
+  [JOB_STATUSES.RETURNING_TO_WAREHOUSE]: 'magenta',
+  [JOB_STATUSES.AT_WAREHOUSE]: 'green',
   [JOB_STATUSES.ARRIVED_AT_WAREHOUSE]: 'cyan',
   [JOB_STATUSES.AT_UK_WAREHOUSE]: 'blue',
   [JOB_STATUSES.AT_GHANA_WAREHOUSE]: 'green',
   [JOB_STATUSES.COLLECTION_FAILED]: 'error',
-  [JOB_STATUSES.BATCHED]: 'purple',
-  [JOB_STATUSES.SHIPPED]: 'geekblue',
+  [JOB_STATUSES.BATCHED]: 'orange',
+  [JOB_STATUSES.SHIPPED]: 'orange',
   [JOB_STATUSES.ARRIVED_AT_DESTINATION]: 'lime',
   [JOB_STATUSES.ARRIVED]: 'lime',
   [JOB_STATUSES.READY_FOR_DELIVERY]: 'cyan',
   [JOB_STATUSES.OUT_FOR_DELIVERY]: 'orange',
   [JOB_STATUSES.DELIVERED]: 'success',
-  [JOB_STATUSES.DRAFT]: 'default'
+  [JOB_STATUSES.DRAFT]: 'default',
+  // snake_case API variants
+  pending: 'gold',
+  assigned: 'orange',
+  en_route_to_customer: 'processing',
+  collected: 'cyan',
+  collection_failed: 'error',
+  returning_to_warehouse: 'magenta',
+  at_warehouse: 'green',
+  arrived_at_hub: 'green',
+  arrived_at_warehouse: 'cyan',
+  at_uk_warehouse: 'blue',
+  at_ghana_warehouse: 'green',
+  batched: 'orange',
+  shipped: 'orange',
+  in_transit: 'processing',
+  arrived_at_destination: 'lime',
+  ready_for_delivery: 'cyan',
+  out_for_delivery: 'orange',
+  delivered: 'success',
+  failed_delivery: 'error',
+  cancelled: 'error',
+  closed: 'default',
+  draft: 'default',
 };
 
-// Helper function to get status color
+// Helper function to get status color (normalizes Title Case / snake_case)
 export const getStatusColor = (status) => {
-  return STATUS_COLORS[status] || 'default';
+  if (!status) return 'default';
+  if (STATUS_COLORS[status]) return STATUS_COLORS[status];
+  const key = normalizeJobStatusKey(status);
+  return STATUS_COLORS[key] || STATUS_COLORS[JOB_STATUS_LABELS[key]] || 'default';
 };
 
 // Helper function to get next possible statuses

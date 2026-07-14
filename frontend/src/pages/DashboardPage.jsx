@@ -25,7 +25,7 @@ import {
   EyeOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { getStatusColor } from '../constants/jobStatuses';
+import { getStatusColor, formatJobStatusLabel } from '../constants/jobStatuses';
 import { jobAPI, customerAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import FinanceDashboard from './FinanceDashboard';
@@ -258,14 +258,8 @@ const DashboardPage = () => {
       dataIndex: 'status',
       key: 'status',
       render: (status) => (
-        <Tag color={
-          ['delivered', 'arrived_at_hub'].includes(status) ? 'green' :
-          ['in_transit', 'collected', 'out_for_delivery'].includes(status) ? 'blue' :
-          ['assigned', 'batched'].includes(status) ? 'orange' :
-          status === 'cancelled' ? 'red' :
-          'default'
-        }>
-          {status?.replace(/_/g, ' ').toUpperCase()}
+        <Tag color={getStatusColor(status)}>
+          {formatJobStatusLabel(status)}
         </Tag>
       )
     },

@@ -57,12 +57,17 @@ export default function ForgotPasswordScreen({ navigation }) {
               keyboardType="email-address"
               autoCapitalize="none"
               style={styles.input}
-              left={<TextInput.Icon icon="email" />}
+              left={<TextInput.Icon icon="email-outline" />}
               outlineColor="#d9d9d9"
               activeOutlineColor="#ff9800"
-              backgroundColor="#ffffff"
-              textColor={theme.colors.text}
-              placeholderTextColor={theme.colors.placeholder}
+              textColor="#1f1f1f"
+              theme={{
+                colors: {
+                  onSurfaceVariant: '#666666',
+                  surface: '#ffffff',
+                  background: '#ffffff',
+                },
+              }}
             />
 
             <Button

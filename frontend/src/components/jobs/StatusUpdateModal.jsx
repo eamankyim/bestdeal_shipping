@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, Upload, Button, Select, Space, Checkbox } from 'antd';
 import { UploadOutlined, UserOutlined } from '@ant-design/icons';
+import { formatJobStatusLabel } from '../../constants/jobStatuses';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -97,7 +98,7 @@ const StatusUpdateModal = ({
           <Select placeholder="Select status">
             {nextStatuses.map(status => (
               <Option key={status} value={status}>
-                {status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                {formatJobStatusLabel(status)}
               </Option>
             ))}
           </Select>

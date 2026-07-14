@@ -23,6 +23,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { dashboardAPI, jobAPI } from '../utils/api';
 import ResponsiveTable from '../components/common/ResponsiveTable';
+import { formatJobStatusLabel, getStatusColor } from '../constants/jobStatuses';
 
 const { Title, Text } = Typography;
 
@@ -175,20 +176,11 @@ const DeliveryDashboard = () => {
       dataIndex: 'status',
       key: 'status',
       mobile: true,
-      render: (status) => {
-        const colors = {
-          'Ready for Delivery': 'green',
-          'ready_for_delivery': 'green',
-          'Delivery Attempted': 'orange',
-          'Delivered': 'green',
-          'delivered': 'green',
-        };
-        return (
-          <Tag color={colors[status] || 'default'}>
-            {status?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-          </Tag>
-        );
-      }
+      render: (status) => (
+        <Tag color={getStatusColor(status)}>
+          {formatJobStatusLabel(status)}
+        </Tag>
+      )
     },
     {
       title: 'Actions',

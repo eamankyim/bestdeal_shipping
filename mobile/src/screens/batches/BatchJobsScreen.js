@@ -16,7 +16,8 @@ import {
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { batchService } from '../../services/batchService';
-import { statusColors, standardStyles } from '../../theme/theme';
+import { standardStyles } from '../../theme/theme';
+import { formatJobStatusLabel, getJobStatusColor } from '../../utils/jobStatus';
 import { format } from 'date-fns';
 
 export default function BatchJobsScreen({ route, navigation }) {
@@ -134,13 +135,12 @@ export default function BatchJobsScreen({ route, navigation }) {
                         style={[
                           styles.statusChip,
                           {
-                            backgroundColor:
-                              statusColors[job.status] || '#d9d9d9',
+                            backgroundColor: getJobStatusColor(job.status),
                           },
                         ]}
                         textStyle={styles.chipText}
                       >
-                        {job.status}
+                        {formatJobStatusLabel(job.status)}
                       </Chip>
                     </DataTable.Cell>
                   </DataTable.Row>

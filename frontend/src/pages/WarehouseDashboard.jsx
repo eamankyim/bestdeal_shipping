@@ -24,6 +24,7 @@ import { useNavigate } from 'react-router-dom';
 import { dashboardAPI, jobAPI } from '../utils/api';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 import { useAuth } from '../contexts/AuthContext';
+import { formatJobStatusLabel, getStatusColor } from '../constants/jobStatuses';
 
 const { Title, Text } = Typography;
 
@@ -237,7 +238,7 @@ const WarehouseDashboard = ({ dashboardApi = null, title = 'Warehouse Dashboard'
       key: 'status',
       mobile: true,
       render: (status) => (
-        <Tag color="blue">{status?.replace(/_/g, ' ').toUpperCase()}</Tag>
+        <Tag color={getStatusColor(status)}>{formatJobStatusLabel(status)}</Tag>
       )
     },
   ];
@@ -271,8 +272,8 @@ const WarehouseDashboard = ({ dashboardApi = null, title = 'Warehouse Dashboard'
       key: 'status',
       mobile: true,
       render: (status) => (
-        <Tag color={status === 'Collected' ? 'green' : 'orange'}>
-          {status?.replace(/_/g, ' ').toUpperCase()}
+        <Tag color={getStatusColor(status)}>
+          {formatJobStatusLabel(status)}
         </Tag>
       )
     },

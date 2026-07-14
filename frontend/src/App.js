@@ -24,6 +24,8 @@ import AdminDashboardPage from './pages/AdminDashboardPage';
 import BatchManagementPage from './pages/BatchManagementPage';
 import InvoiceManagementPage from './pages/InvoiceManagementPage';
 import PublicTrackingPage from './pages/PublicTrackingPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import SupportPage from './pages/SupportPage';
 
 // Auth Components
 import { AuthProvider } from './contexts/AuthContext';
@@ -88,6 +90,8 @@ function App() {
               {/* Public Routes */}
               <Route path="/login" element={<LoginPage />} />
               <Route path="/track" element={<PublicTrackingPage />} />
+              <Route path="/privacy" element={<PrivacyPolicyPage />} />
+              <Route path="/support" element={<SupportPage />} />
               <Route path="/accept-invite/:token" element={<AcceptInvitePage />} />
               
               {/* Protected Routes */}

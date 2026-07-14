@@ -45,7 +45,7 @@ import {
 import { useLocation } from 'react-router-dom';
 import dayjs from 'dayjs';
 import ResponsiveTable from '../components/common/ResponsiveTable';
-import { STATUS_GROUPS, getStatusColor } from '../constants/jobStatuses';
+import { STATUS_GROUPS, getStatusColor, formatJobStatusLabel } from '../constants/jobStatuses';
 import { jobAPI, customerAPI, authAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { hasPermission } from '../utils/permissions';
@@ -392,14 +392,8 @@ const JobsPage = () => {
       key: 'status',
       mobile: true,
       render: (status) => (
-        <Tag color={
-          ['delivered', 'arrived_at_warehouse'].includes(status) ? 'green' :
-          ['in_transit', 'collected', 'out_for_delivery'].includes(status) ? 'blue' :
-          ['assigned', 'batched'].includes(status) ? 'orange' :
-          status === 'cancelled' ? 'red' :
-          'default'
-        }>
-          {status?.replace(/_/g, ' ').toUpperCase()}
+        <Tag color={getStatusColor(status)}>
+          {formatJobStatusLabel(status)}
         </Tag>
       ),
     },
@@ -716,7 +710,7 @@ const JobsPage = () => {
     if (!selectedJob) return;
     
     setUpdatingStatus(true);
-    const statusLabel = status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const statusLabel = formatJobStatusLabel(status);
     
     try {
       console.log('🔄 Updating job status to:', status);
@@ -1049,7 +1043,7 @@ const JobsPage = () => {
                   {STATUS_GROUPS.COLLECTION.statuses.map(status => (
                     <Option key={status} value={status}>
                       <Tag color={getStatusColor(status)} style={{ marginRight: 8 }}>
-                        {status}
+                        {formatJobStatusLabel(status)}
                       </Tag>
                     </Option>
                   ))}
@@ -1058,7 +1052,7 @@ const JobsPage = () => {
                   {STATUS_GROUPS.WAREHOUSE.statuses.map(status => (
                     <Option key={status} value={status}>
                       <Tag color={getStatusColor(status)} style={{ marginRight: 8 }}>
-                        {status}
+                        {formatJobStatusLabel(status)}
                       </Tag>
                     </Option>
                   ))}
@@ -1067,7 +1061,7 @@ const JobsPage = () => {
                   {STATUS_GROUPS.SHIPPING.statuses.map(status => (
                     <Option key={status} value={status}>
                       <Tag color={getStatusColor(status)} style={{ marginRight: 8 }}>
-                        {status}
+                        {formatJobStatusLabel(status)}
                       </Tag>
                     </Option>
                   ))}
@@ -1076,7 +1070,7 @@ const JobsPage = () => {
                   {STATUS_GROUPS.DELIVERY.statuses.map(status => (
                     <Option key={status} value={status}>
                       <Tag color={getStatusColor(status)} style={{ marginRight: 8 }}>
-                        {status}
+                        {formatJobStatusLabel(status)}
                       </Tag>
                     </Option>
                   ))}
@@ -1537,7 +1531,7 @@ const JobsPage = () => {
                             onClick={() => handleStatusUpdate(status)}
                             disabled={updatingStatus}
                           >
-                            Mark as {status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                            Mark as {formatJobStatusLabel(status)}
                           </Menu.Item>
                         ))}
                       </Menu.ItemGroup>
@@ -1744,14 +1738,8 @@ const JobsPage = () => {
                 <div className="user-info-item">
                   <div className="user-info-label">Status</div>
                   <div className="user-info-value">
-                <Tag color={
-                  ['delivered', 'arrived_at_warehouse'].includes(selectedJob.status) ? 'green' :
-                  ['in_transit', 'collected', 'out_for_delivery'].includes(selectedJob.status) ? 'blue' :
-                  ['assigned', 'batched'].includes(selectedJob.status) ? 'orange' :
-                  selectedJob.status === 'cancelled' ? 'red' :
-                  'default'
-                }>
-                  {selectedJob.status?.replace(/_/g, ' ').toUpperCase()}
+                <Tag color={getStatusColor(selectedJob.status)}>
+                  {formatJobStatusLabel(selectedJob.status)}
                 </Tag>
               </div>
                 </div>
@@ -1853,16 +1841,8 @@ const JobsPage = () => {
                       }
                     >
                       <div>
-                        <Tag 
-                          color={
-                            ['delivered', 'arrived_at_warehouse'].includes(entry.status) ? 'green' :
-                            ['in_transit', 'collected', 'out_for_delivery'].includes(entry.status) ? 'blue' :
-                            ['assigned', 'batched'].includes(entry.status) ? 'orange' :
-                            entry.status === 'cancelled' ? 'red' :
-                            'default'
-                          }
-                        >
-                          {entry.status.replace(/_/g, ' ').toUpperCase()}
+                        <Tag color={getStatusColor(entry.status)}>
+                          {formatJobStatusLabel(entry.status)}
                         </Tag>
                         <br />
                         <Text type="secondary" style={{ fontSize: '12px' }}>

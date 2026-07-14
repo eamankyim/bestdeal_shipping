@@ -26,6 +26,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { dashboardAPI, jobAPI } from '../utils/api';
 import ResponsiveTable from '../components/common/ResponsiveTable';
+import { formatJobStatusLabel, getStatusColor } from '../constants/jobStatuses';
 
 const { Title, Text } = Typography;
 
@@ -213,7 +214,7 @@ const GhanaWarehouseDashboardPage = () => {
       key: 'status',
       mobile: true,
       render: (status) => (
-        <Tag color="blue">{status?.replace(/_/g, ' ').toUpperCase()}</Tag>
+        <Tag color={getStatusColor(status)}>{formatJobStatusLabel(status)}</Tag>
       )
     },
   ];
@@ -253,19 +254,11 @@ const GhanaWarehouseDashboardPage = () => {
       dataIndex: 'status',
       key: 'status',
       mobile: true,
-      render: (status) => {
-        const colors = {
-          'At Ghana Warehouse': 'green',
-          'at_ghana_warehouse': 'green',
-          'arrived_at_warehouse': 'cyan',
-          'Out for Delivery': 'orange',
-        };
-        return (
-          <Tag color={colors[status] || 'default'}>
-            {status?.replace(/_/g, ' ').toUpperCase()}
-          </Tag>
-        );
-      }
+      render: (status) => (
+        <Tag color={getStatusColor(status)}>
+          {formatJobStatusLabel(status)}
+        </Tag>
+      )
     },
     {
       title: 'Actions',

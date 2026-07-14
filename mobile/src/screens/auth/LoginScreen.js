@@ -21,6 +21,7 @@ export default function LoginScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
 
@@ -115,9 +116,17 @@ export default function LoginScreen({ navigation }) {
                 value={password}
                 onChangeText={setPassword}
                 mode="outlined"
-                secureTextEntry
+                secureTextEntry={!showPassword}
                 style={styles.input}
                 left={<TextInput.Icon icon="lock-outline" />}
+                right={
+                  <TextInput.Icon
+                    icon={showPassword ? 'eye-off' : 'eye'}
+                    onPress={() => setShowPassword((prev) => !prev)}
+                    accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                    forceTextInputFocus={false}
+                  />
+                }
                 outlineColor="#d9d9d9"
                 activeOutlineColor="#ff9800"
                 textColor="#1f1f1f"

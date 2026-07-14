@@ -96,22 +96,9 @@ export const inputStyles = {
   activeOutlineColor: '#ff9800', // Orange when focused
 };
 
-export const statusColors = {
-  'Pending Collection': '#faad14',
-  'Assigned': '#ff9800', // Orange (changed from dark blue)
-  'En Route to Customer': '#722ed1',
-  'Collected': '#13c2c2',
-  'Collection Failed': '#ff4d4f',
-  'Returning to Warehouse': '#eb2f96',
-  'At Warehouse': '#52c41a',
-  'Batched': '#ff9800', // Orange (changed from blue)
-  'Shipped': '#ff9800', // Orange (changed from blue)
-  'Arrived at Destination': '#389e0d',
-  'Ready for Delivery': '#52c41a',
-  'Out for Delivery': '#d48806',
-  'Delivered': '#52c41a',
-  'Draft': '#8c8c8c',
-};
+// Prefer getJobStatusColor / getJobStatusTone from utils/jobStatus.js for display.
+// Re-exported so legacy `import { statusColors } from theme` keeps working.
+export { statusColors } from '../utils/jobStatus';
 
 
 

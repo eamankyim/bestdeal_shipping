@@ -38,7 +38,7 @@ import {
   HomeOutlined,
   MoreOutlined
 } from '@ant-design/icons';
-import { JOB_STATUSES, getStatusColor } from '../constants/jobStatuses';
+import { JOB_STATUSES, getStatusColor, formatJobStatusLabel } from '../constants/jobStatuses';
 import { jobAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import ResponsiveTable from '../components/common/ResponsiveTable';
@@ -297,14 +297,8 @@ const DriverDashboardPage = () => {
       key: 'status',
       mobile: true,
       render: (status) => (
-        <Tag color={
-          ['delivered', 'arrived_at_warehouse'].includes(status) ? 'green' :
-          ['in_transit', 'collected', 'out_for_delivery'].includes(status) ? 'blue' :
-          ['assigned', 'batched'].includes(status) ? 'orange' :
-          status === 'cancelled' ? 'red' :
-          'default'
-        }>
-          {status?.replace(/_/g, ' ').toUpperCase()}
+        <Tag color={getStatusColor(status)}>
+          {formatJobStatusLabel(status)}
         </Tag>
       ),
     },
@@ -407,7 +401,7 @@ const DriverDashboardPage = () => {
     if (!selectedJob) return;
     
     setUpdatingStatus(true);
-    const statusLabel = status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const statusLabel = formatJobStatusLabel(status);
     
     try {
       console.log('🔄 Updating job status to:', status);
@@ -849,14 +843,8 @@ const DriverDashboardPage = () => {
                 <div className="user-info-item">
                   <div className="user-info-label">Status</div>
                   <div className="user-info-value">
-                <Tag color={
-                  ['delivered', 'arrived_at_warehouse'].includes(selectedJob.status) ? 'green' :
-                  ['in_transit', 'collected', 'out_for_delivery'].includes(selectedJob.status) ? 'blue' :
-                  ['assigned', 'batched'].includes(selectedJob.status) ? 'orange' :
-                  selectedJob.status === 'cancelled' ? 'red' :
-                  'default'
-                }>
-                  {selectedJob.status?.replace(/_/g, ' ').toUpperCase()}
+                <Tag color={getStatusColor(selectedJob.status)}>
+                  {formatJobStatusLabel(selectedJob.status)}
                 </Tag>
               </div>
                 </div>
@@ -945,16 +933,8 @@ const DriverDashboardPage = () => {
                       }
                     >
                       <div>
-                        <Tag 
-                          color={
-                            ['delivered', 'arrived_at_warehouse'].includes(entry.status) ? 'green' :
-                            ['in_transit', 'collected', 'out_for_delivery'].includes(entry.status) ? 'blue' :
-                            ['assigned', 'batched'].includes(entry.status) ? 'orange' :
-                            entry.status === 'cancelled' ? 'red' :
-                            'default'
-                          }
-                        >
-                          {entry.status.replace(/_/g, ' ').toUpperCase()}
+                        <Tag color={getStatusColor(entry.status)}>
+                          {formatJobStatusLabel(entry.status)}
                         </Tag>
                         <br />
                         <Text type="secondary" style={{ fontSize: '12px' }}>

@@ -15,7 +15,8 @@ import {
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { trackingService } from '../../services/trackingService';
-import { statusColors, standardStyles, touchTargets, typography } from '../../theme/theme';
+import { standardStyles, touchTargets, typography } from '../../theme/theme';
+import { formatJobStatusLabel, getJobStatusColor } from '../../utils/jobStatus';
 import { format } from 'date-fns';
 
 export default function TrackingScreen() {
@@ -105,13 +106,12 @@ export default function TrackingScreen() {
                   style={[
                     styles.statusChip,
                     {
-                      backgroundColor:
-                        statusColors[trackingData.job?.status] || '#d9d9d9',
+                      backgroundColor: getJobStatusColor(trackingData.job?.status),
                     },
                   ]}
                   textStyle={styles.chipText}
                 >
-                  {trackingData.job?.status}
+                  {formatJobStatusLabel(trackingData.job?.status)}
                 </Chip>
               </View>
 

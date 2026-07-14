@@ -22,7 +22,7 @@ import {
 } from '@ant-design/icons';
 import config from '../config/env';
 import { trackingAPI } from '../utils/api';
-import { getStatusColor } from '../constants/jobStatuses';
+import { getStatusColor, formatJobStatusLabel } from '../constants/jobStatuses';
 
 const { Title, Text } = Typography;
 
@@ -143,7 +143,7 @@ const PublicTrackingPage = () => {
                         color={getStatusColorLocal(trackingResult.status)}
                         style={{ fontSize: '16px', padding: '8px 16px' }}
                       >
-                        {trackingResult.status}
+                        {formatJobStatusLabel(trackingResult.status)}
                       </Tag>
                     </div>
                   </div>
@@ -222,7 +222,7 @@ const PublicTrackingPage = () => {
                   <Card size="small" title="Current Status" style={{ marginBottom: '24px' }}>
                     <Space>
                       <EnvironmentOutlined style={{ color: '#1890ff' }} />
-                      <Text strong>{trackingResult.status}</Text>
+                      <Text strong>{formatJobStatusLabel(trackingResult.status)}</Text>
                     </Space>
                   </Card>
 

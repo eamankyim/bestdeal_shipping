@@ -5,7 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
 import { jobService } from '../../services/jobService';
-import { statusColors, spacing, touchTargets, typography } from '../../theme/theme';
+import { spacing, touchTargets, typography } from '../../theme/theme';
+import { formatJobStatusLabel, getJobStatusTone } from '../../utils/jobStatus';
 import { format } from 'date-fns';
 import SearchBellHeader from '../../components/common/SearchBellHeader';
 
@@ -78,27 +79,6 @@ export default function HomeScreen({ navigation }) {
   const onRefresh = () => {
     setRefreshing(true);
     loadDashboardData();
-  };
-
-  const getStatusTone = (status) => {
-    const normalized = (status || '').toLowerCase().trim();
-    const normalizedForMatch = normalized.replace(/_/g, ' ');
-    if (normalizedForMatch.includes('ready for delivery')) {
-      return { bg: '#f0e9ff', text: '#7a45d1' };
-    }
-    if (normalizedForMatch.includes('delivered')) {
-      return { bg: '#e8f8ed', text: '#23a455' };
-    }
-    if (normalizedForMatch.includes('in progress')) {
-      return { bg: '#e8f1ff', text: '#1f7ae0' };
-    }
-    if (normalizedForMatch.includes('pending')) {
-      return { bg: '#fff4df', text: '#d99000' };
-    }
-    return {
-      bg: statusColors[status] ? `${statusColors[status]}22` : '#efefef',
-      text: '#666',
-    };
   };
 
   const filteredRecentJobs = recentJobs.filter((job) => {
@@ -198,10 +178,10 @@ export default function HomeScreen({ navigation }) {
                   <View style={styles.jobTopRow}>
                     <Text style={styles.trackingId}>{job.trackingId}</Text>
                     <Chip
-                      style={[styles.statusChip, { backgroundColor: getStatusTone(job.status).bg }]}
-                      textStyle={[styles.statusText, { color: getStatusTone(job.status).text }]}
+                      style={[styles.statusChip, { backgroundColor: getJobStatusTone(job.status).bg }]}
+                      textStyle={[styles.statusText, { color: getJobStatusTone(job.status).text }]}
                     >
-                      {job.status}
+                      {formatJobStatusLabel(job.status)}
                     </Chip>
                   </View>
 

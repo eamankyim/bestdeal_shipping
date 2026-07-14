@@ -13,7 +13,7 @@ import {
 } from 'antd';
 import { SearchOutlined, CheckCircleOutlined, ClockCircleOutlined, UserOutlined, PhoneOutlined, MailOutlined, EnvironmentOutlined, InboxOutlined, CalendarOutlined } from '@ant-design/icons';
 import { trackingAPI } from '../utils/api';
-import { getStatusColor } from '../constants/jobStatuses';
+import { getStatusColor, formatJobStatusLabel } from '../constants/jobStatuses';
 import { useAuth } from '../contexts/AuthContext';
 import { hasPermission } from '../utils/permissions';
 
@@ -127,7 +127,7 @@ const ShipmentTrackingPage = () => {
                       fontWeight: 'bold'
                     }}
                   >
-                    {shipment.status?.replace(/_/g, ' ').toUpperCase()}
+                    {formatJobStatusLabel(shipment.status)}
                   </Tag>
                 </div>
               </Col>
@@ -157,7 +157,7 @@ const ShipmentTrackingPage = () => {
                     >
                       <div>
                           <Text strong style={{ fontSize: '16px' }}>
-                            {item.status?.replace(/_/g, ' ').toUpperCase()}
+                            {formatJobStatusLabel(item.status)}
                           </Text>
                           {item.location && (
                             <>

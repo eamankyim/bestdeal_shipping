@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { spacing } from '../../theme/theme';
 import AppSearchBar from './AppSearchBar';
 import NotificationBellButton from './NotificationBellButton';
@@ -9,8 +10,21 @@ export default function SearchBellHeader({
   placeholder = 'Search...',
   value,
   onChangeText,
+  onNotificationPress,
   style,
 }) {
+  const navigation = useNavigation();
+
+  const handleNotificationPress = useCallback(() => {
+    if (onNotificationPress) {
+      onNotificationPress();
+      return;
+    }
+    // navigate (not push) so tapping again while already on Notifications
+    // focuses the existing screen instead of stacking duplicates
+    navigation.navigate('Notifications');
+  }, [navigation, onNotificationPress]);
+
   return (
     <View style={[styles.header, { paddingTop: topInset }, style]}>
       <View style={styles.searchWrap}>
@@ -20,7 +34,10 @@ export default function SearchBellHeader({
           onChangeText={onChangeText}
         />
       </View>
-      <NotificationBellButton style={styles.notificationBtn} />
+      <NotificationBellButton
+        style={styles.notificationBtn}
+        onPress={handleNotificationPress}
+      />
     </View>
   );
 }
@@ -46,4 +63,3 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
 });
-

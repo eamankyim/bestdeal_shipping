@@ -24,6 +24,7 @@ import ChangePasswordScreen from '../screens/profile/ChangePasswordScreen';
 import InviteManagementScreen from '../screens/admin/InviteManagementScreen';
 import RoleManagementScreen from '../screens/admin/RoleManagementScreen';
 import OrganisationSettingsScreen from '../screens/admin/OrganisationSettingsScreen';
+import NotificationsScreen from '../screens/notifications/NotificationsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -184,6 +185,14 @@ export default function MainNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MainTabs" component={MainTabs} />
+      <Stack.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={{
+          presentation: 'card',
+          title: 'Notifications',
+        }}
+      />
       <Stack.Screen 
         name="Camera" 
         component={CameraScreen}

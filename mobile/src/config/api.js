@@ -12,8 +12,8 @@ import logger from '../utils/logger';
 
 const getApiBaseUrl = () => {
   if (!__DEV__) {
-    // Production - update with your production API URL
-    return 'https://your-production-api.com/api';
+    // Production Contabo / domain (matches frontend REACT_APP_API_URL + /api)
+    return 'https://bestdealshippingapp.com/api';
   }
 
   // Development - check for environment variable override
@@ -27,11 +27,11 @@ const getApiBaseUrl = () => {
     // Android emulator uses 10.0.2.2 to access host machine's localhost
     return 'http://10.0.2.2:4001/api';
   } else {
-    // iOS simulator: Use your computer's IP address instead of localhost
-    // Find your IP: Windows: ipconfig | Mac/Linux: ifconfig
-    // Default: Using 192.168.0.154 (update if different)
+    // iOS simulator / physical device: Use your computer's LAN IP (not localhost)
+    // Find your IP: Mac `ipconfig getifaddr en0` | Windows: ipconfig
+    // Default: Using 192.168.0.194 (update if your Mac's LAN IP changes)
     // For localhost, use: 'http://localhost:4001/api'
-    return 'http://192.168.0.154:4001/api';
+    return 'http://192.168.0.194:4001/api';
   }
 };
 

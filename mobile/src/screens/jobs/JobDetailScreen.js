@@ -18,7 +18,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
 import { jobService } from '../../services/jobService';
-import { statusColors, standardStyles, theme, spacing, touchTargets } from '../../theme/theme';
+import { standardStyles, theme, spacing, touchTargets } from '../../theme/theme';
+import { formatJobStatusLabel, getJobStatusColor } from '../../utils/jobStatus';
 import { format } from 'date-fns';
 import StatusUpdateModal from '../../components/jobs/StatusUpdateModal';
 import PaymentRecordingModal from '../../components/jobs/PaymentRecordingModal';
@@ -176,11 +177,11 @@ export default function JobDetailScreen({ route, navigation }) {
               <Chip
                 style={[
                   styles.statusChip,
-                  { backgroundColor: statusColors[job.status] || '#d9d9d9' },
+                  { backgroundColor: getJobStatusColor(job.status) },
                 ]}
                 textStyle={styles.chipText}
               >
-                {job.status}
+                {formatJobStatusLabel(job.status)}
               </Chip>
             </View>
 
@@ -271,9 +272,13 @@ export default function JobDetailScreen({ route, navigation }) {
                 </Text>
               )}
               
-              {job.value && (
-                <Text variant="bodyMedium">Estimated Price: £{job.value}</Text>
-              )}
+              {job.value != null &&
+                job.value !== '' &&
+                Number.isFinite(Number(job.value)) && (
+                  <Text variant="bodyMedium">
+                    Estimated Price: £{Number(job.value).toFixed(2)}
+                  </Text>
+                )}
               
               {job.priority && (
                 <Chip
@@ -406,7 +411,7 @@ export default function JobDetailScreen({ route, navigation }) {
                   <View style={styles.timelineDot} />
                   <View style={styles.timelineContent}>
                     <Text variant="bodyMedium" style={styles.timelineStatus}>
-                      {item.status}
+                      {formatJobStatusLabel(item.status)}
                     </Text>
                     <Text variant="bodySmall" style={styles.mutedText}>
                       {format(new Date(item.timestamp), 'MMM dd, yyyy HH:mm')}
@@ -454,7 +459,7 @@ export default function JobDetailScreen({ route, navigation }) {
         visible={paymentModalVisible}
         onDismiss={() => setPaymentModalVisible(false)}
         job={job}
-        invoiceAmount={job?.estimatedPrice || job?.value || 0}
+        invoiceAmount={Number(job?.estimatedPrice ?? job?.value ?? 0) || 0}
         onPaymentRecorded={loadJobDetails}
       />
 

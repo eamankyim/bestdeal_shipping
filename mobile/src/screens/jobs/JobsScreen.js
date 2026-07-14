@@ -12,7 +12,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
 import { jobService } from '../../services/jobService';
-import { statusColors, spacing, touchTargets, typography } from '../../theme/theme';
+import { spacing, touchTargets, typography } from '../../theme/theme';
+import { formatJobStatusLabel, getJobStatusTone, normalizeJobStatusKey } from '../../utils/jobStatus';
 import { format } from 'date-fns';
 import SearchBellHeader from '../../components/common/SearchBellHeader';
 
@@ -71,23 +72,6 @@ export default function JobsScreen({ navigation }) {
     loadJobs();
   };
 
-  const normalize = (text) => (text || '').toLowerCase().trim().replace(/_/g, ' ');
-
-  const getStatusTone = (status) => {
-    const normalized = normalize(status);
-    if (normalized.includes('ready for delivery')) return { bg: '#f0e9ff', text: '#7a45d1' };
-    if (normalized.includes('delivered') || normalized.includes('completed') || normalized.includes('closed')) {
-      return { bg: '#e8f8ed', text: '#23a455' };
-    }
-    if (normalized.includes('in progress') || normalized.includes('out for delivery') || normalized.includes('en route')) {
-      return { bg: '#e8f1ff', text: '#1f7ae0' };
-    }
-    if (normalized.includes('pending') || normalized.includes('assigned')) {
-      return { bg: '#fff4df', text: '#d99000' };
-    }
-    return { bg: statusColors[status] ? `${statusColors[status]}22` : '#efefef', text: '#666' };
-  };
-
   const filteredJobs = useMemo(() => {
     return jobs
       .filter((job) => {
@@ -96,11 +80,21 @@ export default function JobsScreen({ navigation }) {
           (job.customer?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
         if (!matchesSearch) return false;
 
-        const st = normalize(job.status);
+        const st = normalizeJobStatusKey(job.status).replace(/_/g, ' ');
         if (activeTab === 'all') return true;
         if (activeTab === 'pending') return st.includes('pending') || st.includes('assigned');
         if (activeTab === 'in_progress') {
-          return st.includes('in progress') || st.includes('ready for delivery') || st.includes('out for delivery') || st.includes('en route');
+          return (
+            st.includes('in progress') ||
+            st.includes('ready for delivery') ||
+            st.includes('out for delivery') ||
+            st.includes('en route') ||
+            st.includes('in transit') ||
+            st.includes('batched') ||
+            st.includes('shipped') ||
+            st.includes('collected') ||
+            st.includes('warehouse')
+          );
         }
         if (activeTab === 'completed') return st.includes('delivered') || st.includes('completed') || st.includes('closed');
         return true;
@@ -115,7 +109,7 @@ export default function JobsScreen({ navigation }) {
   };
 
   const renderJobItem = ({ item }) => {
-    const tone = getStatusTone(item.status);
+    const tone = getJobStatusTone(item.status);
 
     return (
       <TouchableOpacity
@@ -134,7 +128,7 @@ export default function JobsScreen({ navigation }) {
             <View style={styles.jobTopRow}>
               <Text style={styles.trackingId}>{item.trackingId}</Text>
               <Chip style={[styles.statusChip, { backgroundColor: tone.bg }]} textStyle={[styles.statusText, { color: tone.text }]}> 
-                {item.status}
+                {formatJobStatusLabel(item.status)}
               </Chip>
             </View>
 
