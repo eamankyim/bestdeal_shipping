@@ -1,0 +1,18 @@
+# Server-local Compose overlay for Contabo production.
+# Copy to docker-compose.override.yml on the server (never commit secrets).
+#
+# Why this exists:
+#   docker-compose.prod.yml hardcodes DATABASE_URL to shipease_user / shipease_shipping.
+#   Contabo's live Postgres uses different credentials (historically bestdeal_*).
+#   deploy-production.sh always passes: -f docker-compose.prod.yml -f docker-compose.override.yml
+#
+# Ports (BACKEND_PORT / FRONTEND_PORT) come from repo-root .env — Contabo uses
+# BACKEND_PORT=4005 and FRONTEND_PORT=3000. TLS / :80 is handled by host-nginx,
+# not the compose nginx service.
+
+services:
+  backend:
+    environment:
+      # Prefer setting DATABASE_URL in repo-root .env, then use this override.
+      # Or paste the live value from: docker exec shipease_backend printenv DATABASE_URL
+      - DATABASE_URL=${DATABASE_URL}

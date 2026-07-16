@@ -32,6 +32,10 @@ backend/node_modules/.cache/
 frontend/.env
 backend/.env
 
+# Server-local Compose overlay (may contain production DATABASE_URL).
+# Keep docker-compose.override.yml.example in git as the template.
+docker-compose.override.yml
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
