@@ -217,7 +217,7 @@ router.get('/delivery', authenticate, authorize('delivery-agent', 'delivery_agen
  *       403:
  *         description: Forbidden - Finance role required
  */
-router.get('/finance', authenticate, authorize('finance', 'admin', 'superadmin'), dashboardController.getFinanceDashboard);
+router.get('/finance', authenticate, authorize('finance', 'admin', 'superadmin', 'customer-service'), dashboardController.getFinanceDashboard);
 
 module.exports = router;
 

@@ -219,15 +219,19 @@ exports.updateInvoice = async (req, res) => {
       return sendError(res, 400, 'Only draft invoices can be edited');
     }
 
-    const total = (parseFloat(subtotal) || 0) + (parseFloat(tax) || 0);
+    const nextSubtotal = subtotal === undefined ? Number(invoice.subtotal) : Number(subtotal);
+    const nextTax = tax === undefined ? Number(invoice.tax) : Number(tax);
+    if (![nextSubtotal, nextTax].every(value => Number.isFinite(value) && value >= 0)) return sendError(res, 400, 'Amounts must be non-negative numbers');
+    if (dueDate && Number.isNaN(Date.parse(dueDate))) return sendError(res, 400, 'Invalid due date');
+    const total = nextSubtotal + nextTax;
 
     const updatedInvoice = await prisma.invoice.update({
       where: { id },
       data: {
-        ...(subtotal && { subtotal: parseFloat(subtotal) }),
-        ...(tax && { tax: parseFloat(tax) }),
+        subtotal: nextSubtotal,
+        tax: nextTax,
         total,
-        ...(notes && { notes }),
+        ...(notes !== undefined && { notes }),
         ...(dueDate && { dueDate: new Date(dueDate) })
       },
       include: {

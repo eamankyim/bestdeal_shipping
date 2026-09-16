@@ -37,7 +37,7 @@ const registerValidation = [
     .withMessage('Name must be at least 2 characters long'),
   body('role')
     .optional()
-    .isIn(['superadmin', 'admin', 'driver', 'warehouse', 'delivery_agent', 'user'])
+    .isIn(['user'])
     .withMessage('Invalid role'),
   validate,
 ];
@@ -136,6 +136,10 @@ const createJobValidation = [
 ];
 
 const updateJobStatusValidation = [
+  body('status').customSanitizer(value => {
+    const key = String(value || '').trim().toLowerCase().replace(/[ -]+/g, '_');
+    return ({ pending_collection: 'pending', at_warehouse: 'arrived_at_warehouse', returning_to_warehouse: 'in_transit', en_route_to_customer: 'in_transit' })[key] || key;
+  }),
   body('status')
     .notEmpty()
     .withMessage('Status is required')

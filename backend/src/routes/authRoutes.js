@@ -564,6 +564,73 @@ router.get('/roles', authenticate, authorize('admin', 'superadmin'), authControl
  */
 router.patch('/users/:id', authenticate, authorize('admin', 'superadmin'), authController.updateUser);
 
+/**
+ * @swagger
+ * /api/auth/users/{id}/reset-password:
+ *   patch:
+ *     summary: Reset a user's password (Admin only)
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - newPassword
+ *             properties:
+ *               newPassword:
+ *                 type: string
+ *                 minLength: 6
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin only
+ */
+router.patch('/users/:id/reset-password', authenticate, authorize('admin', 'superadmin'), authController.adminResetPassword);
+
+/**
+ * @swagger
+ * /api/auth/users/{id}:
+ *   delete:
+ *     summary: Delete a user (Admin only)
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User deleted or soft-deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin only
+ *       404:
+ *         description: User not found
+ */
+router.delete('/users/:id', authenticate, authorize('admin', 'superadmin'), authController.deleteUser);
+
+router.get('/organisation', authenticate, authorize('admin'), authController.getOrganisation);
+router.put('/organisation', authenticate, authorize('admin'), authController.updateOrganisation);
+
 module.exports = router;
 
 

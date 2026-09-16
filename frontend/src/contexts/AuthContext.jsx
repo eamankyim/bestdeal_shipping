@@ -171,6 +171,7 @@ export const AuthProvider = ({ children }) => {
 
   const hasPermission = (permission) => {
     if (!currentUser) return false;
+    if (['admin', 'superadmin', 'customer-service'].includes(currentUser.role)) return true;
     return currentUser.permissions?.includes('all') || currentUser.permissions?.includes(permission);
   };
 

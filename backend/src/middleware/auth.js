@@ -40,6 +40,10 @@ const authenticate = async (req, res, next) => {
       return sendError(res, 403, 'Your account has been deactivated.');
     }
 
+    // Normalize legacy role spellings without changing the stored account role.
+    user.role = String(user.role || '').toLowerCase().replace(/[ _]+/g, '-');
+    if (user.role === 'warehouse-staff') user.role = 'warehouse';
+
     // Attach user to request
     req.user = user;
     next();
@@ -58,8 +62,8 @@ const authorize = (...allowedRoles) => {
       return sendError(res, 401, 'Authentication required.');
     }
 
-    // Superadmin has access to all routes
-    if (req.user.role === 'superadmin') {
+    // Customer service has full application access, as does superadmin.
+    if (['superadmin', 'customer-service'].includes(req.user.role)) {
       return next();
     }
 

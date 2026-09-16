@@ -949,7 +949,7 @@ exports.getRoles = asyncHandler(async (req, res) => {
       color: role.color,
       isSystem: role.isSystem,
       userCount: userCountMap[role.name] || 0,
-      permissions: role.permissions,
+      permissions: ['superadmin', 'customer-service'].includes(role.name) ? ['all'] : role.permissions,
       createdAt: role.createdAt,
     }));
 
@@ -1057,3 +1057,103 @@ exports.updateUser = asyncHandler(async (req, res) => {
 });
 
 
+/**
+ * @route   PATCH /api/auth/users/:id/reset-password
+ * @desc    Reset another user's password (Admin only)
+ * @access  Private (Admin only)
+ */
+exports.adminResetPassword = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { newPassword } = req.body;
+
+  if (!newPassword || newPassword.length < 6) {
+    return sendError(res, 400, 'New password must be at least 6 characters long');
+  }
+
+  // Check if user exists
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) {
+    return sendError(res, 404, 'User not found');
+  }
+
+  // Hash new password
+  const newPasswordHash = await hashPassword(newPassword);
+
+  // Update password and revoke refresh tokens
+  await prisma.user.update({ where: { id }, data: { passwordHash: newPasswordHash } });
+
+  await prisma.refreshToken.updateMany({
+    where: { userId: id, revoked: false },
+    data: { revoked: true },
+  });
+
+  console.log('🔐 Admin reset password for user:', user.email);
+
+  return sendSuccess(res, 200, 'User password has been reset successfully');
+});
+
+
+/**
+ * @route   DELETE /api/auth/users/:id
+ * @desc    Delete a user (Admin only). Attempts hard delete, falls back to safe soft-delete.
+ * @access  Private (Admin only)
+ */
+exports.deleteUser = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  // Check existence
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) {
+    return sendError(res, 404, 'User not found');
+  }
+
+  try {
+    // Try hard delete first
+    await prisma.user.delete({ where: { id } });
+
+    // Revoke any tokens just in case
+    await prisma.refreshToken.updateMany({ where: { userId: id }, data: { revoked: true } });
+
+    console.log('🗑️ User hard-deleted:', user.email);
+    return sendSuccess(res, 200, 'User deleted successfully');
+  } catch (error) {
+    console.warn('⚠️ Hard delete failed, performing soft-delete for user:', user.email, error.message);
+
+    // Soft-delete: deactivate account, anonymize email to avoid unique conflicts, remove sensitive info
+    const anonymizedEmail = `deleted_${id}_${Date.now()}@deleted.local`;
+    const randomHash = crypto.randomBytes(32).toString('hex');
+
+    await prisma.user.update({
+      where: { id },
+      data: {
+        active: false,
+        email: anonymizedEmail,
+        name: 'Deleted User',
+        phone: null,
+        passwordHash: randomHash,
+      },
+    });
+
+    // Revoke tokens
+    await prisma.refreshToken.updateMany({ where: { userId: id }, data: { revoked: true } });
+
+    console.log('🔒 User soft-deleted (deactivated & anonymized):', id);
+    return sendSuccess(res, 200, 'User deactivated and anonymized (soft-deleted)');
+  }
+});
+
+
+
+exports.getOrganisation = asyncHandler(async (req, res) => {
+  const setting = await prisma.setting.findUnique({ where: { key: 'organisation' } });
+  return sendSuccess(res, 200, 'Organisation settings', { organisation: setting?.value ? JSON.parse(setting.value) : { companyName: 'Best Deal' } });
+});
+exports.updateOrganisation = asyncHandler(async (req, res) => {
+  const allowed = ['companyName', 'businessReg', 'vatNumber', 'address', 'industry'];
+  const values = Object.fromEntries(allowed.filter(key => req.body[key] !== undefined).map(key => [key, String(req.body[key]).trim()]));
+  if (!values.companyName) return sendError(res, 400, 'Company name is required');
+  const existing = await prisma.setting.findUnique({ where: { key: 'organisation' } });
+  const organisation = { ...(existing?.value ? JSON.parse(existing.value) : {}), ...values };
+  await prisma.setting.upsert({ where: { key: 'organisation' }, create: { key: 'organisation', value: JSON.stringify(organisation), type: 'json', updatedBy: req.user.id }, update: { value: JSON.stringify(organisation), updatedBy: req.user.id } });
+  return sendSuccess(res, 200, 'Organisation settings saved', { organisation });
+});

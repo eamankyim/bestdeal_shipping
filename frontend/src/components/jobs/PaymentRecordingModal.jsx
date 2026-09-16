@@ -5,6 +5,39 @@ import { DollarOutlined } from '@ant-design/icons';
 const { Option } = Select;
 const { TextArea } = Input;
 
+const toSafeNumber = (value, fallback = 0) => {
+  if (value === null || value === undefined || value === '') {
+    return fallback;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/[^0-9.-]+/g, '');
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  if (typeof value === 'object') {
+    const candidate =
+      value.amount ??
+      value.value ??
+      value.total ??
+      value.totalAmount ??
+      value.price ??
+      value.estimatedPrice ??
+      value.invoiceAmount ??
+      value.amountDue;
+
+    return toSafeNumber(candidate, fallback);
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 const PaymentRecordingModal = ({ 
   visible, 
   onCancel, 
@@ -15,23 +48,26 @@ const PaymentRecordingModal = ({
 }) => {
   const [form] = Form.useForm();
   const [paymentType, setPaymentType] = useState('full');
-  const [amountPaid, setAmountPaid] = useState(invoiceAmount);
+  const normalizedInvoiceAmount = toSafeNumber(invoiceAmount);
+  const [amountPaid, setAmountPaid] = useState(normalizedInvoiceAmount);
 
   useEffect(() => {
     if (visible && job) {
+      const nextAmount = toSafeNumber(invoiceAmount);
       form.setFieldsValue({
         paymentType: 'full',
-        amountPaid: invoiceAmount,
+        amountPaid: nextAmount,
         paymentMethod: 'cash',
       });
       setPaymentType('full');
-      setAmountPaid(invoiceAmount);
+      setAmountPaid(nextAmount);
     }
   }, [visible, job, invoiceAmount, form]);
 
   const handleOk = async () => {
     try {
       const values = await form.validateFields();
+      const safeInvoiceAmount = toSafeNumber(invoiceAmount);
       
       // Validate payment amount
       if (values.paymentType === 'part' && (!values.amountPaid || values.amountPaid <= 0)) {
@@ -39,15 +75,15 @@ const PaymentRecordingModal = ({
         return;
       }
       
-      if (values.paymentType === 'part' && values.amountPaid > invoiceAmount) {
-        message.error(`Payment amount cannot exceed invoice amount of £${invoiceAmount.toFixed(2)}`);
+      if (values.paymentType === 'part' && values.amountPaid > safeInvoiceAmount) {
+        message.error(`Payment amount cannot exceed invoice amount of £${safeInvoiceAmount.toFixed(2)}`);
         return;
       }
       
       const paymentData = {
         jobId: job?.id,
         paymentType: values.paymentType, // 'full' or 'part'
-        amountPaid: values.paymentType === 'full' ? invoiceAmount : values.amountPaid,
+        amountPaid: values.paymentType === 'full' ? safeInvoiceAmount : values.amountPaid,
         paymentMethod: values.paymentMethod, // 'POS', 'Bank', 'Cash'
         paymentReference: values.paymentReference || '',
         notes: values.notes || '',
@@ -58,7 +94,7 @@ const PaymentRecordingModal = ({
       // Reset form
       form.resetFields();
       setPaymentType('full');
-      setAmountPaid(invoiceAmount);
+      setAmountPaid(safeInvoiceAmount);
     } catch (error) {
       console.error('Validation failed:', error);
     }
@@ -67,15 +103,16 @@ const PaymentRecordingModal = ({
   const handleCancel = () => {
     form.resetFields();
     setPaymentType('full');
-    setAmountPaid(invoiceAmount);
+    setAmountPaid(normalizedInvoiceAmount);
     onCancel();
   };
 
   const handlePaymentTypeChange = (e) => {
+    const nextAmount = toSafeNumber(invoiceAmount);
     setPaymentType(e.target.value);
     if (e.target.value === 'full') {
-      form.setFieldsValue({ amountPaid: invoiceAmount });
-      setAmountPaid(invoiceAmount);
+      form.setFieldsValue({ amountPaid: nextAmount });
+      setAmountPaid(nextAmount);
     }
   };
 
@@ -100,7 +137,7 @@ const PaymentRecordingModal = ({
         layout="vertical"
         initialValues={{
           paymentType: 'full',
-          amountPaid: invoiceAmount,
+          amountPaid: normalizedInvoiceAmount,
           paymentMethod: 'cash',
         }}
       >
@@ -110,7 +147,7 @@ const PaymentRecordingModal = ({
           rules={[{ required: true, message: 'Please select payment type!' }]}
         >
           <Radio.Group onChange={handlePaymentTypeChange}>
-            <Radio value="full">Full Payment (£{invoiceAmount.toFixed(2)})</Radio>
+            <Radio value="full">Full Payment (£{normalizedInvoiceAmount.toFixed(2)})</Radio>
             <Radio value="part">Part Payment</Radio>
           </Radio.Group>
         </Form.Item>
@@ -124,15 +161,15 @@ const PaymentRecordingModal = ({
               { type: 'number', min: 0.01, message: 'Amount must be greater than 0' },
               { 
                 type: 'number', 
-                max: invoiceAmount, 
-                message: `Amount cannot exceed £${invoiceAmount.toFixed(2)}` 
+                max: normalizedInvoiceAmount,
+                message: `Amount cannot exceed £${normalizedInvoiceAmount.toFixed(2)}`
               }
             ]}
           >
             <InputNumber
               style={{ width: '100%' }}
               min={0.01}
-              max={invoiceAmount}
+              max={normalizedInvoiceAmount}
               step={0.01}
               precision={2}
               prefix="£"
@@ -146,7 +183,7 @@ const PaymentRecordingModal = ({
           <div style={{ marginBottom: 16, padding: 12, backgroundColor: '#f5f5f5', borderRadius: 4 }}>
             <strong>Remaining Balance: </strong>
             <span style={{ color: '#f5222d', fontSize: '16px' }}>
-              £{(invoiceAmount - (amountPaid || 0)).toFixed(2)}
+              £{(normalizedInvoiceAmount - (amountPaid || 0)).toFixed(2)}
             </span>
           </div>
         )}

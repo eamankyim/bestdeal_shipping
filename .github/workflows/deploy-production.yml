@@ -26,6 +26,7 @@ jobs:
           username: ${{ secrets.PRODUCTION_USERNAME }}
           key: ${{ secrets.PRODUCTION_SSH_KEY }}
           script_stop: true
+          command_timeout: 30m
           envs: DB_PASSWORD,JWT_SECRET,JWT_REFRESH_SECRET,CORS_ORIGINS,PRODUCTION_URL,FRONTEND_URL,BACKEND_PORT,FRONTEND_PORT
           script: |
             set -e

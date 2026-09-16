@@ -1,3 +1,4 @@
+import api from '../utils/api';
 import React, { useState, useEffect } from 'react';
 import { 
   Card, 
@@ -181,11 +182,16 @@ const AdminDashboardPage = () => {
     organisationForm.resetFields();
   };
 
-  const handleUpdateOrganisation = (values) => {
-    console.log('Updating organisation:', values);
-    // TODO: Call API to update organisation settings
-    message.success('Organisation settings updated successfully!');
-    setIsEditingOrganisation(false);
+  useEffect(() => {
+    api.get('/auth/organisation').then(result => organisationForm.setFieldsValue(result.data.organisation)).catch(() => message.error('Unable to load organisation settings'));
+  }, [organisationForm]);
+
+  const handleUpdateOrganisation = async (values) => {
+    try {
+      await api.put('/auth/organisation', values);
+      message.success('Organisation settings updated successfully!');
+      setIsEditingOrganisation(false);
+    } catch (error) { message.error(error.message || 'Unable to save organisation settings'); }
   };
 
   // Function to generate initials from user name
@@ -739,7 +745,7 @@ const AdminDashboardPage = () => {
     const adminOnlyTabs = ['organisation', 'invites', 'roles'];
     
     if (adminOnlyTabs.includes(tab.key)) {
-      return currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
+      return ['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) || currentUser?.role === 'superadmin';
     }
     
     // ALL ROLES: Profile
@@ -758,7 +764,7 @@ const AdminDashboardPage = () => {
     }
     
     // Default: only admin/superadmin sees unknown tabs
-    return currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
+    return ['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) || currentUser?.role === 'superadmin';
   });
 
   return (
@@ -818,7 +824,7 @@ const AdminDashboardPage = () => {
               >
                 {selectedUser.status.toUpperCase()}
               </Tag>
-              {(currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && (
+              {(['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) || currentUser?.role === 'superadmin') && (
                 <div style={{ marginTop: 16 }}>
                   <Button
                     type="primary"

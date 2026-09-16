@@ -13,7 +13,7 @@ export const hasPermission = (user, permission) => {
   if (!user || !user.role) return false;
 
   // Superadmin has all permissions
-  if (user.role === 'superadmin') return true;
+  if (['superadmin', 'customer-service'].includes(user.role)) return true;
 
   const rolePermissions = {
     admin: [
@@ -76,6 +76,9 @@ export const hasPermission = (user, permission) => {
       'jobs:view_all', 'jobs:create',
       'timeline:create',
       'reports:view_customer',
+      'invoices:view', 'invoices:create', 'invoices:update', 'invoices:delete',
+      'reports:view_all', 'reports:financial',
+      'financial:view',
     ],
     
     finance: [
@@ -99,7 +102,7 @@ export const hasPermission = (user, permission) => {
  */
 export const hasRole = (user, ...roles) => {
   if (!user || !user.role) return false;
-  return roles.includes(user.role);
+  return ['superadmin', 'customer-service'].includes(user.role) || roles.includes(user.role);
 };
 
 /**
@@ -112,14 +115,14 @@ export const canAccessRoute = (user, route) => {
   if (!user || !user.role) return false;
 
   // Superadmin can access all routes
-  if (user.role === 'superadmin') return true;
+  if (['superadmin', 'customer-service'].includes(user.role)) return true;
 
   const routePermissions = {
     '/dashboard': ['superadmin', 'admin', 'driver', 'delivery-agent', 'warehouse', 'customer-service', 'finance'],
     '/jobs': ['superadmin', 'admin', 'driver', 'delivery-agent', 'warehouse', 'customer-service'],
     '/customers': ['superadmin', 'admin', 'customer-service', 'driver', 'delivery-agent', 'warehouse'],
     '/batches': ['superadmin', 'admin', 'warehouse'],
-    '/invoices': ['superadmin', 'admin', 'finance'],
+    '/invoices': ['superadmin', 'admin', 'finance', 'customer-service'],
     '/reports': ['superadmin', 'admin', 'driver', 'delivery-agent', 'warehouse', 'customer-service', 'finance'],
     '/settings': ['superadmin', 'admin'],
     '/tracking': ['superadmin', 'admin', 'driver', 'delivery-agent', 'warehouse', 'customer-service'],
@@ -213,14 +216,14 @@ export const getSidebarMenuItems = (user) => {
       icon: 'DollarOutlined',
       label: 'Invoices',
       path: '/invoices',
-      roles: ['superadmin', 'admin', 'finance'],
+      roles: ['superadmin', 'admin', 'finance', 'customer-service'],
     },
     {
       key: 'reports',
       icon: 'BarChartOutlined',
       label: 'Reports',
       path: '/reports',
-      roles: ['superadmin', 'admin', 'finance'],
+      roles: ['superadmin', 'admin', 'finance', 'customer-service'],
     },
     {
       key: 'tracking',
@@ -238,7 +241,7 @@ export const getSidebarMenuItems = (user) => {
     },
   ];
 
-  return allMenuItems.filter(item => item.roles.includes(user.role));
+  return allMenuItems.filter(item => ['superadmin', 'customer-service'].includes(user.role) || item.roles.includes(user.role));
 };
 
 /**
@@ -253,7 +256,7 @@ export const canPerformAction = (user, action, resource, resourceData = null) =>
   if (!user || !user.role) return false;
 
   // Superadmin and admin can do everything
-  if (user.role === 'superadmin' || user.role === 'admin') return true;
+  if (['superadmin', 'customer-service'].includes(user.role) || user.role === 'admin') return true;
 
   // Define role-action-resource matrix
   const permissions = {

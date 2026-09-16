@@ -2,6 +2,33 @@ const prisma = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/responseUtils');
 const { notifyBatchCreated } = require('../services/notificationService');
 
+// Map batch DB fields to legacy client-friendly names to avoid mobile crashes
+const mapBatchForClient = (batch) => {
+  if (!batch) return batch;
+
+  // Clone to avoid mutating Prisma object
+  const b = JSON.parse(JSON.stringify(batch));
+
+  // Legacy/compat fields expected by mobile app
+  b.vesselName = b.carrier || null;
+  b.flightNumber = b.trackingNumber || null;
+  b.departureDate = b.estimatedShipDate || null;
+  b.estimatedArrivalDate = b.estimatedArrival || null;
+  b.sealNumber = b.trackingNumber || null;
+
+  // Ensure jobs is always an array
+  b.jobs = Array.isArray(b.jobs) ? b.jobs : [];
+
+  // Map jobs to include safe customer object and expected fields
+  b.jobs = b.jobs.map((job) => ({
+    ...job,
+    referenceNumber: job.referenceNumber || null,
+    customer: job.customer || null,
+  }));
+
+  return b;
+};
+
 /**
  * Create a new batch
  * POST /api/batches
@@ -33,7 +60,8 @@ exports.createBatch = async (req, res) => {
     const jobDetails = await prisma.job.findMany({
       where: {
         id: { in: jobs },
-        status: 'arrived_at_warehouse' // Only batch jobs that are at the hub
+        batchId: null,
+        status: { in: ['arrived_at_warehouse', 'At Warehouse', 'at_warehouse', 'at_uk_warehouse', 'at_ghana_warehouse'] }
       },
       select: {
         id: true,
@@ -111,8 +139,10 @@ exports.createBatch = async (req, res) => {
       console.error('⚠️ Failed to send batch notifications:', error);
     }
 
+    const clientBatch = mapBatchForClient(result);
+
     return sendSuccess(res, 201, 'Batch created successfully', {
-      batch: result,
+      batch: clientBatch,
       jobsUpdated: jobDetails.length
     });
 
@@ -162,8 +192,11 @@ exports.getAllBatches = async (req, res) => {
 
     const total = await prisma.batch.count({ where });
 
+    // Map batches for client compatibility
+    const clientBatches = batches.map(mapBatchForClient);
+
     return sendSuccess(res, 200, 'Batches retrieved successfully', {
-      batches,
+      batches: clientBatches,
       pagination: {
         total,
         page: parseInt(page),
@@ -214,7 +247,9 @@ exports.getBatchById = async (req, res) => {
       return sendError(res, 404, 'Batch not found');
     }
 
-    return sendSuccess(res, 200, 'Batch retrieved successfully', { batch });
+    const clientBatch = mapBatchForClient(batch);
+
+    return sendSuccess(res, 200, 'Batch retrieved successfully', { batch: clientBatch });
 
   } catch (error) {
     console.error('Error fetching batch:', error);

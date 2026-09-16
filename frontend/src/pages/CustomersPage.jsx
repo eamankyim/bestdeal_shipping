@@ -295,7 +295,7 @@ const CustomersPage = () => {
             </Space>
           </Col>
           <Col xs={24} lg={8} style={{ textAlign: 'right' }} className="mobile-full-width">
-            {(currentUser?.role === 'admin' || currentUser?.role === 'customer-service') && (
+            {(['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) || currentUser?.role === 'customer-service') && (
               <Button
                 type="primary"
                 icon={<PlusOutlined />}

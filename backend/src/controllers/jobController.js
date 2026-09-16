@@ -59,11 +59,10 @@ exports.getAllJobs = asyncHandler(async (req, res) => {
     case 'delivery_agent': {
       // Same as delivery dashboard: jobs in delivery statuses that are assigned to this agent OR unassigned
       const deliveryStatuses = [
-        'Ready for Delivery',
-        'ready_for_delivery',
-        'Delivery Attempted',
-        'Delivered',
-        'delivered',
+        'Ready for Delivery', 'ready_for_delivery',
+        'Out for Delivery', 'out_for_delivery',
+        'Failed Delivery', 'failed_delivery',
+        'Delivery Attempted', 'Delivered', 'delivered',
       ];
       where.status = { in: deliveryStatuses };
       where.OR = [
@@ -227,12 +226,11 @@ exports.getJobById = asyncHandler(async (req, res) => {
   if (isDeliveryAgent) {
     const assignedToMe = job.assignedDeliveryAgentId === req.user.id;
     const deliveryStatuses = [
-      'Ready for Delivery',
-      'ready_for_delivery',
-      'Delivery Attempted',
-      'Delivered',
-      'delivered',
-    ];
+        'Ready for Delivery', 'ready_for_delivery',
+        'Out for Delivery', 'out_for_delivery',
+        'Failed Delivery', 'failed_delivery',
+        'Delivery Attempted', 'Delivered', 'delivered',
+      ];
     const unassignedInDelivery = job.assignedDeliveryAgentId === null && deliveryStatuses.includes(job.status);
     if (!assignedToMe && !unassignedInDelivery) {
       return sendError(res, 403, 'Access denied. You can only view jobs assigned to you or ready for delivery');
@@ -259,7 +257,18 @@ exports.createJob = asyncHandler(async (req, res) => {
     priority = 'Standard',
     assignedDriverId,
     documents,
+    status,
   } = req.body;
+
+  const packageList = Array.isArray(parcelDetails?.packages) ? parcelDetails.packages.filter(Boolean) : [];
+  const normalizedDescription = packageList.length > 0
+    ? packageList.map((pkg) => pkg.description || `${pkg.packageType || 'Package'}${pkg.weight ? ` (${pkg.weight}kg)` : ''}`).filter(Boolean).join('; ')
+    : (parcelDetails?.description || '');
+  const totalPackageWeight = packageList.length > 0
+    ? packageList.reduce((sum, pkg) => sum + (Number(pkg.weight) || 0), 0)
+    : (parcelDetails?.weight != null ? Number(parcelDetails.weight) : null);
+  const packageQuantity = packageList.length > 0 ? packageList.length : (parcelDetails?.quantity || 1);
+  const requestedStatus = status || (assignedDriverId ? 'Assigned' : 'Pending Collection');
 
   let finalCustomerId = customerId;
 
@@ -299,19 +308,26 @@ exports.createJob = asyncHandler(async (req, res) => {
     data: {
       trackingId,
       customerId: finalCustomerId,
+      referenceNumber: req.body.referenceNumber || null,
+      receiverName: req.body.receiverName || null,
+      receiverAddress: req.body.receiverAddress || null,
+      receiverContact: req.body.receiverContact || req.body.receiverPhone || null,
+      freightType: req.body.freightType || null,
+      packages: packageList,
+
       pickupAddress,
       deliveryAddress,
       pickupDate: pickupDate ? new Date(pickupDate) : null,
-      description: parcelDetails?.description,
-      weight: parcelDetails?.weight,
+      description: normalizedDescription || null,
+      weight: totalPackageWeight != null ? totalPackageWeight : null,
       dimensionsLength: parcelDetails?.dimensions?.length,
       dimensionsWidth: parcelDetails?.dimensions?.width,
       dimensionsHeight: parcelDetails?.dimensions?.height,
       value: parcelDetails?.value,
-      quantity: parcelDetails?.quantity || 1,
+      quantity: packageQuantity,
       specialInstructions,
       priority,
-      status: assignedDriverId ? 'assigned' : 'pending',
+      status: requestedStatus,
       assignedDriverId: assignedDriverId || null,
       createdBy: req.user.id,
     },
@@ -331,8 +347,8 @@ exports.createJob = asyncHandler(async (req, res) => {
   await prisma.jobTimeline.create({
     data: {
       jobId: job.id,
-      status: assignedDriverId ? 'assigned' : 'pending',
-      notes: assignedDriverId ? 'Job created and assigned to driver' : 'Job created',
+      status: requestedStatus,
+      notes: requestedStatus === 'Draft' ? 'Job saved as draft' : (assignedDriverId ? 'Job created and assigned to driver' : 'Job created'),
       updatedBy: req.user.id,
     },
   });
@@ -414,9 +430,9 @@ exports.updateJob = asyncHandler(async (req, res) => {
     parcelDetails,
     specialInstructions,
     priority,
+    status,
   } = req.body;
 
-  // Check if job exists
   const existingJob = await prisma.job.findUnique({
     where: { id },
   });
@@ -425,15 +441,27 @@ exports.updateJob = asyncHandler(async (req, res) => {
     return sendError(res, 404, 'Job not found');
   }
 
+  const packageList = Array.isArray(parcelDetails?.packages) ? parcelDetails.packages.filter(Boolean) : [];
+  const normalizedDescription = packageList.length > 0
+    ? packageList.map((pkg) => pkg.description || `${pkg.packageType || 'Package'}${pkg.weight ? ` (${pkg.weight}kg)` : ''}`).filter(Boolean).join('; ')
+    : (parcelDetails?.description ?? existingJob.description);
+  const totalPackageWeight = packageList.length > 0
+    ? packageList.reduce((sum, pkg) => sum + (Number(pkg.weight) || 0), 0)
+    : (parcelDetails?.weight != null ? Number(parcelDetails.weight) : existingJob.weight ? Number(existingJob.weight) : existingJob.weight);
+
   // Update job: only update provided fields; don't reset original details when omitted
   const job = await prisma.job.update({
     where: { id },
     data: {
+      ...Object.fromEntries(['referenceNumber', 'receiverName', 'receiverAddress', 'receiverContact', 'freightType', 'customerId'].filter(key => req.body[key] !== undefined).map(key => [key, req.body[key]])),
+      ...(req.body.receiverPhone !== undefined && { receiverContact: req.body.receiverPhone }),
+      ...(Array.isArray(parcelDetails?.packages) && { packages: packageList }),
       ...(pickupAddress && { pickupAddress }),
       ...(deliveryAddress && { deliveryAddress }),
       ...(pickupDate && { pickupDate: new Date(pickupDate) }),
-      ...(parcelDetails && parcelDetails.description !== undefined && { description: parcelDetails.description }),
-      ...(parcelDetails && 'weight' in parcelDetails && { weight: parcelDetails.weight ?? existingJob.weight }),
+      ...(parcelDetails && (parcelDetails.description !== undefined || packageList.length > 0) && { description: normalizedDescription }),
+      ...(parcelDetails && ('weight' in parcelDetails || packageList.length > 0) && { weight: totalPackageWeight ?? existingJob.weight }),
+      ...(parcelDetails && packageList.length > 0 && { quantity: packageList.length }),
       ...(parcelDetails?.dimensions && (parcelDetails.dimensions.length != null || parcelDetails.dimensions.width != null || parcelDetails.dimensions.height != null) && {
         ...(parcelDetails.dimensions.length != null && { dimensionsLength: parcelDetails.dimensions.length }),
         ...(parcelDetails.dimensions.width != null && { dimensionsWidth: parcelDetails.dimensions.width }),
@@ -441,6 +469,7 @@ exports.updateJob = asyncHandler(async (req, res) => {
       }),
       ...(parcelDetails && 'value' in parcelDetails && { value: parcelDetails.value ?? existingJob.value }),
       ...(parcelDetails?.quantity != null && { quantity: parcelDetails.quantity }),
+      ...(status && { status }),
       ...(specialInstructions !== undefined && { specialInstructions }),
       ...(priority && { priority }),
     },
@@ -478,12 +507,11 @@ exports.updateJobStatus = asyncHandler(async (req, res) => {
   } else if (req.user.role === 'delivery-agent' || req.user.role === 'delivery_agent') {
     const assignedToMe = job.assignedDeliveryAgentId === req.user.id;
     const deliveryStatuses = [
-      'Ready for Delivery',
-      'ready_for_delivery',
-      'Delivery Attempted',
-      'Delivered',
-      'delivered',
-    ];
+        'Ready for Delivery', 'ready_for_delivery',
+        'Out for Delivery', 'out_for_delivery',
+        'Failed Delivery', 'failed_delivery',
+        'Delivery Attempted', 'Delivered', 'delivered',
+      ];
     const unassignedInDelivery = job.assignedDeliveryAgentId === null && deliveryStatuses.includes(job.status);
     if (!assignedToMe && !unassignedInDelivery) {
       return sendError(res, 403, 'Access denied. You can only update jobs assigned to you or ready for delivery');
@@ -525,7 +553,7 @@ exports.updateJobStatus = asyncHandler(async (req, res) => {
   });
 
   // When status is collected, save proof images as job documents
-  if (normalizedStatus === 'collected' && Array.isArray(proofImages) && proofImages.length > 0) {
+  if (Array.isArray(proofImages) && proofImages.length > 0) {
     for (let i = 0; i < proofImages.length; i++) {
       const img = proofImages[i];
       if (!img || !img.fileData) continue;
@@ -587,7 +615,7 @@ exports.assignDriver = asyncHandler(async (req, res) => {
   if (!assignee) {
     return sendError(res, 400, 'Invalid driver ID');
   }
-  if (assignee.role !== 'driver' && assignee.role !== 'delivery_agent') {
+  if (!['driver', 'delivery_agent', 'delivery-agent'].includes(assignee.role)) {
     return sendError(res, 400, 'Invalid driver ID');
   }
 
@@ -788,12 +816,11 @@ exports.getDocument = asyncHandler(async (req, res) => {
   if (isDeliveryAgentDoc) {
     const assignedToMe = document.job.assignedDeliveryAgentId === req.user.id;
     const deliveryStatuses = [
-      'Ready for Delivery',
-      'ready_for_delivery',
-      'Delivery Attempted',
-      'Delivered',
-      'delivered',
-    ];
+        'Ready for Delivery', 'ready_for_delivery',
+        'Out for Delivery', 'out_for_delivery',
+        'Failed Delivery', 'failed_delivery',
+        'Delivery Attempted', 'Delivered', 'delivered',
+      ];
     const unassignedInDelivery = document.job.assignedDeliveryAgentId === null && deliveryStatuses.includes(document.job.status);
     if (!assignedToMe && !unassignedInDelivery) {
       return sendError(res, 403, 'Access denied');
@@ -814,3 +841,50 @@ exports.getDocument = asyncHandler(async (req, res) => {
 });
 
 
+
+// Both clients use these endpoints. Payment writes are serialized per job to
+// prevent concurrent requests from overwriting balances or overpaying a job.
+exports.recordPayment = asyncHandler(async (req, res) => {
+  const { amountPaid, paymentMethod, paymentReference = '', notes = '' } = req.body;
+  const amount = Number(amountPaid);
+  if (!Number.isFinite(amount) || amount <= 0 || Math.abs(Math.round(amount * 100) - amount * 100) > 1e-7) {
+    return sendError(res, 400, 'Enter a positive amount with at most two decimal places');
+  }
+  if (!['cash', 'bank', 'pos', 'bank_transfer'].includes(String(paymentMethod).toLowerCase())) {
+    return sendError(res, 400, 'Invalid payment method');
+  }
+  const result = await prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM jobs WHERE id = ${req.params.id} FOR UPDATE`;
+    const job = await tx.job.findUnique({ where: { id: req.params.id } });
+    if (!job) return { error: 'Job not found', code: 404 };
+    const paid = Math.round(Number(job.amountPaid) * 100);
+    const total = Math.round(Number(job.value || 0) * 100);
+    const cents = Math.round(amount * 100);
+    if (paid + cents > total) return { error: 'Payment exceeds the outstanding balance', code: 400 };
+    const updated = await tx.job.update({ where: { id: job.id }, data: { amountPaid: (paid + cents) / 100 } });
+    await tx.jobTimeline.create({ data: {
+      jobId: job.id, status: job.status, updatedBy: req.user.id,
+      notes: `Payment GBP ${amount.toFixed(2)} (${paymentMethod}); reference: ${paymentReference}. ${notes}`,
+    } });
+    return { job: updated };
+  });
+  if (result.error) return sendError(res, result.code, result.error);
+  return sendSuccess(res, 200, 'Payment recorded successfully', result);
+});
+
+exports.revertStatus = asyncHandler(async (req, res) => {
+  const { previousStatus, comment } = req.body;
+  if (!previousStatus || !String(comment || '').trim()) return sendError(res, 400, 'Previous status and reason are required');
+  const result = await prisma.$transaction(async tx => {
+    const job = await tx.job.findUnique({ where: { id: req.params.id }, include: { timeline: true } });
+    if (!job) return { error: 'Job not found', code: 404 };
+    if (!job.timeline.some(entry => entry.status === previousStatus) || previousStatus === job.status) {
+      return { error: 'Choose a previous status from this job history', code: 400 };
+    }
+    const updated = await tx.job.update({ where: { id: job.id }, data: { status: previousStatus } });
+    await tx.jobTimeline.create({ data: { jobId: job.id, status: previousStatus, notes: `Reverted from ${job.status}: ${comment}`, updatedBy: req.user.id } });
+    return { job: updated };
+  });
+  if (result.error) return sendError(res, result.code, result.error);
+  return sendSuccess(res, 200, 'Status reverted successfully', result);
+});

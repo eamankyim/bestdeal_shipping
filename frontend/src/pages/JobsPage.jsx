@@ -449,8 +449,36 @@ const JobsPage = () => {
       console.log('📝 Form values:', values);
       
       // Prepare job data
+      const packageList = Array.isArray(values.packageList) ? values.packageList.filter(Boolean) : [];
+      if (packageList.length === 0) {
+        message.error('Please add at least one package before creating the job.');
+        setSubmitting(false);
+        return;
+      }
+
+      const normalizedPackageList = packageList.map((pkg) => ({
+        packageType: pkg.packageType || 'Document',
+        description: pkg.description?.trim() || '',
+        weight: pkg.weight != null && pkg.weight !== '' ? Number(pkg.weight) : undefined,
+        estimatedPrice: pkg.estimatedPrice != null && pkg.estimatedPrice !== '' ? Number(pkg.estimatedPrice) : undefined,
+        fragile: !!pkg.fragile,
+        insurance: !!pkg.insurance,
+      })).filter((pkg) => pkg.description || pkg.weight != null || pkg.estimatedPrice != null);
+
+      if (normalizedPackageList.length === 0) {
+        message.error('Please add at least one package with a description, weight, or price.');
+        setSubmitting(false);
+        return;
+      }
+
+      const totals = normalizedPackageList.reduce((acc, pkg) => {
+        acc.weight += Number(pkg.weight || 0);
+        acc.estimatedPrice += Number(pkg.estimatedPrice || 0);
+        return acc;
+      }, { weight: 0, estimatedPrice: 0 });
+
       const jobData = {
-        referenceNumber: values.referenceNumber, // New: reference number
+        referenceNumber: values.referenceNumber,
         pickupAddress: values.pickupAddress,
         deliveryAddress: values.deliveryAddress,
         pickupDate: values.pickupDate ? values.pickupDate.toISOString() : null,
@@ -459,16 +487,24 @@ const JobsPage = () => {
         receiverAddress: values.deliveryAddress,
         receiverContact: values.receiverContact,
         parcelDetails: {
-          description: values.description,
-          weight: values.weight ?? null,
+          description: normalizedPackageList.map((pkg) => pkg.description || `${pkg.packageType || 'Package'}${pkg.weight ? ` (${pkg.weight}kg)` : ''}`).filter(Boolean).join('; '),
+          weight: totals.weight > 0 ? totals.weight : null,
           dimensions: null,
-          quantity: values.quantity || 1,
-          estimatedPrice: values.estimatedPrice,
+          quantity: normalizedPackageList.length,
+          value: totals.estimatedPrice > 0 ? totals.estimatedPrice : undefined,
+          packages: normalizedPackageList.map((pkg) => ({
+            packageType: pkg.packageType || 'Document',
+            description: pkg.description || undefined,
+            weight: pkg.weight != null ? Number(pkg.weight) : undefined,
+            estimatedPrice: pkg.estimatedPrice != null ? Number(pkg.estimatedPrice) : undefined,
+            fragile: pkg.fragile,
+            insurance: pkg.insurance,
+          })),
         },
         specialInstructions: values.specialInstructions,
         priority: values.priority || 'Standard',
         assignedDriverId: values.assignedTo || null,
-        status: 'Pending Collection',
+        ...(!editingJobId && { status: 'Pending Collection' }),
       };
 
       // If creating a new customer
@@ -492,33 +528,33 @@ const JobsPage = () => {
       if (values.receiverContact?.trim()) {
         jobData.receiverContact = values.receiverContact.trim();
       }
-      
+
       // Add documents if any
       if (values.documents && values.documents.fileList && values.documents.fileList.length > 0) {
         try {
           // Extract original file objects
           const originalFiles = values.documents.fileList.map(file => file.originFileObj || file);
-          
+
           // Show loading message for compression
           message.loading({ content: 'Compressing files...', key: 'compressing', duration: 0 });
-          
+
           // Compress all files to 5MB maximum each
           const compressedFiles = await compressFiles(originalFiles, 5);
-          
+
           // Validate total file size (25MB max total after compression)
           const maxTotalSize = 25 * 1024 * 1024; // 25MB
           const totalSize = compressedFiles.reduce((sum, file) => sum + file.size, 0);
-          
+
           if (totalSize > maxTotalSize) {
             message.destroy('compressing');
             message.error(`Total file size after compression (${(totalSize / 1024 / 1024).toFixed(2)}MB) exceeds maximum allowed size of 25MB. Please upload fewer files.`);
             setSubmitting(false);
             return;
           }
-          
+
           message.destroy('compressing');
           message.success({ content: `Compressed ${compressedFiles.length} file(s) successfully`, key: 'compressing', duration: 2 });
-          
+
           // Convert compressed files to base64 for storage in database
           const documentPromises = compressedFiles.map(file => {
             return new Promise((resolve, reject) => {
@@ -900,6 +936,7 @@ const JobsPage = () => {
         
         // Set form values for editing
         form.setFieldsValue({
+          packageList: jobData.packages?.length ? jobData.packages : [{ packageType: 'Parcel', description: jobData.description || '', weight: Number(jobData.weight || 0), estimatedPrice: Number(jobData.value || 0) }],
           referenceNumber: jobData.referenceNumber,
           customerId: jobData.customer?.id,
           pickupAddress: jobData.pickupAddress,
@@ -1079,7 +1116,7 @@ const JobsPage = () => {
             </Space>
           </Col>
           <Col xs={24} lg={8} style={{ textAlign: 'right' }} className="mobile-full-width">
-            {(currentUser?.role === 'admin' || currentUser?.role === 'customer-service') && (
+            {(['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) || currentUser?.role === 'customer-service') && (
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
@@ -1506,6 +1543,124 @@ const JobsPage = () => {
               <Button icon={<UploadOutlined />}>Upload Files</Button>
             </Upload>
           </Form.Item>
+
+          {/* Package List - New Section */}
+          <Card size="small" title="Package List" style={{ marginBottom: 16 }}>
+            <Form.List name="packageList">
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map(({ key, name, fieldKey, ...restField }) => (
+                    <Row gutter={16} key={key}>
+                      <Col xs={24} sm={10}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'packageType']}
+                          fieldKey={[fieldKey, 'packageType']}
+                          label="Package Type"
+                          rules={[{ required: true, message: 'Please select package type!' }]}
+                        >
+                          <DropdownWithOther
+                            options={['Document', 'Parcel', 'Box', 'Fragile', 'Heavy']}
+                            placeholder="Select package type"
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={10}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'description']}
+                          fieldKey={[fieldKey, 'description']}
+                          label="Description"
+                          rules={[{ required: true, message: 'Please enter package description!' }]}
+                        >
+                          <Input placeholder="Enter package description" />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={4}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'weight']}
+                          fieldKey={[fieldKey, 'weight']}
+                          label="Weight (kg)"
+                          rules={[{ required: true, message: 'Please enter weight!' }]}
+                        >
+                          <InputNumber
+                            min={0.1}
+                            max={1000}
+                            step={0.1}
+                            style={{ width: '100%' }}
+                            placeholder="Enter weight"
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={4}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'estimatedPrice']}
+                          fieldKey={[fieldKey, 'estimatedPrice']}
+                          label="Estimated Price (£)"
+                          rules={[{ required: true, message: 'Please enter estimated price!' }]}
+                        >
+                          <InputNumber
+                            min={0}
+                            step={0.01}
+                            style={{ width: '100%' }}
+                            placeholder="Enter estimated price"
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={4}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'fragile']}
+                          fieldKey={[fieldKey, 'fragile']}
+                          label="Fragile"
+                          valuePropName="checked"
+                        >
+                          <Switch />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={4}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'insurance']}
+                          fieldKey={[fieldKey, 'insurance']}
+                          label="Insurance"
+                          valuePropName="checked"
+                        >
+                          <Switch />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={4}>
+                        <Form.Item>
+                          <Button
+                            type="danger"
+                            icon={<UndoOutlined />}
+                            onClick={() => remove(name)}
+                            style={{ width: '100%' }}
+                          >
+                            Remove Package
+                          </Button>
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  ))}
+                  <Row gutter={16}>
+                    <Col xs={24} sm={12}>
+                      <Button
+                        type="dashed"
+                        onClick={() => add()}
+                        style={{ width: '100%' }}
+                        icon={<PlusOutlined />}
+                      >
+                        Add Another Package
+                      </Button>
+                    </Col>
+                  </Row>
+                </>
+              )}
+            </Form.List>
+          </Card>
         </Form>
       </Modal>
 
@@ -1518,7 +1673,7 @@ const JobsPage = () => {
         width={720}
         className="user-details-drawer"
         extra={
-          selectedJob && ['admin', 'driver', 'delivery-agent', 'warehouse'].includes(currentUser?.role) && (
+          selectedJob && ['admin', 'superadmin', 'customer-service', 'driver', 'delivery-agent', 'warehouse'].includes(currentUser?.role) && (
             <Dropdown
               overlay={
                 <Menu>
@@ -1535,12 +1690,12 @@ const JobsPage = () => {
                           </Menu.Item>
                         ))}
                       </Menu.ItemGroup>
-                      {(currentUser?.role === 'admin' || currentUser?.role === 'warehouse_staff' || currentUser?.role === 'warehouse') && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered' && (
+                      {(['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) || currentUser?.role === 'warehouse_staff' || currentUser?.role === 'warehouse') && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered' && (
                         <Menu.Divider />
                       )}
                     </>
                   )}
-                  {(currentUser?.role === 'admin' || currentUser?.role === 'warehouse_staff' || currentUser?.role === 'warehouse') && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered' && (
+                  {(['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) || currentUser?.role === 'warehouse_staff' || currentUser?.role === 'warehouse') && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered' && (
                     <Menu.Item
                       key="edit"
                       icon={<EditOutlined />}
@@ -1553,7 +1708,7 @@ const JobsPage = () => {
                     </Menu.Item>
                   )}
                   {/* Warehouse manager can record payment */}
-                  {(currentUser?.role === 'warehouse_staff' || currentUser?.role === 'warehouse' || currentUser?.role === 'admin') && (
+                  {(currentUser?.role === 'warehouse_staff' || currentUser?.role === 'warehouse' || ['admin', 'superadmin', 'customer-service'].includes(currentUser?.role)) && (
                     <>
                       <Menu.Divider />
                       <Menu.Item
@@ -1568,7 +1723,7 @@ const JobsPage = () => {
                     </>
                   )}
                   {/* Admin can revert status */}
-                  {currentUser?.role === 'admin' && selectedJob.status !== 'pending' && selectedJob.status !== 'draft' && (
+                  {['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) && selectedJob.status !== 'pending' && selectedJob.status !== 'draft' && (
                     <>
                       <Menu.Divider />
                       <Menu.Item
@@ -1582,7 +1737,7 @@ const JobsPage = () => {
                       </Menu.Item>
                     </>
                   )}
-                  {currentUser?.role === 'admin' && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered' && (
+                  {['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered' && (
                     <Menu.Item
                       key="cancel"
                       danger
@@ -1592,7 +1747,7 @@ const JobsPage = () => {
                     </Menu.Item>
                   )}
                   {getNextStatusOptions(selectedJob.status, currentUser?.role).length === 0 && 
-                   !(currentUser?.role === 'admin' && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered') && (
+                   !(['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered') && (
                     <Menu.Item disabled>No actions available</Menu.Item>
                   )}
                 </Menu>
@@ -2017,8 +2172,9 @@ const JobsPage = () => {
         )}
       </Modal>
 
+      <StatusRevertModal visible={isRevertStatusModalVisible} onCancel={() => setIsRevertStatusModalVisible(false)} onOk={handleRevertStatus} currentStatus={selectedJob?.status} jobHistory={selectedJob?.timeline || []} loading={updatingStatus} />
       {/* Status Update Modal */}
-      <StatusUpdateModal
+           <StatusUpdateModal
         visible={isStatusUpdateModalVisible}
         onCancel={handleStatusUpdateCancel}
         onOk={handleStatusUpdateOk}
@@ -2035,17 +2191,7 @@ const JobsPage = () => {
         onCancel={() => setIsPaymentModalVisible(false)}
         onOk={handleRecordPayment}
         job={selectedJob}
-        invoiceAmount={selectedJob?.estimatedPrice || selectedJob?.value || 0}
-        loading={updatingStatus}
-      />
-
-      {/* Status Revert Modal */}
-      <StatusRevertModal
-        visible={isRevertStatusModalVisible}
-        onCancel={() => setIsRevertStatusModalVisible(false)}
-        onOk={handleRevertStatus}
-        currentStatus={selectedJob?.status}
-        jobHistory={selectedJob?.timeline || []}
+        invoiceAmount={Math.max(0, Number(selectedJob?.value || selectedJob?.estimatedPrice || 0) - Number(selectedJob?.amountPaid || 0))}
         loading={updatingStatus}
       />
     </div>

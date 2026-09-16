@@ -286,7 +286,7 @@ const DashboardPage = () => {
   ];
 
   // Conditional rendering after all hooks
-  if (currentUser?.role === 'finance') {
+  if (currentUser?.role === 'finance' || currentUser?.role === 'customer-service') {
     return <FinanceDashboard />;
   }
 

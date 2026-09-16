@@ -121,13 +121,13 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
       key: '/invoice-management',
       icon: <DollarOutlined />,
       label: 'Invoices',
-      roles: ['superadmin', 'admin', 'finance'],
+      roles: ['superadmin', 'admin', 'finance', 'customer-service'],
     },
     {
       key: '/reports',
       icon: <BarChartOutlined />,
       label: 'Reports',
-      roles: ['superadmin', 'admin', 'finance'],
+      roles: ['superadmin', 'admin', 'finance', 'customer-service'],
     },
     {
       key: '/track-shipment',
@@ -149,11 +149,11 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
     
     return allMenuItems.filter(item => {
       // Check if user role matches
-      if (!item.roles.includes(currentUser.role)) return false;
+      if (!['superadmin', 'customer-service'].includes(currentUser.role) && !item.roles.includes(currentUser.role)) return false;
       
       // Special handling for Ghana Warehouse menu item
       if (item.key === '/ghana-warehouse') {
-        if (currentUser.role === 'admin' || currentUser.role === 'superadmin') return true;
+        if (['admin', 'superadmin', 'customer-service'].includes(currentUser.role) || currentUser.role === 'superadmin') return true;
         if (currentUser.role === 'warehouse') {
           return currentUser.warehouseLocation === 'Ghana Warehouse';
         }
@@ -162,7 +162,7 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
 
       // UK Warehouse Dashboard - show when user has UK Warehouse location
       if (item.key === '/uk-warehouse') {
-        if (currentUser.role === 'admin' || currentUser.role === 'superadmin') return true;
+        if (['admin', 'superadmin', 'customer-service'].includes(currentUser.role) || currentUser.role === 'superadmin') return true;
         if (currentUser.role === 'warehouse') {
           return currentUser.warehouseLocation === 'UK Warehouse';
         }
@@ -173,7 +173,7 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
       // Admin and superadmin can always see it
       if (item.key === '/warehouse') {
         // Admin/superadmin can always see general warehouse dashboard
-        if (currentUser.role === 'admin' || currentUser.role === 'superadmin') return true;
+        if (['admin', 'superadmin', 'customer-service'].includes(currentUser.role) || currentUser.role === 'superadmin') return true;
         // Warehouse users only see this if they don't have a specific location assigned
         if (currentUser.role === 'warehouse') {
           return !currentUser.warehouseLocation; // Only show if no specific location

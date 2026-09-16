@@ -116,6 +116,14 @@ model Job {
   pickupAddress         String    @map("pickup_address") @db.Text
   deliveryAddress       String    @map("delivery_address") @db.Text
   
+  referenceNumber       String? @map("reference_number")
+  receiverName          String? @map("receiver_name")
+  receiverAddress       String? @map("receiver_address")
+  receiverContact       String? @map("receiver_contact")
+  freightType           String? @map("freight_type")
+  packages              Json?
+  amountPaid            Decimal @default(0) @map("amount_paid") @db.Decimal(10, 2)
+
   // Parcel Details
   description           String?
   weight                Decimal?  @db.Decimal(10, 2)

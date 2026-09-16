@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const packageDetails = require('../middleware/packageDetails');
 const jobController = require('../controllers/jobController');
 const { authenticate, authorize } = require('../middleware/auth');
 const {
@@ -119,7 +120,7 @@ router.get('/:id', uuidValidation, jobController.getJobById);
  *         description: Job created successfully
  */
 // Only admin and customer-service can create jobs
-router.post('/', authorize('admin', 'customer-service'), createJobValidation, jobController.createJob);
+router.post('/', authorize('admin', 'customer-service'), packageDetails, createJobValidation, jobController.createJob);
 
 /**
  * @swagger
@@ -158,7 +159,7 @@ router.post('/', authorize('admin', 'customer-service'), createJobValidation, jo
  *         description: Job updated successfully
  */
 // Only admin can fully update job details
-router.put('/:id', authorize('admin'), uuidValidation, jobController.updateJob);
+router.put('/:id', authorize('admin'), uuidValidation, packageDetails, jobController.updateJob);
 
 /**
  * @swagger
@@ -331,6 +332,9 @@ router.get('/:id/timeline', uuidValidation, jobController.getJobTimeline);
  */
 // All authenticated users can download documents (permissions checked in controller)
 router.get('/documents/:documentId', jobController.getDocument);
+
+router.post('/:id/payment', authorize('admin', 'finance'), uuidValidation, jobController.recordPayment);
+router.post('/:id/revert-status', authorize('admin'), uuidValidation, jobController.revertStatus);
 
 module.exports = router;
 
