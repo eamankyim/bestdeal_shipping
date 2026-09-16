@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: shipease_shipping
-      POSTGRES_USER: shipease_user
+      POSTGRES_USER: bestdeal_user
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5433:5432"
@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://shipease_user:${DB_PASSWORD}@postgres:5432/shipease_shipping?schema=public
+      - DATABASE_URL=postgresql://bestdeal_user:${DB_PASSWORD}@postgres:5432/shipease_shipping?schema=public
       - JWT_SECRET=${JWT_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - CORS_ORIGINS=${CORS_ORIGINS}
