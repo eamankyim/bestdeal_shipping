@@ -260,6 +260,8 @@ export const jobAPI = {
   updateStatus: (id, data) => api.patch(`/jobs/${id}/status`, data),
   delete: (id) => api.delete(`/jobs/${id}`),
   assignDriver: (id, driverId) => api.post(`/jobs/${id}/assign-driver`, { driverId }),
+  // `going`: how many of each item line stay in this job; the rest becomes a new part
+  split: (id, going) => api.post(`/jobs/${id}/split`, { going }),
   assignDeliveryAgent: (id, deliveryAgentId) => api.post(`/jobs/${id}/assign-delivery-agent`, { deliveryAgentId }),
   recordPayment: (id, paymentData) => api.post(`/jobs/${id}/payment`, paymentData),
   revertStatus: (id, data) => api.post(`/jobs/${id}/revert-status`, data),

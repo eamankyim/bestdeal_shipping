@@ -3,6 +3,7 @@
 
 const { canEditJobValue } = require('./jobAccess');
 const { toJobStatus } = require('./statuses');
+const { normalizeLines, lineTotals } = require('./packages');
 
 const isBlank = (value) =>
   value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
@@ -76,19 +77,20 @@ const buildJobUpdate = (existing, body, user) => {
   if (canEditJobValue(user)) propose('value', parcel.value, toNumber);
 
   if (Array.isArray(parcel.packages) && parcel.packages.length > 0) {
-    const packages = mergePackages(existing.packages, parcel.packages);
-    proposed.packages = packages;
-    proposed.quantity = packages.length;
-    const weight = packages.reduce((sum, pkg) => sum + (Number(pkg.weight) || 0), 0);
-    if (weight > 0) proposed.weight = weight;
-    if (canEditJobValue(user) && packages.some((pkg) => !isBlank(pkg.estimatedPrice))) {
-      proposed.value = Math.round(packages.reduce((sum, pkg) => sum + (Number(pkg.estimatedPrice) || 0), 0) * 100) / 100;
+    // Lines are merged by position, so an edit can change a line but never remove one
+    let packages = mergePackages(existing.packages, parcel.packages);
+    // Drivers and riders cannot change prices: their edits keep the stored ones
+    if (!canEditJobValue(user)) {
+      const before = Array.isArray(existing.packages) ? existing.packages : [];
+      packages = packages.map((pkg, index) => ({ ...pkg, estimatedPrice: before[index]?.estimatedPrice ?? null }));
     }
-    const description = packages
-      .map((pkg) => pkg.description || `${pkg.packageType || 'Package'}${pkg.weight ? ` (${pkg.weight}kg)` : ''}`)
-      .filter(Boolean)
-      .join('; ');
-    if (description) proposed.description = description;
+    packages = normalizeLines(packages);
+    const totals = lineTotals(packages);
+    proposed.packages = packages;
+    proposed.quantity = totals.quantity;
+    if (totals.weight !== null) proposed.weight = totals.weight;
+    if (canEditJobValue(user) && totals.value !== null) proposed.value = totals.value;
+    if (totals.description) proposed.description = totals.description;
   }
 
   // Status moves go through PATCH /jobs/:id/status, which checks photos and permissions.

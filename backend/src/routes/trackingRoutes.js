@@ -75,6 +75,9 @@ router.get('/:trackingId', asyncHandler(async (req, res) => {
       weight: true,
       quantity: true,
       createdAt: true,
+      id: true,
+      splitFromId: true,
+      partNumber: true,
       timeline: {
         select: { status: true, location: true, timestamp: true },
         orderBy: { timestamp: 'asc' },
@@ -95,6 +98,23 @@ router.get('/:trackingId', asyncHandler(async (req, res) => {
     company = {};
   }
 
+  // A split order: every part, so the customer can follow all of it from any one tracking ID
+  const rootId = job.splitFromId || (job.partNumber ? job.id : null);
+  const parts = rootId
+    ? (await prisma.job.findMany({
+      where: { OR: [{ id: rootId }, { splitFromId: rootId }] },
+      select: { id: true, trackingId: true, partNumber: true, status: true },
+      orderBy: { partNumber: 'asc' },
+    })).map((part) => ({
+      trackingId: part.trackingId,
+      partNumber: part.partNumber,
+      statusLabel: jobStatusLabel(part.status),
+      statusColor: jobStatusInfo(part.status)?.color || 'default',
+      thisOne: part.id === job.id,
+    }))
+    : [];
+  const { id, splitFromId, ...publicJob } = job;
+
   const current = jobStatusInfo(job.status);
   const stageIndex = STAGES.findIndex((stage) => stage.key === current?.stage);
   // One entry per change of status (payments and notes are also recorded against the status)
@@ -105,7 +125,8 @@ router.get('/:trackingId', asyncHandler(async (req, res) => {
 
   return sendSuccess(res, 200, 'Tracking info retrieved successfully', {
     job: {
-      ...job,
+      ...publicJob,
+      parts,
       status: current?.key || job.status,
       statusLabel: current?.label || job.status,
       statusDescription: current?.description || '',

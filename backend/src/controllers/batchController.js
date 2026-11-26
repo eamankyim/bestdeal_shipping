@@ -3,6 +3,7 @@ const { sendSuccess, sendError } = require('../utils/responseUtils');
 const { notifyBatchCreated } = require('../services/notificationService');
 const { notifyCustomersOfStatus } = require('../services/customerMessageService');
 const { isBlank } = require('../utils/jobEdit');
+const { splitJob } = require('../services/jobSplit');
 const {
   BATCHABLE, toBatchStatus, batchStatusInfo, nextBatchStatuses, canEditBatch, canCreateBatch,
 } = require('../utils/statuses');
@@ -17,6 +18,23 @@ const notifyBatched = async (jobIds) => {
 
 const sumField = (jobs, field) => jobs.reduce((sum, job) => sum + (parseFloat(job[field]) || 0), 0);
 
+/** A `split` request ({ jobId: [counts] }) may only name jobs that are going in the batch. */
+const checkSplitRequest = (split, jobs) => {
+  if (!split || typeof split !== 'object' || Array.isArray(split)) return 'Split must say, for each job, how many of each item go now';
+  const stray = Object.keys(split).find((jobId) => !jobs.includes(jobId));
+  return stray ? 'Only jobs going in this batch can be split' : null;
+};
+
+/** Splits the jobs that go only in part (services/jobSplit.js); returns the new parts left waiting. */
+const splitForBatch = async (tx, split, user) => {
+  const parts = [];
+  for (const [jobId, going] of Object.entries(split)) {
+    const { part } = await splitJob(tx, jobId, going, user);
+    if (part) parts.push(part);
+  }
+  return parts;
+};
+
 // Map batch DB fields to legacy client-friendly names to avoid mobile crashes
 const mapBatchForClient = (batch) => {
   if (!batch) return batch;
@@ -29,7 +47,8 @@ const mapBatchForClient = (batch) => {
   b.flightNumber = b.trackingNumber || null;
   b.departureDate = b.estimatedShipDate || null;
   b.estimatedArrivalDate = b.estimatedArrival || null;
-  b.sealNumber = b.trackingNumber || null;
+  b.containerNumber = b.trackingNumber || null;
+  b.sealNumber = b.sealNumber || null;
 
   // Ensure jobs is always an array
   b.jobs = Array.isArray(b.jobs) ? b.jobs : [];
@@ -55,126 +74,94 @@ exports.createBatch = async (req, res) => {
       route,
       vessel,
       containerNumber,
+      sealNumber,
       departureDate,
       eta,
       notes,
-      jobs // Array of job IDs
+      jobs, // Array of job IDs
+      split = {}, // { jobId: [how many of each item line go now] } for jobs that go only in part
     } = req.body;
 
     if (!canCreateBatch(req.user)) {
       return sendError(res, 403, 'Only the office and the UK warehouse make batches');
     }
-    if (!name || !route || !jobs || jobs.length === 0) {
+    if (!name || !route || !Array.isArray(jobs) || jobs.length === 0) {
       return sendError(res, 400, 'Batch name, route, and at least one job are required');
     }
+    const splitProblem = checkSplitRequest(split, jobs);
+    if (splitProblem) return sendError(res, 400, splitProblem);
 
     // Generate batch ID
     const timestamp = Date.now().toString(36).toUpperCase();
     const random = Math.random().toString(36).substring(2, 6).toUpperCase();
     const batchId = `BATCH-${timestamp}-${random}`;
 
-    // Get job details to calculate totals
-    const jobDetails = await prisma.job.findMany({
-      where: {
-        id: { in: jobs },
-        batchId: null,
-        status: BATCHABLE
-      },
-      select: {
-        id: true,
-        weight: true,
-        value: true,
-        status: true
-      }
-    });
-
-    if (jobDetails.length === 0) {
-      return sendError(res, 400, 'No jobs can be batched. Only jobs at the UK warehouse can go in a batch.');
-    }
-
-    if (jobDetails.length !== jobs.length) {
-      return sendError(res, 400, 'Some jobs are not available for batching');
-    }
-
-    // Calculate totals
-    const totalWeight = sumField(jobDetails, 'weight');
-    const totalValue = sumField(jobDetails, 'value');
-
-    // Create batch and update jobs in a transaction
+    // Splitting and batching happen together, so a job is never left half-moved
     const result = await prisma.$transaction(async (tx) => {
-      // Create the batch
+      const parts = await splitForBatch(tx, split, req.user);
+
+      const jobDetails = await tx.job.findMany({
+        where: { id: { in: jobs }, batchId: null, status: BATCHABLE },
+        select: { id: true, weight: true, value: true, status: true },
+      });
+      if (jobDetails.length === 0) {
+        throw Object.assign(new Error('No jobs can be batched. Only jobs at the UK warehouse can go in a batch.'), { statusCode: 400 });
+      }
+      if (jobDetails.length !== jobs.length) {
+        throw Object.assign(new Error('Some jobs are not available for batching'), { statusCode: 400 });
+      }
+
       const batch = await tx.batch.create({
         data: {
           batchId,
           name,
-          route: route, // Store full route
+          route,
           destination: destinationFromRoute(route),
           carrier: vessel,
           trackingNumber: containerNumber,
+          sealNumber: String(sealNumber || '').trim() || null,
           totalJobs: jobDetails.length,
-          totalWeight,
-          totalValue,
+          totalWeight: sumField(jobDetails, 'weight'),
+          totalValue: sumField(jobDetails, 'value'),
           status: 'in_preparation',
           estimatedShipDate: departureDate ? new Date(departureDate) : null,
           estimatedArrival: eta ? new Date(eta) : null,
           notes,
-          createdBy: req.user.id
-        }
+          createdBy: req.user.id,
+        },
       });
 
-      // Update all jobs to "batched" status and assign batchId (only if still waiting at the warehouse)
+      // Only moves jobs still waiting at the warehouse; anything else means someone changed them meanwhile
       const { count } = await tx.job.updateMany({
-        where: {
-          id: { in: jobs },
-          batchId: null,
-          status: BATCHABLE
-        },
-        data: {
-          status: 'batched',
-          batchId: batch.id
-        }
+        where: { id: { in: jobs }, batchId: null, status: BATCHABLE },
+        data: { status: 'batched', batchId: batch.id },
       });
       if (count !== jobs.length) {
         throw Object.assign(new Error('Some jobs were changed by someone else just now. Refresh and try again.'), { statusCode: 409 });
       }
-
-      // Create timeline entries for all jobs
-      const timelineEntries = jobs.map(jobId => ({
-        jobId,
-        status: 'batched',
-        notes: `Job added to batch ${batchId}`,
-        updatedBy: req.user.id,
-        timestamp: new Date()
-      }));
-
       await tx.jobTimeline.createMany({
-        data: timelineEntries
+        data: jobs.map((jobId) => ({ jobId, status: 'batched', notes: `Job added to batch ${batchId}`, updatedBy: req.user.id })),
       });
 
-      return batch;
-    });
+      return { batch, parts, jobsUpdated: jobDetails.length };
+    }, { timeout: 30000 });
 
-    // Send notifications
     try {
-      const notificationCount = await notifyBatchCreated(result, req.user.id);
-      console.log(`📬 Sent ${notificationCount} notifications for batch ${result.batchId}`);
+      await notifyBatchCreated(result.batch, req.user.id);
     } catch (error) {
       console.error('⚠️ Failed to send batch notifications:', error);
     }
-
     try {
       await notifyBatched(jobs);
     } catch (error) {
       console.error('⚠️ Failed to message customers about the batch:', error);
     }
 
-    const clientBatch = mapBatchForClient(result);
-
     return sendSuccess(res, 201, 'Batch created successfully', {
-      batch: clientBatch,
-      jobsUpdated: jobDetails.length
+      batch: mapBatchForClient(result.batch),
+      jobsUpdated: result.jobsUpdated,
+      parts: result.parts.map((part) => ({ id: part.id, trackingId: part.trackingId, description: part.description })),
     });
-
   } catch (error) {
     if (error.statusCode) return sendError(res, error.statusCode, error.message);
     console.error('Error creating batch:', error);
@@ -212,6 +199,9 @@ exports.getAllBatches = async (req, res) => {
             trackingId: true,
             referenceNumber: true,
             status: true,
+            partNumber: true,
+            description: true,
+            quantity: true,
             weight: true,
             value: true,
             priority: true,
@@ -307,11 +297,14 @@ exports.getBatchById = async (req, res) => {
 exports.updateBatch = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, route, vessel, containerNumber, departureDate, eta, notes, jobs } = req.body;
+    const { name, route, vessel, containerNumber, sealNumber, departureDate, eta, notes, jobs, split = {} } = req.body;
 
     if (!canCreateBatch(req.user)) {
       return sendError(res, 403, 'Only the office and the UK warehouse edit batches');
     }
+    // Only jobs being added can be split; jobs already in the batch are no longer at the warehouse
+    const splitProblem = checkSplitRequest(split, Array.isArray(jobs) ? jobs : []);
+    if (splitProblem) return sendError(res, 400, splitProblem);
 
     const result = await prisma.$transaction(async (tx) => {
       // Lock the batch so it cannot be shipped or edited by someone else halfway through
@@ -323,12 +316,14 @@ exports.updateBatch = async (req, res) => {
       }
 
       let added = [];
+      let parts = [];
       if (Array.isArray(jobs)) {
         const current = batch.jobs.map((job) => job.id);
         const wanted = [...new Set(jobs)];
         added = wanted.filter((jobId) => !current.includes(jobId));
         const removed = current.filter((jobId) => !wanted.includes(jobId));
 
+        parts = await splitForBatch(tx, split, req.user);
         if (added.length > 0) {
           const { count } = await tx.job.updateMany({
             where: { id: { in: added }, batchId: null, status: BATCHABLE },
@@ -366,6 +361,7 @@ exports.updateBatch = async (req, res) => {
         ...(!isBlank(route) && { route: route.trim(), destination: destinationFromRoute(route.trim()) }),
         ...(!isBlank(vessel) && { carrier: vessel.trim() }),
         ...(!isBlank(containerNumber) && { trackingNumber: containerNumber.trim() }),
+        ...(!isBlank(sealNumber) && { sealNumber: sealNumber.trim() }),
         ...(!isBlank(departureDate) && { estimatedShipDate: new Date(departureDate) }),
         ...(!isBlank(eta) && { estimatedArrival: new Date(eta) }),
         ...(!isBlank(notes) && { notes: notes.trim() }),
@@ -395,7 +391,7 @@ exports.updateBatch = async (req, res) => {
           newValues: { ...fields, jobs: updated.jobs.map((job) => job.id) },
         },
       });
-      return { batch: updated, added };
+      return { batch: updated, added, parts };
     }, { timeout: 20000 });
 
     if (result.error) return sendError(res, result.code, result.error);
@@ -405,7 +401,10 @@ exports.updateBatch = async (req, res) => {
     } catch (error) {
       console.error('⚠️ Failed to message customers about the batch:', error);
     }
-    return sendSuccess(res, 200, 'Batch updated successfully', { batch: mapBatchForClient(result.batch) });
+    return sendSuccess(res, 200, 'Batch updated successfully', {
+      batch: mapBatchForClient(result.batch),
+      parts: (result.parts || []).map((part) => ({ id: part.id, trackingId: part.trackingId, description: part.description })),
+    });
   } catch (error) {
     if (error.statusCode) return sendError(res, error.statusCode, error.message);
     console.error('Error updating batch:', error);

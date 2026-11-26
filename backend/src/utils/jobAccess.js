@@ -34,10 +34,11 @@ const jobScopeFor = (user) => {
 };
 
 /**
- * Every staff role may edit a job it can see. Accounts created through public
- * self-registration (role "user") are not staff, so they cannot.
+ * Staff may edit the jobs they can see, except dispatch riders, who only deliver. Accounts created
+ * through public self-registration (role "user") are not staff, so they cannot either.
  */
-const canEditJob = (user, job) => isStaff(user) && canAccessJob(user, job);
+const canEditJobs = (user) => isStaff(user) && normalizeRole(user?.role) !== 'delivery-agent';
+const canEditJob = (user, job) => canEditJobs(user) && canAccessJob(user, job);
 
 /** Warehouse staff create jobs in the UK; staff assigned to Ghana only receive and dispatch. */
 const canCreateJob = (user) =>
@@ -57,6 +58,7 @@ module.exports = {
   isGhanaWarehouse,
   canAccessJob,
   jobScopeFor,
+  canEditJobs,
   canEditJob,
   canCreateJob,
   canEditJobValue,

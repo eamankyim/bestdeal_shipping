@@ -15,7 +15,7 @@ import {
 } from '@ant-design/icons';
 import config from '../../config/env';
 import { useAuth } from '../../contexts/AuthContext';
-import { canEditJobs, canManageInvoices, hasFullAccess, isGhanaWarehouse } from '../../utils/permissions';
+import { canManageInvoices, hasFullAccess, isGhanaWarehouse, isStaffMember } from '../../utils/permissions';
 import './Sidebar.css';
 
 const { Sider } = Layout;
@@ -61,7 +61,7 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
       { key: '/dashboard', icon: <DashboardOutlined />, label: role === 'driver' ? 'My Collections' : role === 'delivery-agent' ? 'My Deliveries' : 'Dashboard', show: true },
       { key: '/uk-warehouse', icon: <HomeOutlined />, label: 'UK Warehouse', show: office },
       { key: '/ghana-warehouse', icon: <FlagOutlined />, label: 'Ghana Warehouse', show: office },
-      { key: '/jobs', icon: <ShoppingOutlined />, label: 'Jobs', show: canEditJobs(currentUser) },
+      { key: '/jobs', icon: <ShoppingOutlined />, label: 'Jobs', show: isStaffMember(currentUser) },
       { key: '/customers', icon: <UserOutlined />, label: 'Customers', show: office },
       { key: '/batch-management', icon: <ContainerOutlined />, label: 'Batches', show: office || role === 'warehouse' },
       // The Ghana warehouse adds notes on the state of invoices

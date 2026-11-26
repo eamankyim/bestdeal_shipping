@@ -6,6 +6,8 @@ const { generateTrackingId } = require('../utils/trackingIdGenerator');
 const { notifyCustomerOfStatus, sendCustomerMessage } = require('../services/customerMessageService');
 const { canAccessJob, canEditJob, canEditJobValue, jobScopeFor } = require('../utils/jobAccess');
 const { actorOf, toJobStatus, jobStatusLabel, checkJobMove, assignmentProblem } = require('../utils/statuses');
+const { normalizeLines, lineTotals } = require('../utils/packages');
+const { splitJob } = require('../services/jobSplit');
 const { buildJobUpdate } = require('../utils/jobEdit');
 const { decodeFile, parseImage, contentDisposition } = require('../utils/imageUpload');
 
@@ -232,7 +234,17 @@ exports.getJobById = asyncHandler(async (req, res) => {
     return sendError(res, 403, 'Access denied. You can only view jobs assigned to you');
   }
 
-  return sendSuccess(res, 200, 'Job retrieved successfully', { job });
+  // A split order: every part, the first job included, so each part can link to the others
+  const rootId = job.splitFromId || (job.partNumber ? job.id : null);
+  const parts = rootId
+    ? await prisma.job.findMany({
+      where: { OR: [{ id: rootId }, { splitFromId: rootId }] },
+      select: { id: true, trackingId: true, partNumber: true, status: true, description: true },
+      orderBy: { partNumber: 'asc' },
+    })
+    : [];
+
+  return sendSuccess(res, 200, 'Job retrieved successfully', { job: { ...job, parts } });
 });
 
 /**
@@ -256,14 +268,14 @@ exports.createJob = asyncHandler(async (req, res) => {
     status,
   } = req.body;
 
-  const packageList = Array.isArray(parcelDetails?.packages) ? parcelDetails.packages.filter(Boolean) : [];
-  const normalizedDescription = packageList.length > 0
-    ? packageList.map((pkg) => pkg.description || `${pkg.packageType || 'Package'}${pkg.weight ? ` (${pkg.weight}kg)` : ''}`).filter(Boolean).join('; ')
-    : (parcelDetails?.description || '');
-  const totalPackageWeight = packageList.length > 0
-    ? packageList.reduce((sum, pkg) => sum + (Number(pkg.weight) || 0), 0)
-    : (parcelDetails?.weight != null ? Number(parcelDetails.weight) : null);
-  const packageQuantity = packageList.length > 0 ? packageList.length : (parcelDetails?.quantity || 1);
+  // Item lines (utils/packages.js) decide the description, weight, number of items and, when every
+  // line has a price, the value. Jobs without lines keep the single description and value sent.
+  const packageList = normalizeLines(parcelDetails?.packages);
+  const itemTotals = lineTotals(packageList);
+  const hasLines = packageList.length > 0;
+  const normalizedDescription = hasLines ? itemTotals.description : (parcelDetails?.description || '');
+  const totalPackageWeight = hasLines ? itemTotals.weight : (parcelDetails?.weight != null ? Number(parcelDetails.weight) : null);
+  const packageQuantity = hasLines ? itemTotals.quantity : (parcelDetails?.quantity || 1);
   // A new job is a draft or booked; when a driver is chosen straight away it is assigned
   const isDraft = toJobStatus(status) === 'draft';
   let driverId = null;
@@ -275,7 +287,15 @@ exports.createJob = asyncHandler(async (req, res) => {
     if (!driver || driver.role !== 'driver' || !driver.active) return sendError(res, 400, 'Choose an active driver');
     driverId = assignedDriverId;
   }
-  const requestedStatus = isDraft ? 'draft' : (driverId ? 'assigned' : 'pending_collection');
+  // A job the UK warehouse books is already there (the customer brought it in), unless a driver is
+  // sent to collect it. The office chooses with `atWarehouse`; the UK warehouse can too.
+  const actor = actorOf(req.user);
+  const atWarehouse = !isDraft && !driverId && ['uk', 'office'].includes(actor)
+    && (req.body.atWarehouse === undefined ? actor === 'uk' : req.body.atWarehouse === true);
+  if (!isDraft && !atWarehouse && !String(pickupAddress || '').trim()) {
+    return sendError(res, 400, 'Pickup address is required for a job that has to be collected');
+  }
+  const requestedStatus = isDraft ? 'draft' : (driverId ? 'assigned' : (atWarehouse ? 'at_uk_warehouse' : 'pending_collection'));
 
   let finalCustomerId = customerId;
 
@@ -322,9 +342,9 @@ exports.createJob = asyncHandler(async (req, res) => {
       freightType: req.body.freightType || null,
       packages: packageList,
 
-      pickupAddress,
+      pickupAddress: String(pickupAddress || '').trim() || (atWarehouse ? 'Brought to the UK warehouse by the customer' : ''),
       deliveryAddress,
-      pickupDate: pickupDate ? new Date(pickupDate) : null,
+      pickupDate: pickupDate ? new Date(pickupDate) : (atWarehouse ? new Date() : null),
       estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : null,
       // A job created by warehouse staff belongs to their warehouse
       warehouseLocation: req.user.role === 'warehouse' ? req.user.warehouseLocation || null : null,
@@ -333,7 +353,7 @@ exports.createJob = asyncHandler(async (req, res) => {
       dimensionsLength: parcelDetails?.dimensions?.length,
       dimensionsWidth: parcelDetails?.dimensions?.width,
       dimensionsHeight: parcelDetails?.dimensions?.height,
-      value: parcelDetails?.value,
+      value: (hasLines && itemTotals.value !== null) ? itemTotals.value : parcelDetails?.value,
       quantity: packageQuantity,
       specialInstructions,
       priority,
@@ -358,7 +378,7 @@ exports.createJob = asyncHandler(async (req, res) => {
     data: {
       jobId: job.id,
       status: requestedStatus,
-      notes: isDraft ? 'Job saved as draft' : (driverId ? 'Job created and assigned to driver' : 'Job created'),
+      notes: isDraft ? 'Job saved as draft' : (driverId ? 'Job created and assigned to driver' : (atWarehouse ? 'Brought to the UK warehouse by the customer' : 'Job created')),
       updatedBy: req.user.id,
     },
   });
@@ -625,6 +645,23 @@ exports.updateJobStatus = asyncHandler(async (req, res) => {
   await notifyCustomerOfStatus(updatedJob, target, job.status);
 
   return sendSuccess(res, 200, 'Job status updated successfully', { job: updatedJob });
+});
+
+/**
+ * @route   POST /api/jobs/:id/split
+ * @desc    Split a job at the UK warehouse: `going` says how many of each item line stay in this job;
+ *          the rest becomes a new part of the same order, waiting for a later batch.
+ * @access  UK warehouse and office (utils/statuses.js)
+ */
+exports.splitJob = asyncHandler(async (req, res) => {
+  try {
+    const result = await prisma.$transaction((tx) => splitJob(tx, req.params.id, req.body.going, req.user), { timeout: 20000 });
+    if (!result.part) return sendError(res, 400, 'Everything goes now, so there is nothing to split');
+    return sendSuccess(res, 200, `Split: part ${result.part.partNumber} is ${result.part.trackingId}`, result);
+  } catch (error) {
+    if (error.statusCode) return sendError(res, error.statusCode, error.message);
+    throw error;
+  }
 });
 
 /**

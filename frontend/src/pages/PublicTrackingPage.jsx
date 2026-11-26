@@ -139,6 +139,17 @@ const PublicTrackingPage = () => {
                     )}
                   </div>
 
+                  {trackingResult.parts?.length > 1 && (
+                    <Card size="small" title={`This order is travelling in ${trackingResult.parts.length} parts`} style={{ marginBottom: 24 }}>
+                      {trackingResult.parts.map((part) => (
+                        <div key={part.trackingId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', gap: 8 }}>
+                          <Text strong={part.thisOne}>{part.trackingId}{part.thisOne ? ' (this one)' : ''}</Text>
+                          <Tag color={part.statusColor}>{part.statusLabel}</Tag>
+                        </div>
+                      ))}
+                    </Card>
+                  )}
+
                   {trackingResult.problem && (
                     <Alert type="warning" showIcon style={{ marginBottom: 24 }} message="We are sorting this out" description="We will contact you to arrange a new time. You can also contact us using the details below." />
                   )}

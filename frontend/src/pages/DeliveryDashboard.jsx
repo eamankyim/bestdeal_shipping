@@ -37,8 +37,8 @@ const DeliveryDashboard = () => {
         queue={data.toDeliver}
         columns={['trackingId', 'receiver', 'delivery', 'expected']}
         actions={[
-          { status: 'delivered', label: 'Delivered', primary: true },
-          { status: 'failed_delivery', label: 'Could Not Deliver', danger: true },
+          { status: 'delivered', primary: true },
+          { status: 'failed_delivery', danger: true },
         ]}
         empty="Nothing to deliver right now"
         onOpen={setOpenJobId}

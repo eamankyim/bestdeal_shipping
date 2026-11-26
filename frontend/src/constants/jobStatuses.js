@@ -21,6 +21,8 @@ export const jobStatusList = () => data?.job.statuses || [];
 export const jobStatusInfo = (status) => jobStatusList().find((item) => item.key === status) || null;
 export const formatJobStatusLabel = (status) => jobStatusInfo(status)?.label || titleCase(status);
 export const getStatusColor = (status) => jobStatusInfo(status)?.color || 'default';
+/** The button that moves a job to this status ("Check In", "Delivered"…), named by the backend. */
+export const actionLabel = (status) => jobStatusInfo(status)?.action || `Mark as ${formatJobStatusLabel(status)}`;
 export const isProblemStatus = (status) => Boolean(jobStatusInfo(status)?.problem);
 export const isFinalStatus = (status) => Boolean(jobStatusInfo(status)?.final);
 export const stageList = () => data?.stages || [];
@@ -31,6 +33,8 @@ export const nextJobStatuses = (job) => data?.job.moves[job?.status] || [];
 export const moveRules = (status) => data?.job.rules[status] || { reason: false, photos: false };
 export const canAssignDriver = (job) => Boolean(data?.job.assignDriverFrom.includes(job?.status));
 export const canAssignRider = (job) => Boolean(data?.job.assignRiderFrom.includes(job?.status));
+/** Whether this user may split the job (some items now, the rest in a later batch). */
+export const canSplitJob = (job) => Boolean(data?.job.splitFrom?.includes(job?.status) && !job?.batchId);
 /** Jobs that can go in a batch. */
 export const isBatchable = (job) => job?.status === data?.job.batchable && !job?.batchId;
 

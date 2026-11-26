@@ -6,7 +6,7 @@ import ResponsiveTable from '../common/ResponsiveTable';
 import StatusChangeModal from '../jobs/StatusChangeModal';
 import AssignPersonModal from '../jobs/AssignPersonModal';
 import {
-  canAssignDriver, canAssignRider, formatJobStatusLabel, getStatusColor, nextJobStatuses,
+  actionLabel, canAssignDriver, canAssignRider, formatJobStatusLabel, getStatusColor, nextJobStatuses,
 } from '../../constants/jobStatuses';
 
 const { Text } = Typography;
@@ -14,7 +14,8 @@ const date = (value) => (value ? new Date(value).toLocaleDateString() : '—');
 
 // The columns a dashboard can choose from
 const COLUMNS = {
-  trackingId: { title: 'Tracking ID', dataIndex: 'trackingId', key: 'trackingId', mobile: true, render: (value) => <Text strong>{value}</Text> },
+  trackingId: { title: 'Tracking ID', dataIndex: 'trackingId', key: 'trackingId', mobile: true, render: (value, job) => <Space size={4}><Text strong>{value}</Text>{job.partNumber && <Tag>Part {job.partNumber}</Tag>}</Space> },
+  items: { title: 'Items', dataIndex: 'description', key: 'items', ellipsis: true, mobile: false, render: (value) => value || '—' },
   customer: { title: 'Customer', key: 'customer', mobile: true, render: (_, job) => job.customer?.name || 'N/A' },
   phone: { title: 'Phone', key: 'phone', mobile: false, render: (_, job) => job.customer?.phone || '—' },
   receiver: { title: 'Receiver', key: 'receiver', mobile: false, render: (_, job) => (job.receiverName ? `${job.receiverName}${job.receiverContact ? ` (${job.receiverContact})` : ''}` : '—') },
@@ -62,7 +63,7 @@ const JobQueue = ({
             danger={action.danger}
             onClick={() => (action.status ? setMove({ job, status: action.status }) : setAssign({ job, kind: action.assign }))}
           >
-            {action.label || formatJobStatusLabel(action.status)}
+            {action.label || actionLabel(action.status)}
           </Button>
         ))}
         <Button size="small" icon={<EyeOutlined />} onClick={() => onOpen(job.id)}>Open</Button>

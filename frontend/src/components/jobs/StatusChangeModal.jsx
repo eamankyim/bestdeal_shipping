@@ -3,7 +3,7 @@ import { Form, Input, Modal, Typography, message } from 'antd';
 import PhotoUpload from '../common/PhotoUpload';
 import { jobAPI } from '../../utils/api';
 import { filesToUploads } from '../../utils/imageUpload';
-import { formatJobStatusLabel, jobStatusInfo, moveRules } from '../../constants/jobStatuses';
+import { actionLabel, formatJobStatusLabel, jobStatusInfo, moveRules } from '../../constants/jobStatuses';
 
 const PHOTO_LABELS = {
   collected: 'Photos of the collected items',
@@ -47,11 +47,11 @@ const StatusChangeModal = ({ job, status, onClose, onDone }) => {
 
   return (
     <Modal
-      title={`${cancelling ? 'Cancel Job' : `Mark as ${label}`} - ${job?.trackingId || ''}`}
+      title={`${actionLabel(status)} - ${job?.trackingId || ''}`}
       open={open}
       onOk={() => handleOk().catch(() => {})}
       onCancel={onClose}
-      okText={cancelling ? 'Cancel Job' : `Mark as ${label}`}
+      okText={actionLabel(status)}
       cancelText={cancelling ? 'Keep Job' : 'Close'}
       okButtonProps={{ danger: cancelling || Boolean(jobStatusInfo(status)?.problem) }}
       confirmLoading={saving}

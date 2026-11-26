@@ -30,10 +30,11 @@ import ResponsiveTable from '../components/common/ResponsiveTable';
 import { canAssignDriver, formatJobStatusLabel, getStatusColor, jobStatusList, stageList } from '../constants/jobStatuses';
 import { jobAPI, customerAPI, authAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
-import { canCreateJobs } from '../utils/permissions';
+import { canCreateJobs, canEditJobValue } from '../utils/permissions';
 import { filesToUploads } from '../utils/imageUpload';
 import DropdownWithOther from '../components/common/DropdownWithOther';
 import JobDrawer from '../components/jobs/JobDrawer';
+import PackageLines from '../components/jobs/PackageLines';
 
 const { Title, Text } = Typography;
 const { Option, OptGroup } = Select;
@@ -138,6 +139,7 @@ const JobsPage = () => {
       setJobs(rawJobs.map((job) => ({
         id: job.id,
         jobId: job.trackingId,
+        partNumber: job.partNumber,
         customer: job.customer?.name || 'N/A',
         pickupAddress: job.pickupAddress,
         deliveryAddress: job.deliveryAddress,
@@ -211,7 +213,7 @@ const JobsPage = () => {
       title: 'Job ID',
       dataIndex: 'jobId',
       key: 'jobId',
-      render: (text) => <Text strong>{text}</Text>,
+      render: (text, record) => <Space size={4}><Text strong>{text}</Text>{record.partNumber && <Tag>Part {record.partNumber}</Tag>}</Space>,
       mobile: true,
     },
     {
@@ -296,14 +298,6 @@ const JobsPage = () => {
       const values = await form.validateFields();
       console.log('📝 Form values:', values);
       
-      // Prepare job data
-      const packageDescription = values.packageDescription?.trim() || '';
-      if (!packageDescription) {
-        message.error('Please describe the package(s) before creating the job.');
-        setSubmitting(false);
-        return;
-      }
-
       const jobData = {
         referenceNumber: values.referenceNumber,
         pickupAddress: values.pickupAddress,
@@ -314,13 +308,13 @@ const JobsPage = () => {
         receiverName: values.receiverName,
         receiverAddress: values.deliveryAddress,
         receiverContact: values.receiverContact,
-        parcelDetails: {
-          description: packageDescription,
-          value: values.estimatedValue != null && values.estimatedValue !== '' ? Number(values.estimatedValue) : undefined,
-        },
+        // One line per kind of item; the backend works out the totals (utils/packages.js)
+        parcelDetails: { packages: values.packages },
         specialInstructions: values.specialInstructions,
         priority: values.priority || 'Standard',
-        assignedDriverId: values.assignedTo || null,
+        // At the warehouse already, or collected by a driver (the backend sets the status from this)
+        atWarehouse: values.atWarehouse === true,
+        assignedDriverId: values.atWarehouse ? null : values.assignedTo || null,
       };
 
       // If creating a new customer
@@ -552,6 +546,9 @@ const JobsPage = () => {
             fragile: false,
             insurance: false,
             customerCountry: 'United Kingdom',
+            packages: [{ quantity: 1 }],
+            // The UK warehouse books parcels customers bring in; the office usually books collections
+            atWarehouse: currentUser?.role === 'warehouse',
           }}
         >
           {/* Customer Selection */}
@@ -689,16 +686,28 @@ const JobsPage = () => {
                 </Form.Item>
               </Col>
             </Row>
+            <Form.Item name="atWarehouse" label="Where is it now?">
+              <Radio.Group>
+                <Space direction="vertical">
+                  <Radio value>At the UK warehouse (the customer brought it in)</Radio>
+                  <Radio value={false}>With the customer (a driver collects it)</Radio>
+                </Space>
+              </Radio.Group>
+            </Form.Item>
             <Row gutter={16}>
-              <Col xs={24} sm={12}>
-                <Form.Item
-                  name="pickupAddress"
-                  label="Pickup Address"
-                  rules={[{ required: true, message: 'Please enter pickup address!' }]}
-                >
-                  <TextArea rows={2} placeholder="Enter pickup address" />
-                </Form.Item>
-              </Col>
+              <Form.Item noStyle shouldUpdate={(prev, curr) => prev.atWarehouse !== curr.atWarehouse}>
+                {({ getFieldValue }) => !getFieldValue('atWarehouse') && (
+                  <Col xs={24} sm={12}>
+                    <Form.Item
+                      name="pickupAddress"
+                      label="Pickup Address"
+                      rules={[{ required: true, message: 'Please enter pickup address!' }]}
+                    >
+                      <TextArea rows={2} placeholder="Enter pickup address" />
+                    </Form.Item>
+                  </Col>
+                )}
+              </Form.Item>
               <Col xs={24} sm={12}>
                 <Form.Item
                   name="deliveryAddress"
@@ -733,15 +742,19 @@ const JobsPage = () => {
             </Row>
 
             <Row gutter={16}>
-              <Col xs={24} sm={12}>
-                <Form.Item
-                  name="pickupDate"
-                  label="Pickup Date"
-                  rules={[{ required: true, message: 'Please select pickup date!' }]}
-                >
-                  <DatePicker style={{ width: '100%' }} />
-                </Form.Item>
-              </Col>
+              <Form.Item noStyle shouldUpdate={(prev, curr) => prev.atWarehouse !== curr.atWarehouse}>
+                {({ getFieldValue }) => !getFieldValue('atWarehouse') && (
+                  <Col xs={24} sm={12}>
+                    <Form.Item
+                      name="pickupDate"
+                      label="Pickup Date"
+                      rules={[{ required: true, message: 'Please select pickup date!' }]}
+                    >
+                      <DatePicker style={{ width: '100%' }} />
+                    </Form.Item>
+                  </Col>
+                )}
+              </Form.Item>
               <Col xs={24} sm={12}>
                 <Form.Item
                   name="deliveryDate"
@@ -768,6 +781,8 @@ const JobsPage = () => {
                 </Form.Item>
               </Col>
               {canChooseDriver && (
+                <Form.Item noStyle shouldUpdate={(prev, curr) => prev.atWarehouse !== curr.atWarehouse}>
+                  {({ getFieldValue }) => !getFieldValue('atWarehouse') && (
                 <Col xs={24} sm={12}>
                   <Form.Item name="assignedTo" label="Driver" extra="Optional. You can also assign one later.">
                     <Select
@@ -781,28 +796,18 @@ const JobsPage = () => {
                     />
                   </Form.Item>
                 </Col>
+                  )}
+                </Form.Item>
               )}
             </Row>
           </Card>
 
           {/* Package Details */}
-          <Card size="small" title="Package Details" style={{ marginBottom: 16 }}>
-            <Form.Item
-              name="packageDescription"
-              label="Package Details"
-              rules={[{ required: true, message: 'Please describe the package(s)!' }]}
-            >
-              <TextArea rows={3} placeholder="Describe the packages: type, quantity, approximate weight, contents..." />
-            </Form.Item>
-
-            <Form.Item name="estimatedValue" label="Estimated Value (£) - Optional">
-              <InputNumber
-                min={0}
-                step={0.01}
-                style={{ width: '100%' }}
-                placeholder="Enter estimated value (optional)"
-              />
-            </Form.Item>
+          <Card size="small" title="What Is Being Sent" style={{ marginBottom: 16 }}>
+            <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
+              One line for each kind of item, e.g. 3 boxes of Sugar and 1 box of Soap. Then part of the job can go in a batch and the rest later.
+            </Typography.Paragraph>
+            <PackageLines showPrice={canEditJobValue(currentUser)} />
           </Card>
 
           <Form.Item

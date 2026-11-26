@@ -36,6 +36,9 @@ import {
 import {
   batchStatusList, canCreateBatch, canEditBatch, formatBatchStatusLabel, formatJobStatusLabel, getBatchStatusColor, getStatusColor, nextBatchStatuses,
 } from '../constants/jobStatuses';
+import { itemCount, lineLabel, linesOf } from '../utils/packages';
+import SplitChooser, { allNow, isPartial } from '../components/jobs/SplitChooser';
+import BatchSummaryModal from '../components/batches/BatchSummaryModal';
 import { jobAPI, batchAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import ResponsiveTable from '../components/common/ResponsiveTable';
@@ -51,6 +54,10 @@ const toSelectableJob = (job) => ({
   id: job.id,
   jobId: job.trackingId,
   trackingId: job.trackingId,
+  partNumber: job.partNumber,
+  packages: job.packages,
+  quantity: job.quantity,
+  description: job.description,
   customer: job.customer?.name || 'N/A',
   deliveryAddress: job.deliveryAddress,
   weight: Number(job.weight) || 0,
@@ -70,6 +77,11 @@ const BatchManagementPage = () => {
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [selectedParcels, setSelectedParcels] = useState([]);
+  // Jobs going only in part: { jobId: [how many of each item line go in this batch] }
+  const [splits, setSplits] = useState({});
+  const [choosing, setChoosing] = useState(null); // { job, going } while choosing items
+  // Ready to Ship and Shipped are confirmed on a full summary of the batch first
+  const [confirming, setConfirming] = useState(null);
   const [batchForm] = Form.useForm();
   const [activeTab, setActiveTab] = useState('batches');
   const [availableJobs, setAvailableJobs] = useState([]);
@@ -181,6 +193,7 @@ const BatchManagementPage = () => {
           progress: Math.round(((batchStatusList().findIndex((item) => item.key === batch.status) + 1) / Math.max(batchStatusList().length, 1)) * 100),
           jobs: batch.jobs || [],
           trackingNumber: batch.trackingNumber,
+          sealNumber: batch.sealNumber,
           notes: batch.notes,
           createdBy: batch.creator?.name || 'Unknown',
           createdAt: batch.createdAt,
@@ -308,17 +321,44 @@ const BatchManagementPage = () => {
     },
   ];
 
+  const inThisBatch = (row) => (selectedBatch?.jobs || []).some((job) => job.id === row.id);
+  const goingLines = (row) => linesOf(row).map((line, index) => ({ ...line, quantity: splits[row.id] ? splits[row.id][index] : Number(line.quantity) || 1 }));
+  const goingWeight = (row) => (splits[row.id] ? goingLines(row).reduce((sum, line) => sum + (Number(line.weight) || 0) * line.quantity, 0) : row.weight);
+  const goingValue = (row) => (splits[row.id] && goingLines(row).every((line) => line.estimatedPrice != null)
+    ? goingLines(row).reduce((sum, line) => sum + Number(line.estimatedPrice) * line.quantity, 0)
+    : row.value);
+
   const jobSelectionColumns = [
-    {
-      title: 'Job ID',
-      dataIndex: 'jobId',
-      key: 'jobId',
-      render: (text) => <Text strong>{text}</Text>,
-    },
     {
       title: 'Tracking ID',
       dataIndex: 'trackingId',
       key: 'trackingId',
+      render: (text, row) => (
+        <Space size={4}>
+          <Text strong>{text}</Text>
+          {row.partNumber && <Tag>Part {row.partNumber}</Tag>}
+        </Space>
+      ),
+    },
+    {
+      title: 'Items',
+      key: 'items',
+      render: (_, row) => {
+        const total = itemCount(row);
+        const going = splits[row.id];
+        const canChoose = canManage && selectedParcels.includes(row.id) && !inThisBatch(row) && total > 1;
+        return (
+          <Space direction="vertical" size={2}>
+            <Text>{going ? goingLines(row).filter((line) => line.quantity > 0).map(lineLabel).join(', ') : (row.description || `${total} item${total === 1 ? '' : 's'}`)}</Text>
+            {going && <Tag color="orange">{going.reduce((sum, count) => sum + count, 0)} of {total} items go now</Tag>}
+            {canChoose && (
+              <Button size="small" onClick={(event) => { event.stopPropagation(); setChoosing({ job: row, going: going || allNow(row) }); }}>
+                {going ? 'Change items' : 'Send only some items'}
+              </Button>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: 'Customer',
@@ -335,13 +375,13 @@ const BatchManagementPage = () => {
       title: 'Weight',
       dataIndex: 'weight',
       key: 'weight',
-      render: (weight) => `${weight} kg`,
+      render: (_, row) => `${Math.round(goingWeight(row) * 100) / 100} kg`,
     },
     {
       title: 'Value',
       dataIndex: 'value',
       key: 'value',
-      render: (value) => `£${value}`,
+      render: (_, row) => `£${Number(goingValue(row)).toFixed(2)}`,
     },
     {
       title: 'Priority',
@@ -371,6 +411,7 @@ const BatchManagementPage = () => {
     if (!canManage) return;
     setSelectedBatch(null);
     setSelectedParcels([]);
+    setSplits({});
     batchForm.resetFields();
     setBatchModalVisible(true);
   };
@@ -384,6 +425,7 @@ const BatchManagementPage = () => {
     if (!canEditBatch(batch)) return;
     setSelectedBatch(batch);
     setSelectedParcels(batch.jobs?.map(j => j.id) || []);
+    setSplits({});
 
     const isListedVessel = vesselOptions.some(option => option.value === batch.carrier);
     batchForm.resetFields();
@@ -393,6 +435,7 @@ const BatchManagementPage = () => {
       vessel: !batch.carrier ? undefined : isListedVessel ? batch.carrier : '__custom__',
       vesselCustom: isListedVessel ? undefined : batch.carrier,
       containerNumber: batch.trackingNumber,
+      sealNumber: batch.sealNumber,
       departureDate: batch.estimatedShipDate ? dayjs(batch.estimatedShipDate) : null,
       eta: batch.estimatedArrival ? dayjs(batch.estimatedArrival) : null,
       notes: batch.notes,
@@ -472,10 +515,13 @@ const BatchManagementPage = () => {
         route: values.route,
         vessel: values.vessel === '__custom__' ? (values.vesselCustom || '') : values.vessel,
         containerNumber: values.containerNumber,
+        sealNumber: values.sealNumber,
         departureDate: values.departureDate ? values.departureDate.toISOString() : null,
         eta: values.eta ? values.eta.toISOString() : null,
         notes: values.notes,
         jobs: selectedParcels, // Array of selected job IDs
+        // Jobs going only in part are split as the batch is saved (the rest waits as a new part)
+        split: Object.fromEntries(Object.entries(splits).filter(([jobId]) => selectedParcels.includes(jobId))),
       };
       
       message.loading({ content: isEditing ? 'Updating batch...' : 'Creating batch...', key: 'batchCreate' });
@@ -503,10 +549,14 @@ const BatchManagementPage = () => {
         });
         channel.close();
         
+        if (response.data.parts?.length) {
+          message.info(`${response.data.parts.map((part) => `${part.trackingId} (${part.description})`).join(', ')} wait for a later batch`, 6);
+        }
         setBatchModalVisible(false);
         batchForm.resetFields();
         setSelectedBatch(null);
         setSelectedParcels([]);
+        setSplits({});
         
         // Refresh available jobs (batched jobs should be removed)
         await fetchAvailableJobs();
@@ -531,8 +581,8 @@ const BatchManagementPage = () => {
   ].filter((job, index, list) => list.findIndex(other => other.key === job.key) === index);
 
   const selectedJobs = selectableJobs.filter(j => selectedParcels.includes(j.key));
-  const calculateTotalWeight = () => selectedJobs.reduce((sum, j) => sum + j.weight, 0).toFixed(1);
-  const calculateTotalValue = () => selectedJobs.reduce((sum, j) => sum + j.value, 0);
+  const calculateTotalWeight = () => selectedJobs.reduce((sum, j) => sum + goingWeight(j), 0).toFixed(1);
+  const calculateTotalValue = () => selectedJobs.reduce((sum, j) => sum + Number(goingValue(j)), 0).toFixed(2);
 
   const tabItems = [
     {
@@ -693,10 +743,17 @@ const BatchManagementPage = () => {
               <Col xs={24} sm={12}>
                 <Form.Item
                   name="containerNumber"
-                  label="Container Number / Seal"
-                  rules={[{ required: !selectedBatch, message: 'Please enter container/seal number!' }]}
+                  label="Container Number"
+                  rules={[{ required: !selectedBatch, message: 'Please enter the container number!' }]}
                 >
-                  <Input placeholder="e.g., CONT001234 or SEAL001234" />
+                  <Input placeholder="e.g. MSCU1234567" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col xs={24} sm={12}>
+                <Form.Item name="sealNumber" label="Seal Number" extra="The number on the container's seal. You can add it later.">
+                  <Input placeholder="e.g. SL0012345" />
                 </Form.Item>
               </Col>
             </Row>
@@ -765,9 +822,40 @@ const BatchManagementPage = () => {
             />
           </Card>
 
+          <Modal
+            title={`Which items go in this batch? - ${choosing?.job.trackingId || ''}`}
+            open={Boolean(choosing)}
+            onCancel={() => setChoosing(null)}
+            zIndex={1100}
+            okText="Use These"
+            okButtonProps={{ disabled: !choosing || choosing.going.every((count) => count === 0) }}
+            onOk={() => {
+              const { job, going } = choosing;
+              setSplits((current) => {
+                const next = { ...current };
+                if (isPartial(job, going)) next[job.id] = going; else delete next[job.id];
+                return next;
+              });
+              setChoosing(null);
+            }}
+          >
+            <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+              What doesn't go now becomes a new part of the same order, with its own tracking number and invoice, waiting at the UK warehouse for a later batch.
+            </Text>
+            {choosing && (
+              <SplitChooser
+                lines={linesOf(choosing.job)}
+                value={choosing.going}
+                onChange={(going) => setChoosing((current) => ({ ...current, going }))}
+                nowLabel="In this batch"
+                laterLabel="Later batch"
+              />
+            )}
+          </Modal>
+
           {selectedBatch && (
             <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-              Blank fields keep their saved value. Jobs you untick go back to the warehouse; nothing is deleted.
+              Blank fields keep their saved value. Jobs you untick go back to the warehouse; nothing is deleted. Only jobs you add now can be sent in part.
             </Text>
           )}
 
@@ -823,7 +911,7 @@ const BatchManagementPage = () => {
                   key={status}
                   type={status === 'in_preparation' ? 'default' : 'primary'}
                   loading={shippingBatch}
-                  onClick={() => handleUpdateBatchStatus(status)}
+                  onClick={() => (['ready_to_ship', 'shipped'].includes(status) ? setConfirming(status) : handleUpdateBatchStatus(status))}
                 >
                   {status === 'in_preparation' ? 'Back to In Preparation' : `Mark as ${formatBatchStatusLabel(status)}`}
                 </Button>
@@ -976,9 +1064,17 @@ const BatchManagementPage = () => {
                     </div>
                     {selectedBatch.trackingNumber && (
                       <div className="user-info-item">
-                        <div className="user-info-label">Container Number / Seal</div>
+                        <div className="user-info-label">Container Number</div>
                         <div className="user-info-value">
                           <Text strong>{selectedBatch.trackingNumber}</Text>
+                        </div>
+                      </div>
+                    )}
+                    {selectedBatch.sealNumber && (
+                      <div className="user-info-item">
+                        <div className="user-info-label">Seal Number</div>
+                        <div className="user-info-value">
+                          <Text strong>{selectedBatch.sealNumber}</Text>
                         </div>
                       </div>
                     )}
@@ -1050,6 +1146,17 @@ const BatchManagementPage = () => {
           </div>
         )}
       </Drawer>
+      <BatchSummaryModal
+        batch={confirming ? selectedBatch : null}
+        status={confirming}
+        showValue={canViewRevenue}
+        loading={shippingBatch}
+        onCancel={() => setConfirming(null)}
+        onConfirm={async () => {
+          await handleUpdateBatchStatus(confirming);
+          setConfirming(null);
+        }}
+      />
     </div>
   );
 };

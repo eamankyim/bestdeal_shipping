@@ -114,8 +114,11 @@ export const hasFullAccess = (user) => FULL_ACCESS_ROLES.includes(normalizeRole(
 export const isGhanaWarehouse = (user) =>
   normalizeRole(user?.role) === 'warehouse' && user?.warehouseLocation === 'Ghana Warehouse';
 
-/** All staff can edit the jobs they can see. */
-export const canEditJobs = (user) => STAFF_ROLES.includes(normalizeRole(user?.role));
+/** Staff see the jobs they work on and can add notes. */
+export const isStaffMember = (user) => STAFF_ROLES.includes(normalizeRole(user?.role));
+
+/** Staff can edit the jobs they can see, except dispatch riders, who only deliver. */
+export const canEditJobs = (user) => isStaffMember(user) && normalizeRole(user?.role) !== 'delivery-agent';
 
 /** Admin, customer service and UK-side warehouse staff create jobs. */
 export const canCreateJobs = (user) =>

@@ -3,7 +3,7 @@ const router = express.Router();
 const packageDetails = require('../middleware/packageDetails');
 const jobController = require('../controllers/jobController');
 const { authenticate, authorize, authorizeIf } = require('../middleware/auth');
-const { canCreateJob, isStaff } = require('../utils/jobAccess');
+const { canCreateJob, isStaff, canEditJobs } = require('../utils/jobAccess');
 const {
   createJobValidation,
   updateJobStatusValidation,
@@ -166,7 +166,7 @@ router.post('/', authorizeIf(canCreateJob, 'Only admin, customer service and UK 
  *         description: Job updated successfully
  */
 // All staff can edit job details (the controller limits drivers and delivery agents to their own jobs)
-router.put('/:id', authorizeIf(isStaff, 'Only staff can edit jobs.'), uuidValidation, packageDetails, jobController.updateJob);
+router.put('/:id', authorizeIf(canEditJobs, 'Only staff can edit jobs; dispatch riders cannot.'), uuidValidation, packageDetails, jobController.updateJob);
 
 // All staff can add notes to a job, and see what was changed by earlier edits
 router.post('/:id/notes', authorizeIf(isStaff, 'Only staff can add notes.'), uuidValidation, jobController.addJobNote);
@@ -235,6 +235,37 @@ router.delete('/:id', authorize('admin'), uuidValidation, jobController.deleteJo
  */
 // Which role may make which move is checked in the controller (utils/statuses.js)
 router.patch('/:id/status', authorize('admin', 'driver', 'delivery-agent', 'warehouse'), uuidValidation, updateJobStatusValidation, jobController.updateJobStatus);
+
+/**
+ * @swagger
+ * /api/jobs/{id}/split:
+ *   post:
+ *     summary: Split a job at the UK warehouse
+ *     description: Some of the job's items go now and the rest wait for a later batch. `going` has one number per
+ *       item line (in the job's `packages` order) - how many of that item stay in this job. The rest becomes a new
+ *       part of the same order with its own tracking ID (e.g. SHIP-...-2), status, batch, delivery and invoice.
+ *       Only for the UK warehouse and the office, while the job is At UK Warehouse and not in a batch.
+ *     tags: [Jobs]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [going]
+ *             properties:
+ *               going:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *                 example: [3, 0]
+ *     responses:
+ *       200:
+ *         description: The job (what goes now) and the new part (what waits)
+ */
+router.post('/:id/split', authorize('admin', 'warehouse'), uuidValidation, jobController.splitJob);
 
 /**
  * @swagger

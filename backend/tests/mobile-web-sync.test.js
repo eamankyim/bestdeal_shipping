@@ -37,6 +37,8 @@ function controller(tx) {
     '../services/customerMessageService': {},
     '../utils/jobAccess': require('../src/utils/jobAccess'),
     '../utils/statuses': require('../src/utils/statuses'),
+    '../utils/packages': require('../src/utils/packages'),
+    '../services/jobSplit': {},
     '../utils/jobEdit': require('../src/utils/jobEdit'),
     '../utils/imageUpload': require('../src/utils/imageUpload'),
   });

@@ -93,7 +93,7 @@ const OfficeOverview = () => {
         columns={['trackingId', 'customer', 'status', 'driver', 'rider']}
         actions={[
           { assign: 'driver', label: 'Assign Driver', primary: true },
-          { status: 'ready_for_delivery', label: 'Back to Ready for Delivery' },
+          { status: 'ready_for_delivery' },
         ]}
         empty="No failed collections or deliveries"
         onOpen={setOpenJobId}

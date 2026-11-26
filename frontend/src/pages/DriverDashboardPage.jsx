@@ -38,8 +38,8 @@ const DriverDashboardPage = () => {
         queue={data.toCollect}
         columns={['trackingId', 'customer', 'phone', 'pickup', 'pickupDate']}
         actions={[
-          { status: 'collected', label: 'Collected', primary: true },
-          { status: 'collection_failed', label: 'Could Not Collect', danger: true },
+          { status: 'collected', primary: true },
+          { status: 'collection_failed', danger: true },
         ]}
         empty="Nothing to collect right now"
         onOpen={setOpenJobId}

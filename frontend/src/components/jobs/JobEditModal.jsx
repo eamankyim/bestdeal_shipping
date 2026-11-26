@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Button, Col, DatePicker, Form, Input, InputNumber, Modal, Row, Select, Spin, Upload, message } from 'antd';
+import { Alert, Button, Col, DatePicker, Form, Input, Modal, Row, Select, Spin, Typography, Upload, message } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { customerAPI, jobAPI } from '../../utils/api';
 import { filesToUploads } from '../../utils/imageUpload';
 import { FREIGHT_TYPES } from '../../utils/countryCodes';
 import { canEditJobValue } from '../../utils/permissions';
+import { linesOf } from '../../utils/packages';
+import PackageLines from './PackageLines';
 import { useAuth } from '../../contexts/AuthContext';
 
 const { TextArea } = Input;
@@ -50,8 +52,8 @@ const JobEditModal = ({ jobId, onClose, onSaved }) => {
           priority: loaded.priority,
           pickupDate: loaded.pickupDate ? dayjs(loaded.pickupDate) : null,
           estimatedDelivery: loaded.estimatedDelivery ? dayjs(loaded.estimatedDelivery) : null,
-          description: loaded.description,
-          value: loaded.value != null ? Number(loaded.value) : null,
+          // One line per kind of item (jobs saved before lines existed get one line from their description)
+          packages: linesOf(loaded),
           specialInstructions: loaded.specialInstructions,
         });
       })
@@ -70,12 +72,12 @@ const JobEditModal = ({ jobId, onClose, onSaved }) => {
     const values = await form.validateFields();
     setSaving(true);
     try {
-      const { description, value, documents, pickupDate, estimatedDelivery, ...details } = values;
+      const { packages, documents, pickupDate, estimatedDelivery, ...details } = values;
       const response = await jobAPI.update(jobId, {
         ...details,
         pickupDate: pickupDate ? pickupDate.toISOString() : undefined,
         estimatedDelivery: estimatedDelivery ? estimatedDelivery.toISOString() : undefined,
-        parcelDetails: { description, value: value ?? undefined },
+        parcelDetails: { packages },
         documents: await filesToUploads(documents),
         ...(book && { status: 'pending_collection' }),
       });
@@ -149,10 +151,11 @@ const JobEditModal = ({ jobId, onClose, onSaved }) => {
               <Select placeholder="Select freight type" options={withCurrent(Object.values(FREIGHT_TYPES), job?.freightType).map((value) => ({ value, label: value }))} />
             </Form.Item>
           </Col>
-          <Col xs={24}><Form.Item name="description" label="Package Details"><TextArea rows={3} /></Form.Item></Col>
-          {canEditJobValue(currentUser) && (
-            <Col xs={24} sm={12}><Form.Item name="value" label="Estimated Value (£)"><InputNumber min={0} step={0.01} style={{ width: '100%' }} /></Form.Item></Col>
-          )}
+          <Col xs={24}>
+            <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>What is being sent</Typography.Text>
+            {/* Saved lines can be changed but not removed: edits never delete */}
+            <PackageLines showPrice={canEditJobValue(currentUser)} keep={Array.isArray(job?.packages) ? job.packages.length : 0} />
+          </Col>
           <Col xs={24}><Form.Item name="specialInstructions" label="Special Instructions"><TextArea rows={2} /></Form.Item></Col>
           <Col xs={24}>
             <Form.Item

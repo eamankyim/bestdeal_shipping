@@ -86,10 +86,10 @@ const createJobValidation = [
     .optional({ checkFalsy: true })
     .isUUID()
     .withMessage('Invalid customer ID'),
+  // Required only when the parcel has to be collected; the controller checks it (see createJob)
   body('pickupAddress')
-    .trim()
-    .notEmpty()
-    .withMessage('Pickup address is required'),
+    .optional({ nullable: true })
+    .trim(),
   body('deliveryAddress')
     .trim()
     .notEmpty()
@@ -166,7 +166,7 @@ const createBatchValidation = [
   body('vessel')
     .optional({ checkFalsy: true })
     .trim(),
-  body('containerNumber')
+  body(['containerNumber', 'sealNumber'])
     .optional({ checkFalsy: true })
     .trim(),
   body('departureDate')
@@ -190,7 +190,7 @@ const createBatchValidation = [
 ];
 
 const updateBatchValidation = [
-  body(['name', 'route', 'vessel', 'containerNumber', 'notes'])
+  body(['name', 'route', 'vessel', 'containerNumber', 'sealNumber', 'notes'])
     .optional({ checkFalsy: true })
     .isString()
     .withMessage('Must be text'),

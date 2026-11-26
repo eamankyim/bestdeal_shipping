@@ -2,14 +2,16 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Card, Drawer, Dropdown, Modal, Space, Spin, Tabs, Tag, Timeline, Typography, message } from 'antd';
 import {
   CarOutlined, DeleteOutlined, DollarOutlined, EditOutlined, EnvironmentOutlined, EyeOutlined,
-  FileTextOutlined, MailOutlined, MoreOutlined, PhoneOutlined, UndoOutlined, UserOutlined,
+  FileTextOutlined, MailOutlined, MoreOutlined, PhoneOutlined, ScissorOutlined, UndoOutlined, UserOutlined,
 } from '@ant-design/icons';
 import { jobAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { canEditJobs, hasFullAccess, hasPermission } from '../../utils/permissions';
+import { canEditJobs, hasFullAccess, hasPermission, isStaffMember } from '../../utils/permissions';
 import {
-  canAssignDriver, canAssignRider, formatJobStatusLabel, getStatusColor, isFinalStatus, nextJobStatuses,
+  actionLabel, canAssignDriver, canAssignRider, canSplitJob, formatJobStatusLabel, getStatusColor, isFinalStatus, jobStatusInfo, nextJobStatuses,
 } from '../../constants/jobStatuses';
+import { itemCount, lineLabel } from '../../utils/packages';
+import { SplitJobModal } from './SplitChooser';
 import StatusChangeModal from './StatusChangeModal';
 import AssignPersonModal from './AssignPersonModal';
 import JobEditModal from './JobEditModal';
@@ -56,7 +58,10 @@ const announceChange = (jobId) => {
  */
 const JobDrawer = ({ jobId, onClose, onChanged }) => {
   const { currentUser } = useAuth();
+  // The job shown; it can switch to another part of the same order from inside the drawer
+  const [shownId, setShownId] = useState(jobId);
   const [job, setJob] = useState(null);
+  const [splitting, setSplitting] = useState(false);
   const [moveTo, setMoveTo] = useState(null);
   const [assignKind, setAssignKind] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -66,17 +71,19 @@ const JobDrawer = ({ jobId, onClose, onChanged }) => {
   const [viewing, setViewing] = useState(null);
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => setShownId(jobId), [jobId]);
+
   const load = useCallback(async () => {
-    if (!jobId) return;
+    if (!shownId) return;
     try {
-      const response = await jobAPI.getById(jobId);
+      const response = await jobAPI.getById(shownId);
       setJob(response.data.job);
     } catch (error) {
       message.error(error.message || 'Failed to load the job');
       onClose();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when another job is opened
-  }, [jobId]);
+  }, [shownId]);
 
   useEffect(() => {
     setJob(null);
@@ -84,7 +91,7 @@ const JobDrawer = ({ jobId, onClose, onChanged }) => {
   }, [load]);
 
   const changed = async () => {
-    announceChange(jobId);
+    announceChange(shownId);
     await load();
     onChanged?.();
   };
@@ -140,27 +147,27 @@ const JobDrawer = ({ jobId, onClose, onChanged }) => {
     }
   };
 
-  // ---- The actions menu: built from what the backend says this user may do ----
+  // ---- What this user may do, as the backend decides it ----
+  // The next steps (Check In, Delivered, Assign Rider…) are buttons on show; the rest is in the ⋮ menu
+  const nextSteps = job ? [
+    ...nextJobStatuses(job).filter((status) => status !== 'cancelled').map((status) => ({
+      key: `move:${status}`, label: actionLabel(status), danger: Boolean(jobStatusInfo(status)?.problem),
+    })),
+    ...(canAssignDriver(job) ? [{ key: 'assign:driver', icon: <UserOutlined />, label: job.assignedDriver ? 'Change Driver' : 'Assign Driver' }] : []),
+    ...(canAssignRider(job) ? [{ key: 'assign:rider', icon: <CarOutlined />, label: job.assignedDeliveryAgent ? 'Change Dispatch Rider' : 'Assign Dispatch Rider' }] : []),
+  ] : [];
+
   const menuItems = [];
   if (job) {
-    const moves = nextJobStatuses(job).filter((status) => status !== 'cancelled');
-    if (moves.length > 0) {
-      menuItems.push({
-        type: 'group',
-        label: 'Update Status',
-        children: moves.map((status) => ({ key: `move:${status}`, label: `Mark as ${formatJobStatusLabel(status)}` })),
-      });
-    }
-    if (canAssignDriver(job)) menuItems.push({ key: 'assign:driver', icon: <UserOutlined />, label: job.assignedDriver ? 'Change Driver' : 'Assign Driver' });
-    if (canAssignRider(job)) menuItems.push({ key: 'assign:rider', icon: <CarOutlined />, label: job.assignedDeliveryAgent ? 'Change Dispatch Rider' : 'Assign Dispatch Rider' });
-    if (menuItems.length > 0) menuItems.push({ type: 'divider' });
     if (canEditJobs(currentUser) && !isFinalStatus(job.status)) {
       menuItems.push({ key: 'edit', icon: <EditOutlined />, label: job.status === 'draft' ? 'Edit or Book Draft' : 'Edit Job' });
     }
-    if (canEditJobs(currentUser)) menuItems.push({ key: 'note', icon: <FileTextOutlined />, label: 'Add Note' });
+    if (isStaffMember(currentUser)) menuItems.push({ key: 'note', icon: <FileTextOutlined />, label: 'Add Note' });
+    // Some items now, the rest in a later batch (only at the UK warehouse)
+    if (canSplitJob(job) && itemCount(job) > 1) menuItems.push({ key: 'split', icon: <ScissorOutlined />, label: 'Split Job' });
     if (canPay && job.status !== 'draft') menuItems.push({ key: 'pay', icon: <DollarOutlined />, label: 'Record Payment' });
     if (office && (job.timeline || []).length > 1) menuItems.push({ key: 'undo', icon: <UndoOutlined />, label: 'Undo a Status Change' });
-    if (nextJobStatuses(job).includes('cancelled')) menuItems.push({ type: 'divider' }, { key: 'move:cancelled', danger: true, label: 'Cancel Job' });
+    if (nextJobStatuses(job).includes('cancelled')) menuItems.push({ type: 'divider' }, { key: 'move:cancelled', danger: true, label: actionLabel('cancelled') });
     if (office && ['draft', 'cancelled'].includes(job.status)) menuItems.push({ key: 'delete', danger: true, icon: <DeleteOutlined />, label: 'Delete Job' });
   }
 
@@ -170,6 +177,7 @@ const JobDrawer = ({ jobId, onClose, onChanged }) => {
     if (action === 'assign') setAssignKind(value);
     if (action === 'edit') setEditing(true);
     if (action === 'note') setNoting(true);
+    if (action === 'split') setSplitting(true);
     if (action === 'pay') setPaying(true);
     if (action === 'undo') setUndoing(true);
     if (action === 'delete') remove();
@@ -180,7 +188,7 @@ const JobDrawer = ({ jobId, onClose, onChanged }) => {
   return (
     <>
       <Drawer
-        title={`Job Details - ${job?.trackingId || ''}`}
+        title={`Job Details - ${job?.trackingId || ''}${job?.partNumber ? ` (part ${job.partNumber})` : ''}`}
         placement="right"
         onClose={onClose}
         open={Boolean(jobId)}
@@ -193,6 +201,24 @@ const JobDrawer = ({ jobId, onClose, onChanged }) => {
         )}
       >
         {!job && <div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>}
+        {job && nextSteps.length > 0 && (
+          <Card size="small" style={{ marginBottom: 16, background: '#fff7e6', borderColor: '#ffd591' }}>
+            <Space wrap>
+              <Text strong>Next step:</Text>
+              {nextSteps.map((step, index) => (
+                <Button
+                  key={step.key}
+                  type={index === 0 && !step.danger ? 'primary' : 'default'}
+                  danger={step.danger}
+                  icon={step.icon}
+                  onClick={() => onMenu({ key: step.key })}
+                >
+                  {step.label}
+                </Button>
+              ))}
+            </Space>
+          </Card>
+        )}
         {job && (
           <Tabs
             defaultActiveKey="details"
@@ -228,16 +254,38 @@ const JobDrawer = ({ jobId, onClose, onChanged }) => {
                       ]}
                     />
                     <InfoCard title="Receiver" rows={[['Name', job.receiverName], ['Phone', job.receiverContact], ['Address', job.receiverAddress]]} />
-                    <InfoCard
-                      title="Package"
-                      rows={[
-                        ['Description', job.description],
-                        ['Weight', job.weight ? `${Number(job.weight)} kg` : null],
-                        ['Quantity', job.quantity],
-                        ['Value', canViewRevenue && job.value ? `£${Number(job.value).toFixed(2)}` : null],
-                        ['Paid', canViewRevenue && Number(job.amountPaid) > 0 ? `£${Number(job.amountPaid).toFixed(2)}` : null],
-                      ]}
-                    />
+                    {(job.parts || []).length > 1 && (
+                      <Card size="small" title={<span className="user-info-title">This order travels in {job.parts.length} parts</span>} style={cardStyle}>
+                        {job.parts.map((part) => (
+                          <div key={part.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', gap: 8 }}>
+                            <Space wrap size={4}>
+                              {part.id === job.id ? <Text strong>{part.trackingId}</Text> : <Button type="link" size="small" style={{ padding: 0 }} onClick={() => setShownId(part.id)}>{part.trackingId}</Button>}
+                              <Text type="secondary">Part {part.partNumber}{part.description ? ` · ${part.description}` : ''}</Text>
+                            </Space>
+                            <Tag color={getStatusColor(part.status)}>{formatJobStatusLabel(part.status)}</Tag>
+                          </div>
+                        ))}
+                      </Card>
+                    )}
+                    <Card size="small" title={<span className="user-info-title">What Is Being Sent</span>} style={cardStyle}>
+                      {Array.isArray(job.packages) && job.packages.length > 0 ? job.packages.map((line, index) => (
+                        <div key={index} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', gap: 8 }}>
+                          <Text>{lineLabel(line)}</Text>
+                          <Text type="secondary">
+                            {line.weight ? `${line.weight} kg each` : ''}
+                            {canViewRevenue && line.estimatedPrice ? `${line.weight ? ' · ' : ''}£${Number(line.estimatedPrice).toFixed(2)} each` : ''}
+                          </Text>
+                        </div>
+                      )) : <Text>{job.description || 'Not described'}</Text>}
+                      <div style={{ borderTop: '1px solid #f0f0f0', marginTop: 8, paddingTop: 8 }}>
+                        <Text type="secondary">
+                          {itemCount(job)} item{itemCount(job) === 1 ? '' : 's'}
+                          {job.weight ? ` · ${Number(job.weight)} kg` : ''}
+                          {canViewRevenue && job.value ? ` · £${Number(job.value).toFixed(2)}` : ''}
+                          {canViewRevenue && Number(job.amountPaid) > 0 ? ` · £${Number(job.amountPaid).toFixed(2)} paid` : ''}
+                        </Text>
+                      </div>
+                    </Card>
                     <InfoCard
                       title="Job"
                       rows={[
@@ -254,7 +302,7 @@ const JobDrawer = ({ jobId, onClose, onChanged }) => {
                         <Text>{job.specialInstructions}</Text>
                       </Card>
                     )}
-                    <JobNotes notes={job.jobNotes} onAdd={canEditJobs(currentUser) ? () => setNoting(true) : undefined} />
+                    <JobNotes notes={job.jobNotes} onAdd={isStaffMember(currentUser) ? () => setNoting(true) : undefined} />
                     <JobPhotos documents={job.documents} />
                     <Card size="small" title="Other Documents">
                       {documents.length === 0 ? <Text type="secondary">No other documents</Text> : (
@@ -311,6 +359,7 @@ const JobDrawer = ({ jobId, onClose, onChanged }) => {
       <AssignPersonModal job={assignKind ? job : null} kind={assignKind} onClose={() => setAssignKind(null)} onDone={changed} />
       <JobEditModal jobId={editing ? job?.id : null} onClose={() => setEditing(false)} onSaved={changed} />
       <JobNoteModal job={noting ? job : null} onClose={() => setNoting(false)} onAdded={changed} />
+      <SplitJobModal job={splitting ? job : null} onClose={() => setSplitting(false)} onDone={changed} />
       <DocumentViewer document={viewing} onClose={() => setViewing(null)} />
       <StatusRevertModal
         visible={undoing}

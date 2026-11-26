@@ -14,21 +14,22 @@ const STAGES = [
 ];
 
 // `problem`: something went wrong and staff need to act. `final`: nothing happens after it.
+// `action`: the button that moves a job to this status, where someone does it by hand.
 const JOB_STATUSES = [
   { key: 'draft', label: 'Draft', stage: 'booking', color: 'default', description: 'Saved, but not booked yet' },
   { key: 'pending_collection', label: 'Pending Collection', stage: 'booking', color: 'gold', description: 'Booked and waiting for a driver' },
   { key: 'assigned', label: 'Assigned', stage: 'collection', color: 'orange', description: 'A driver is going to collect it' },
-  { key: 'collected', label: 'Collected', stage: 'collection', color: 'cyan', description: 'Collected and on its way to the UK warehouse' },
-  { key: 'collection_failed', label: 'Collection Failed', stage: 'collection', color: 'red', problem: true, description: 'The driver could not collect it' },
-  { key: 'at_uk_warehouse', label: 'At UK Warehouse', stage: 'uk_warehouse', color: 'blue', description: 'At the UK warehouse, waiting to go in a batch' },
+  { key: 'collected', label: 'Collected', stage: 'collection', color: 'cyan', action: 'Collected', description: 'Collected and on its way to the UK warehouse' },
+  { key: 'collection_failed', label: 'Collection Failed', stage: 'collection', color: 'red', problem: true, action: 'Could Not Collect', description: 'The driver could not collect it' },
+  { key: 'at_uk_warehouse', label: 'At UK Warehouse', stage: 'uk_warehouse', color: 'blue', action: 'Received at UK Warehouse', description: 'At the UK warehouse, waiting to go in a batch' },
   { key: 'batched', label: 'Batched', stage: 'uk_warehouse', color: 'purple', description: 'Packed in a batch, waiting to ship' },
   { key: 'shipped', label: 'Shipped', stage: 'shipping', color: 'geekblue', description: 'On its way to Ghana' },
   { key: 'arrived_in_ghana', label: 'Arrived in Ghana', stage: 'ghana', color: 'lime', description: 'At the Ghana warehouse, waiting to be checked' },
-  { key: 'ready_for_delivery', label: 'Ready for Delivery', stage: 'ghana', color: 'green', description: 'Checked and waiting for a dispatch rider' },
+  { key: 'ready_for_delivery', label: 'Ready for Delivery', stage: 'ghana', color: 'green', action: 'Check In', description: 'Checked in at the Ghana warehouse and waiting for a dispatch rider' },
   { key: 'out_for_delivery', label: 'Out for Delivery', stage: 'delivery', color: 'volcano', description: 'With a dispatch rider' },
-  { key: 'delivered', label: 'Delivered', stage: 'delivery', color: 'success', final: true, description: 'Handed over, with a photo' },
-  { key: 'failed_delivery', label: 'Failed Delivery', stage: 'delivery', color: 'red', problem: true, description: 'The rider could not deliver it' },
-  { key: 'cancelled', label: 'Cancelled', stage: null, color: 'default', final: true, description: 'Cancelled before it was shipped' },
+  { key: 'delivered', label: 'Delivered', stage: 'delivery', color: 'success', final: true, action: 'Delivered', description: 'Handed over, with a photo' },
+  { key: 'failed_delivery', label: 'Failed Delivery', stage: 'delivery', color: 'red', problem: true, action: 'Could Not Deliver', description: 'The rider could not deliver it' },
+  { key: 'cancelled', label: 'Cancelled', stage: null, color: 'default', final: true, action: 'Cancel Job', description: 'Cancelled before it was shipped' },
 ];
 
 // A batch's status moves every job in it; `jobStatus` is what its jobs become.
@@ -72,6 +73,8 @@ const JOB_MOVES = [
 const ASSIGN_DRIVER = { from: ['pending_collection', 'assigned', 'collection_failed'], who: ['uk', 'office'] };
 const ASSIGN_RIDER = { from: ['ready_for_delivery', 'out_for_delivery', 'failed_delivery'], who: ['ghana', 'office'] };
 const BATCHABLE = 'at_uk_warehouse';
+// Splitting a job into parts (some items now, the rest in a later batch) happens only at the UK warehouse
+const SPLIT = { from: ['at_uk_warehouse'], who: ['uk', 'office'] };
 
 const BATCH_MOVES = [
   { from: ['in_preparation'], to: 'ready_to_ship', who: ['uk', 'office'] },
@@ -145,6 +148,9 @@ const checkJobMove = (user, job, to) => {
 const canAssignDriver = (user, job) => ASSIGN_DRIVER.who.includes(actorOf(user)) && ASSIGN_DRIVER.from.includes(toJobStatus(job?.status));
 const canAssignRider = (user, job) => ASSIGN_RIDER.who.includes(actorOf(user)) && ASSIGN_RIDER.from.includes(toJobStatus(job?.status));
 
+/** Whether this user may split this job into parts (it must be at the UK warehouse and not in a batch). */
+const canSplitJob = (user, job) => SPLIT.who.includes(actorOf(user)) && SPLIT.from.includes(toJobStatus(job?.status)) && !job?.batchId;
+
 /** Why this user can't assign a driver / rider to this job: { code, message }, or null when they can. */
 const assignmentProblem = (kind, user, job) => {
   const rule = kind === 'driver' ? ASSIGN_DRIVER : ASSIGN_RIDER;
@@ -180,6 +186,7 @@ const statusesFor = (user) => {
       rules,
       assignDriverFrom: ASSIGN_DRIVER.who.includes(actor) ? ASSIGN_DRIVER.from : [],
       assignRiderFrom: ASSIGN_RIDER.who.includes(actor) ? ASSIGN_RIDER.from : [],
+      splitFrom: SPLIT.who.includes(actor) ? SPLIT.from : [],
       batchable: BATCHABLE,
     },
     batch: {
@@ -210,6 +217,7 @@ module.exports = {
   canAssignDriver,
   canAssignRider,
   assignmentProblem,
+  canSplitJob,
   nextBatchStatuses,
   canEditBatch,
   canCreateBatch,

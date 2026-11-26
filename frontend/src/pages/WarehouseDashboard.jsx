@@ -57,7 +57,7 @@ const WarehouseDashboard = () => {
         columns={['trackingId', 'customer', 'status', 'pickup', 'pickupDate']}
         actions={[
           { assign: 'driver', label: 'Assign Driver', primary: true },
-          { status: 'at_uk_warehouse', label: 'Dropped Off at Warehouse' },
+          { status: 'at_uk_warehouse' },
         ]}
         empty="Every job has a driver"
         status="pending_collection"
@@ -69,7 +69,7 @@ const WarehouseDashboard = () => {
         icon={<CarOutlined />}
         queue={data.comingIn}
         columns={['trackingId', 'customer', 'status', 'driver', 'pickupDate']}
-        actions={[{ status: 'at_uk_warehouse', label: 'Received', primary: true }]}
+        actions={[{ status: 'at_uk_warehouse', primary: true }]}
         empty="No parcels on their way in"
         onOpen={setOpenJobId}
         onChanged={reload}
@@ -78,7 +78,7 @@ const WarehouseDashboard = () => {
         title="At the Warehouse, Waiting for a Batch"
         icon={<InboxOutlined />}
         queue={data.atWarehouse}
-        columns={['trackingId', 'customer', 'weight', 'delivery']}
+        columns={['trackingId', 'customer', 'items', 'weight']}
         showWeight
         empty="Nothing waiting for a batch"
         status="at_uk_warehouse"

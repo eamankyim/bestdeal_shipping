@@ -17,14 +17,15 @@ const job = {
   pickupDate: new Date('2026-11-01T00:00:00Z'), estimatedDelivery: null, customerId: 'customer',
 };
 
-test('all staff can edit the jobs they can see, and nobody else can', () => {
+test('staff can edit the jobs they can see, except dispatch riders, and nobody else can', () => {
   for (const role of ['superadmin', 'admin', 'customer-service', 'finance', 'warehouse', 'warehouse_staff']) {
     assert.equal(canEditJob({ id: 'x', role }, job), true, role);
   }
   assert.equal(canEditJob(driver, job), true);
   assert.equal(canEditJob({ id: 'other', role: 'driver' }, job), false);
   assert.equal(canEditJob(rider, job), false);
-  assert.equal(canEditJob(rider, { ...job, assignedDeliveryAgentId: 'rider' }), true);
+  // Riders only deliver: they cannot edit a job, even one assigned to them
+  assert.equal(canEditJob(rider, { ...job, assignedDeliveryAgentId: 'rider' }), false);
   // Riders only reach the jobs the Ghana warehouse has given them
   assert.equal(canEditJob(rider, { ...job, status: 'ready_for_delivery' }), false);
   assert.equal(canEditJob(rider, { ...job, status: 'ready_for_delivery', assignedDeliveryAgentId: 'someone-else' }), false);
@@ -66,7 +67,8 @@ test('sending fewer packages does not remove packages or their details', () => {
   const twoPackages = { ...job, packages: [...job.packages, { description: 'Barrel', weight: 20 }] };
   const { data } = buildJobUpdate(twoPackages, { parcelDetails: { packages: [{ description: 'Big box', weight: '' }] } }, admin);
   assert.equal(data.packages.length, 2);
-  assert.deepEqual(data.packages[0], { description: 'Big box', weight: 5, estimatedPrice: 100, fragile: true });
+  // Lines are tidied up (a quantity and a type), and nothing that was there is lost
+  assert.deepEqual(data.packages[0], { description: 'Big box', packageType: null, quantity: 1, weight: 5, estimatedPrice: 100, fragile: true });
   assert.equal(data.packages[1].description, 'Barrel');
 });
 

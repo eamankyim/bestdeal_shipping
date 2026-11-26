@@ -89,7 +89,7 @@ const GhanaWarehouseDashboardPage = () => {
         icon={<InboxOutlined />}
         queue={data.toCheck}
         columns={['trackingId', 'customer', 'receiver', 'delivery', 'batch']}
-        actions={[{ status: 'ready_for_delivery', label: 'Checked', primary: true }]}
+        actions={[{ status: 'ready_for_delivery', primary: true }]}
         empty="Nothing waiting to be checked in"
         status="arrived_in_ghana"
         onOpen={setOpenJobId}
@@ -112,8 +112,8 @@ const GhanaWarehouseDashboardPage = () => {
         queue={data.outForDelivery}
         columns={['trackingId', 'receiver', 'delivery', 'rider']}
         actions={[
-          { status: 'delivered', label: 'Delivered', primary: true },
-          { status: 'failed_delivery', label: 'Could Not Deliver', danger: true },
+          { status: 'delivered', primary: true },
+          { status: 'failed_delivery', danger: true },
           { assign: 'rider', label: 'Change Rider' },
         ]}
         empty="Nothing out for delivery"

@@ -5,6 +5,7 @@ const prisma = require('../config/database');
 const { sendEmail } = require('./emailService');
 const { getSmsSetup, sendSms } = require('./smsService');
 const { toJobStatus, jobStatusLabel } = require('../utils/statuses');
+const { describeLines } = require('../utils/packages');
 
 const SETTING_KEY = 'customer_messages';
 const MAX_SUBJECT = 200;
@@ -60,7 +61,7 @@ const CUSTOMER_MESSAGES = [
   }),
   defineMessage('shipped', 'When its batch ships', {
     subject: 'Your shipment {{trackingId}} has been shipped',
-    body: 'Your shipment {{trackingId}} has been shipped.\n\nTrack it here: {{trackingLink}}',
+    body: 'Your shipment {{trackingId}} has been shipped: {{items}}.\n\nTrack it here: {{trackingLink}}',
     sms: 'Hi {{customerName}}, your shipment {{trackingId}} has been shipped. Track it at {{trackingLink}} - {{companyName}}',
   }),
   defineMessage('arrived_in_ghana', 'When its batch arrives in Ghana', {
@@ -80,7 +81,7 @@ const CUSTOMER_MESSAGES = [
   }),
   defineMessage('delivered', 'When it is delivered', {
     subject: 'Your shipment {{trackingId}} has been delivered',
-    body: 'Your shipment {{trackingId}} has been delivered.',
+    body: 'Your shipment {{trackingId}} has been delivered: {{items}}.',
     sms: 'Hi {{customerName}}, your shipment {{trackingId}} has been delivered. Thank you. - {{companyName}}',
   }),
   defineMessage('failed_delivery', 'When the rider could not deliver it', {
@@ -106,6 +107,7 @@ const PLACEHOLDERS = [
   { key: 'customerName', label: 'Customer name', sample: 'Jane Mensah' },
   { key: 'trackingId', label: 'Tracking ID', sample: 'SHIP-20261124-AB12C' },
   { key: 'referenceNumber', label: 'Reference number', sample: 'REF-1001' },
+  { key: 'items', label: 'What is in this shipment (a split order sends each part separately)', sample: '3 × Sugar (box)' },
   { key: 'receiverName', label: 'Receiver name', sample: 'Kofi Boateng' },
   { key: 'pickupAddress', label: 'Pickup address', sample: '12 High Street, London' },
   { key: 'deliveryAddress', label: 'Delivery address', sample: '45 Ring Road, Accra' },
@@ -215,6 +217,7 @@ const buildValues = ({ customer, job, invoice, companyName }) => ({
   customerName: customer?.name || 'Customer',
   trackingId: job?.trackingId,
   referenceNumber: job?.referenceNumber,
+  items: describeLines(job?.packages) || job?.description,
   receiverName: job?.receiverName,
   pickupAddress: job?.pickupAddress,
   deliveryAddress: job?.deliveryAddress,

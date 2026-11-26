@@ -149,6 +149,10 @@ model Job {
   
   // Batch
   batchId               String?   @map("batch_id")
+
+  // Split at the UK warehouse: every later part points at the order's first job (part 1)
+  splitFromId           String?   @map("split_from_id")
+  partNumber            Int?      @map("part_number")
   
   // Additional Info
   specialInstructions   String?   @map("special_instructions") @db.Text
@@ -165,6 +169,8 @@ model Job {
   assignedDriver  User?         @relation("AssignedDriver", fields: [assignedDriverId], references: [id])
   assignedDeliveryAgent User?   @relation("AssignedDeliveryAgent", fields: [assignedDeliveryAgentId], references: [id])
   batch           Batch?        @relation(fields: [batchId], references: [id])
+  splitFrom       Job?          @relation("JobParts", fields: [splitFromId], references: [id], onDelete: SetNull)
+  parts           Job[]         @relation("JobParts")
   timeline        JobTimeline[]
   documents       JobDocument[]
   jobNotes        JobNote[]
@@ -175,6 +181,7 @@ model Job {
   @@index([status])
   @@index([assignedDriverId])
   @@index([batchId])
+  @@index([splitFromId])
   @@index([pickupDate])
   @@index([createdAt])
   @@index([customerId, status])
@@ -246,7 +253,8 @@ model Batch {
   destination        String
   route              String?   // Full route (e.g., "London → Accra")
   carrier            String?
-  trackingNumber     String?   @map("tracking_number")
+  trackingNumber     String?   @map("tracking_number") // the container number
+  sealNumber         String?   @map("seal_number") // the seal on the container, a separate number
   
   // Batch Info
   totalJobs          Int       @default(0) @map("total_jobs")
