@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   StyleSheet,
@@ -16,12 +17,16 @@ import { PRIORITY_LEVELS, FREIGHT_TYPES, JOB_STATUSES } from '../../config/const
 import DropdownWithOther from '../../components/common/DropdownWithOther';
 import { touchTargets, typography } from '../../theme/theme';
 import { customerService } from '../../services/customerService';
+import { useAuth } from '../../hooks/useAuth';
+import { canEditJobValue } from '../../utils/permissions';
 
 const STEPS = ['Job Details', 'Customer', 'Receiver', 'Package', 'Review'];
 
 export default function CreateJobScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const editingJob = route?.params?.job;
+  const editingDraft = String(editingJob?.status || '').toLowerCase() === 'draft';
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -46,26 +51,28 @@ export default function CreateJobScreen({ navigation, route }) {
 
     receiverName: editingJob?.receiverName || '',
     receiverAddress: editingJob?.receiverAddress || '',
-    receiverPhone: editingJob?.receiverPhone || '',
+    receiverPhone: editingJob?.receiverContact || editingJob?.receiverPhone || '',
 
-    description: editingJob?.parcelDetails?.description || '',
-    freightType: editingJob?.freightType || FREIGHT_TYPES.AIR,
-    weight: editingJob?.weight || '',
-    length: editingJob?.parcelDetails?.dimensions?.length || '',
-    width: editingJob?.parcelDetails?.dimensions?.width || '',
-    height: editingJob?.parcelDetails?.dimensions?.height || '',
-    estimatedPrice: editingJob?.value || '',
+    description: editingJob?.description || editingJob?.parcelDetails?.description || '',
+    freightType: editingJob ? editingJob.freightType || '' : FREIGHT_TYPES.AIR,
+    estimatedPrice: editingJob?.value != null ? String(editingJob.value) : '',
     priority: editingJob?.priority || PRIORITY_LEVELS.STANDARD,
   });
 
   const canGoBack = currentStep > 0;
   const isReviewStep = currentStep === STEPS.length - 1;
 
-  useEffect(() => {
-    loadCustomers();
-  }, []);
+  // Reload on every focus, not just first mount, so a customer created
+  // moments ago (e.g. while creating the previous job) shows up in the
+  // "Existing customer" list right away.
+  useFocusEffect(
+    useCallback(() => {
+      loadCustomers();
+    }, [])
+  );
 
   useEffect(() => {
+    navigation.setOptions({ title: editingJob ? 'Edit Job' : 'Create Job' });
     if (editingJob?.customer?.id) {
       setCustomerMode('existing');
     }
@@ -75,6 +82,21 @@ export default function CreateJobScreen({ navigation, route }) {
     if (!email) return true;
     const emailRegex = /^[^\s@]+(\.[^\s@]+)*@[^\s@]+(\.[^\s@]+)*\.[^\s@]+$/;
     return emailRegex.test(email);
+  };
+
+  const showValidationError = (title, message) => {
+    Alert.alert(title, message);
+  };
+
+  // The backend returns { message, errors: [{ field, message }] } on
+  // validation failures (400s). Surface the actual per-field messages
+  // instead of the generic "Validation failed" summary.
+  const getErrorMessage = (payload) => {
+    const errors = payload?.errors;
+    if (Array.isArray(errors) && errors.length > 0) {
+      return errors.map((e) => e.message || e.msg).filter(Boolean).join('\n');
+    }
+    return payload?.message || 'Please check the job details and try again.';
   };
 
   const updateField = (key, value) => {
@@ -119,13 +141,16 @@ export default function CreateJobScreen({ navigation, route }) {
   };
 
   const validateStep = (stepIndex) => {
+    // When editing, a blank field simply keeps its saved value, so nothing is required
+    if (editingJob) return true;
+
     if (stepIndex === 0) {
-      if (!formData.referenceNumber) {
-        Alert.alert('Required', 'Reference number is required');
+      if (!formData.referenceNumber?.trim()) {
+        showValidationError('Reference number needed', 'Please add a reference number so the job can be identified.');
         return false;
       }
-      if (!formData.pickupAddress || !formData.deliveryAddress) {
-        Alert.alert('Required', 'Pickup and delivery addresses are required');
+      if (!formData.pickupAddress?.trim() || !formData.deliveryAddress?.trim()) {
+        showValidationError('Address missing', 'Please add both the pickup and delivery addresses before continuing.');
         return false;
       }
     }
@@ -133,36 +158,47 @@ export default function CreateJobScreen({ navigation, route }) {
     if (stepIndex === 1) {
       if (customerMode === 'existing') {
         if (!formData.customerId) {
-          Alert.alert('Required', 'Please select a customer');
+          showValidationError('Choose a customer', 'Please select a customer before continuing.');
           return false;
         }
       } else {
-        if (!formData.customerName) {
-          Alert.alert('Required', 'Customer name is required');
+        if (!formData.customerName?.trim()) {
+          showValidationError('Customer name required', 'Please add the customer name.');
           return false;
         }
         if (!formData.customerPhone?.trim()) {
-          Alert.alert('Required', 'Customer phone is required');
+          showValidationError('Phone number required', 'Please add the customer phone number.');
           return false;
         }
         if (formData.customerEmail && !validateEmail(formData.customerEmail)) {
-          Alert.alert('Invalid Email', 'Please enter a valid email address');
+          showValidationError('Valid email required', 'Please enter a valid email address or leave it blank.');
           return false;
         }
         if (!formData.customerCity?.trim()) {
-          Alert.alert('Required', 'Customer city is required');
+          showValidationError('Customer city required', 'Please add the customer city.');
           return false;
         }
         if (!formData.customerAddress?.trim()) {
-          Alert.alert('Required', 'Customer address is required');
+          showValidationError('Address required', 'Please add the customer address before continuing.');
           return false;
         }
       }
     }
 
+    if (stepIndex === 2) {
+      if (!formData.receiverName?.trim()) {
+        showValidationError('Receiver name required', 'Please add the receiver name before continuing.');
+        return false;
+      }
+      if (!formData.receiverAddress?.trim()) {
+        showValidationError('Receiver address required', 'Please add the receiver address before continuing.');
+        return false;
+      }
+    }
+
     if (stepIndex === 3) {
-      if (formData.freightType === FREIGHT_TYPES.SEA && (!formData.length || !formData.width || !formData.height)) {
-        Alert.alert('Required', 'Dimensions are required for sea freight');
+      if (!formData.description?.trim()) {
+        showValidationError('Package details needed', 'Please describe the package(s) before creating the job.');
         return false;
       }
     }
@@ -180,6 +216,8 @@ export default function CreateJobScreen({ navigation, route }) {
   };
 
   const isCurrentStepValid = useMemo(() => {
+    if (editingJob) return true;
+
     if (currentStep === 0) {
       return !!formData.referenceNumber?.trim() && !!formData.pickupAddress?.trim() && !!formData.deliveryAddress?.trim();
     }
@@ -197,35 +235,44 @@ export default function CreateJobScreen({ navigation, route }) {
       return hasRequired && emailOk;
     }
 
-    if (currentStep === 3 && formData.freightType === FREIGHT_TYPES.SEA) {
-      return !!formData.length?.trim() && !!formData.width?.trim() && !!formData.height?.trim();
+    if (currentStep === 2) {
+      return !!formData.receiverName?.trim() && !!formData.receiverAddress?.trim();
     }
 
     return true;
   }, [currentStep, formData, customerMode]);
 
-  const reviewItems = useMemo(
-    () => [
+  const reviewItems = useMemo(() => {
+    const items = [
       { label: 'Reference Number', value: formData.referenceNumber || '-' },
-      { label: 'Customer', value: formData.customerName || '-' },
-      { label: 'Receiver', value: formData.receiverName || '-' },
-      { label: 'Pickup', value: formData.pickupAddress || '-' },
-      { label: 'Delivery', value: formData.deliveryAddress || '-' },
+      { label: 'Pickup Address', value: formData.pickupAddress || '-' },
+      { label: 'Delivery Address', value: formData.deliveryAddress || '-' },
       { label: 'Freight Type', value: formData.freightType || '-' },
-      {
-        label: 'Package',
-        value:
-          formData.freightType === FREIGHT_TYPES.SEA
-            ? `${formData.length || '-'} x ${formData.width || '-'} x ${formData.height || '-'} cm`
-            : `${formData.weight || '-'} kg`,
-      },
-      { label: 'Priority', value: formData.priority || '-' },
-    ],
-    [formData]
-  );
+      { label: 'Customer Name', value: formData.customerName || '-' },
+    ];
+
+    if (formData.customerPhone) items.push({ label: 'Customer Phone', value: formData.customerPhone });
+    if (formData.customerEmail) items.push({ label: 'Customer Email', value: formData.customerEmail });
+    if (customerMode === 'new') {
+      if (formData.customerCity) items.push({ label: 'Customer City', value: formData.customerCity });
+      if (formData.customerAddress) items.push({ label: 'Customer Address', value: formData.customerAddress });
+    }
+
+    items.push({ label: 'Receiver Name', value: formData.receiverName || '-' });
+    items.push({ label: 'Receiver Address', value: formData.receiverAddress || '-' });
+    if (formData.receiverPhone) items.push({ label: 'Receiver Phone', value: formData.receiverPhone });
+
+    items.push({ label: 'Package Details', value: formData.description || '-' });
+    if (formData.estimatedPrice) {
+      items.push({ label: 'Estimated Value', value: `£${Number(formData.estimatedPrice).toFixed(2)}` });
+    }
+
+    items.push({ label: 'Priority', value: formData.priority || '-' });
+    return items;
+  }, [formData, customerMode]);
 
   const handleSubmit = async (isDraft = false) => {
-    if (!validateStep(0) || !validateStep(1) || !validateStep(3)) return;
+    if (!validateStep(0) || !validateStep(1) || !validateStep(2) || !(isDraft || validateStep(3))) return;
 
     if (isDraft) {
       setSavingDraft(true);
@@ -235,7 +282,7 @@ export default function CreateJobScreen({ navigation, route }) {
 
     try {
       const jobData = {
-        referenceNumber: formData.referenceNumber,
+        referenceNumber: formData.referenceNumber.trim(),
         ...(customerMode === 'existing' && formData.customerId
           ? { customerId: formData.customerId }
           : {
@@ -254,24 +301,14 @@ export default function CreateJobScreen({ navigation, route }) {
         receiverPhone: formData.receiverPhone?.trim() || null,
         pickupAddress: formData.pickupAddress,
         deliveryAddress: formData.deliveryAddress,
-        pickupDate: formData.pickupDate || new Date().toISOString(),
+        pickupDate: formData.pickupDate || (editingJob ? undefined : new Date().toISOString()),
         freightType: formData.freightType,
         parcelDetails: {
           description: formData.description,
-          weight: formData.freightType === FREIGHT_TYPES.AIR ? parseFloat(formData.weight) : undefined,
-          dimensions:
-            formData.freightType === FREIGHT_TYPES.SEA
-              ? {
-                  length: parseFloat(formData.length),
-                  width: parseFloat(formData.width),
-                  height: parseFloat(formData.height),
-                }
-              : undefined,
-          value: formData.estimatedPrice ? parseFloat(formData.estimatedPrice) : undefined,
-          quantity: 1,
+          value: Number(formData.estimatedPrice) || undefined,
         },
         priority: formData.priority,
-        status: isDraft ? JOB_STATUSES.DRAFT : undefined,
+        status: isDraft ? JOB_STATUSES.DRAFT : editingDraft ? JOB_STATUSES.PENDING_COLLECTION : undefined,
       };
 
       let response;
@@ -281,7 +318,7 @@ export default function CreateJobScreen({ navigation, route }) {
         response = await jobService.createJob(jobData);
       }
 
-      if (response.success) {
+      if (response?.success || response?.status === 'success' || response?.data?.success) {
         const resolvedJobId =
           response?.data?.job?.id ||
           response?.data?.data?.job?.id ||
@@ -289,7 +326,7 @@ export default function CreateJobScreen({ navigation, route }) {
 
         Alert.alert(
           'Success',
-          isDraft ? 'Job saved as draft!' : editingJob ? 'Job updated successfully!' : 'Job created successfully!',
+          isDraft ? 'Your job draft has been saved.' : editingJob ? 'Job updated successfully!' : 'Job created successfully!',
           [
             {
               text: 'OK',
@@ -304,492 +341,272 @@ export default function CreateJobScreen({ navigation, route }) {
           ]
         );
       } else {
-        Alert.alert('Error', response.message || 'Failed to save job');
+        Alert.alert('Could not save job', getErrorMessage(response));
       }
     } catch (error) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to save job');
+      if (error?.response?.data) {
+        Alert.alert('Could not save job', getErrorMessage(error.response.data));
+      } else {
+        Alert.alert('Could not save job', error?.message || 'Please check the job details and try again.');
+      }
     } finally {
       setLoading(false);
       setSavingDraft(false);
     }
   };
 
-  const renderStepIndicators = () => (
-    <View style={styles.stepperWrap}>
-      {STEPS.map((step, index) => {
-        const active = currentStep === index;
-        const completed = index < currentStep;
-        return (
-          <View key={step} style={styles.stepItem}>
-            {index < STEPS.length - 1 && (
-              <View style={[styles.stepConnector, completed && styles.stepConnectorDone]} />
-            )}
-            <View style={[styles.stepCircle, active && styles.stepCircleActive, completed && styles.stepCircleDone]}>
-              <Text style={[styles.stepNumber, (active || completed) && styles.stepNumberActive]}>{index + 1}</Text>
-            </View>
-            <Text style={[styles.stepLabel, active && styles.stepLabelActive]} numberOfLines={1}>
-              {step}
-            </Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-
-  const renderJobDetailsStep = () => (
-    <View>
-      <Text style={styles.sectionTitle}>Job Details</Text>
-      <Text style={styles.sectionHint}>Enter basic job information</Text>
-
-      <TextInput
-        placeholder="Reference Number *"
-        value={formData.referenceNumber}
-        onChangeText={(text) => updateField('referenceNumber', text)}
-        mode="outlined"
-        style={styles.input}
-        outlineColor="#d9d9d9"
-        activeOutlineColor="#ff9800"
-      />
-
-      <TextInput
-        placeholder="Pickup Address *"
-        value={formData.pickupAddress}
-        onChangeText={(text) => updateField('pickupAddress', text)}
-        mode="outlined"
-        multiline
-        style={styles.input}
-        outlineColor="#d9d9d9"
-        activeOutlineColor="#ff9800"
-      />
-
-      <TextInput
-        placeholder="Delivery Address *"
-        value={formData.deliveryAddress}
-        onChangeText={(text) => updateField('deliveryAddress', text)}
-        mode="outlined"
-        multiline
-        style={styles.input}
-        outlineColor="#d9d9d9"
-        activeOutlineColor="#ff9800"
-      />
-
-      <TextInput
-        placeholder="Shipment Date"
-        value={formData.pickupDate}
-        onChangeText={(text) => updateField('pickupDate', text)}
-        mode="outlined"
-        placeholder="e.g. May 20, 2026"
-        style={styles.input}
-        outlineColor="#d9d9d9"
-        activeOutlineColor="#ff9800"
-      />
-    </View>
-  );
-
-  const renderCustomerStep = () => (
-    <View>
-      <Text style={styles.sectionTitle}>Customer Information</Text>
-      <Text style={styles.sectionHint}>Select an existing customer or add a new one</Text>
-
-      <View style={styles.customerModeRow}>
-        <Button
-          mode={customerMode === 'existing' ? 'contained' : 'outlined'}
-          onPress={() => switchCustomerMode('existing')}
-          style={styles.customerModeBtn}
-          buttonColor={customerMode === 'existing' ? '#ff9800' : undefined}
-          textColor={customerMode === 'existing' ? '#fff' : '#666'}
-          contentStyle={styles.uniformButtonContent}
-          labelStyle={styles.uniformButtonLabel}
-        >
-          Select Customer
-        </Button>
-        <Button
-          mode={customerMode === 'new' ? 'contained' : 'outlined'}
-          onPress={() => switchCustomerMode('new')}
-          style={styles.customerModeBtn}
-          buttonColor={customerMode === 'new' ? '#ff9800' : undefined}
-          textColor={customerMode === 'new' ? '#fff' : '#666'}
-          contentStyle={styles.uniformButtonContent}
-          labelStyle={styles.uniformButtonLabel}
-        >
-          Add New Customer
-        </Button>
-      </View>
-
-      {customerMode === 'existing' ? (
-        <View>
-          {loadingCustomers ? (
-            <View style={styles.customerLoadingWrap}>
-              <ActivityIndicator size="small" color="#ff9800" />
-            </View>
-          ) : (
-            <>
-              <Menu
-                visible={customerDropdownVisible}
-                onDismiss={() => setCustomerDropdownVisible(false)}
-                anchor={
-                  <TextInput
-                    placeholder="Select Customer *"
-                    value={
-                      formData.customerName
-                        ? `${formData.customerName}${formData.customerEmail ? ` (${formData.customerEmail})` : ''}`
-                        : ''
-                    }
-                    mode="outlined"
-                    editable={false}
-                    style={styles.input}
-                    outlineColor="#d9d9d9"
-                    activeOutlineColor="#ff9800"
-                    right={
-                      <TextInput.Icon
-                        icon="menu-down"
-                        onPress={() => setCustomerDropdownVisible(true)}
-                      />
-                    }
-                    onPress={() => setCustomerDropdownVisible(true)}
-                  />
-                }
-              >
-                {customers.length === 0 ? (
-                  <Menu.Item title="No customers found" disabled />
-                ) : (
-                  customers.map((customer) => (
-                    <Menu.Item
-                      key={customer.id}
-                      onPress={() => selectExistingCustomer(customer)}
-                      title={`${customer.name || 'Unnamed'}${customer.email ? ` - ${customer.email}` : ''}`}
-                    />
-                  ))
-                )}
-              </Menu>
-              {!formData.customerId ? (
-                <Text style={styles.customerHintText}>
-                  Choose a customer from the dropdown.
-                </Text>
-              ) : null}
-            </>
-          )}
-        </View>
-      ) : (
-        <>
-          <TextInput
-            placeholder="Customer Name *"
-            value={formData.customerName}
-            onChangeText={(text) => updateField('customerName', text)}
-            mode="outlined"
-            style={styles.input}
-            outlineColor="#d9d9d9"
-            activeOutlineColor="#ff9800"
-          />
-
-          <TextInput
-            placeholder="Email"
-            value={formData.customerEmail}
-            onChangeText={(text) => updateField('customerEmail', text)}
-            mode="outlined"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            style={styles.input}
-            outlineColor="#d9d9d9"
-            activeOutlineColor="#ff9800"
-          />
-
-          <TextInput
-            placeholder="Phone (include country code)"
-            value={formData.customerPhone}
-            onChangeText={(text) => updateField('customerPhone', text)}
-            mode="outlined"
-            keyboardType="phone-pad"
-            style={styles.input}
-            outlineColor="#d9d9d9"
-            activeOutlineColor="#ff9800"
-          />
-
-          <TextInput
-            placeholder="City *"
-            value={formData.customerCity}
-            onChangeText={(text) => updateField('customerCity', text)}
-            mode="outlined"
-            style={styles.input}
-            outlineColor="#d9d9d9"
-            activeOutlineColor="#ff9800"
-          />
-
-          <DropdownWithOther
-            label="Country (optional)"
-            value={formData.customerCountry}
-            onValueChange={(value) => updateField('customerCountry', value)}
-            options={['United Kingdom', 'Ghana', 'Nigeria', 'Kenya', 'South Africa']}
-            allowOther={true}
-            style={styles.input}
-          />
-
-          <DropdownWithOther
-            label="Customer Type"
-            value={formData.customerType}
-            onValueChange={(value) => updateField('customerType', value)}
-            options={['Individual', 'Company']}
-            allowOther={false}
-            style={styles.input}
-          />
-
-          <TextInput
-            placeholder="Full Address *"
-            value={formData.customerAddress}
-            onChangeText={(text) => updateField('customerAddress', text)}
-            mode="outlined"
-            multiline
-            style={styles.input}
-            outlineColor="#d9d9d9"
-            activeOutlineColor="#ff9800"
-          />
-        </>
-      )}
-    </View>
-  );
-
-  const renderReceiverStep = () => (
-    <View>
-      <Text style={styles.sectionTitle}>Receiver Information</Text>
-      <Text style={styles.sectionHint}>Add information about the receiver</Text>
-
-      <TextInput
-        placeholder="Receiver Name"
-        value={formData.receiverName}
-        onChangeText={(text) => updateField('receiverName', text)}
-        mode="outlined"
-        style={styles.input}
-        outlineColor="#d9d9d9"
-        activeOutlineColor="#ff9800"
-      />
-
-      <TextInput
-        placeholder="Receiver Phone"
-        value={formData.receiverPhone}
-        onChangeText={(text) => updateField('receiverPhone', text)}
-        mode="outlined"
-        keyboardType="phone-pad"
-        style={styles.input}
-        outlineColor="#d9d9d9"
-        activeOutlineColor="#ff9800"
-      />
-
-      <TextInput
-        placeholder="Receiver Address"
-        value={formData.receiverAddress}
-        onChangeText={(text) => updateField('receiverAddress', text)}
-        mode="outlined"
-        multiline
-        style={styles.input}
-        outlineColor="#d9d9d9"
-        activeOutlineColor="#ff9800"
-      />
-    </View>
-  );
-
-  const renderPackageStep = () => (
-    <View>
-      <Text style={styles.sectionTitle}>Package Information</Text>
-      <Text style={styles.sectionHint}>Add package details for the shipment</Text>
-
-      <DropdownWithOther
-        label="Package Type *"
-        value={formData.freightType}
-        onValueChange={(value) => updateField('freightType', value)}
-        options={[FREIGHT_TYPES.AIR, FREIGHT_TYPES.SEA]}
-        style={styles.input}
-      />
-
-      {formData.freightType === FREIGHT_TYPES.AIR ? (
-        <TextInput
-          placeholder="Weight (kg)"
-          value={formData.weight}
-          onChangeText={(text) => updateField('weight', text)}
-          mode="outlined"
-          keyboardType="decimal-pad"
-          style={styles.input}
-          outlineColor="#d9d9d9"
-          activeOutlineColor="#ff9800"
-        />
-      ) : (
-        <View style={styles.dimensionRow}>
-          <TextInput
-            placeholder="L"
-            value={formData.length}
-            onChangeText={(text) => updateField('length', text)}
-            mode="outlined"
-            keyboardType="decimal-pad"
-            style={styles.dimensionInput}
-            outlineColor="#d9d9d9"
-            activeOutlineColor="#ff9800"
-          />
-          <TextInput
-            placeholder="W"
-            value={formData.width}
-            onChangeText={(text) => updateField('width', text)}
-            mode="outlined"
-            keyboardType="decimal-pad"
-            style={styles.dimensionInput}
-            outlineColor="#d9d9d9"
-            activeOutlineColor="#ff9800"
-          />
-          <TextInput
-            placeholder="H"
-            value={formData.height}
-            onChangeText={(text) => updateField('height', text)}
-            mode="outlined"
-            keyboardType="decimal-pad"
-            style={styles.dimensionInput}
-            outlineColor="#d9d9d9"
-            activeOutlineColor="#ff9800"
-          />
-        </View>
-      )}
-
-      <TextInput
-        placeholder="Description"
-        value={formData.description}
-        onChangeText={(text) => updateField('description', text)}
-        mode="outlined"
-        style={styles.input}
-        outlineColor="#d9d9d9"
-        activeOutlineColor="#ff9800"
-      />
-
-      <TextInput
-        placeholder="Estimated Price"
-        value={formData.estimatedPrice}
-        onChangeText={(text) => updateField('estimatedPrice', text)}
-        mode="outlined"
-        keyboardType="decimal-pad"
-        style={styles.input}
-        outlineColor="#d9d9d9"
-        activeOutlineColor="#ff9800"
-      />
-
-      <DropdownWithOther
-        label="Priority"
-        value={formData.priority}
-        onValueChange={(value) => updateField('priority', value)}
-        options={[PRIORITY_LEVELS.STANDARD, PRIORITY_LEVELS.EXPRESS, PRIORITY_LEVELS.URGENT]}
-        style={styles.input}
-      />
-    </View>
-  );
-
-  const renderReviewStep = () => (
-    <View>
-      <Text style={styles.sectionTitle}>Review & Confirm</Text>
-      <Text style={styles.sectionHint}>Please review before creating the job</Text>
-
-      <View style={styles.summaryCard}>
-        {reviewItems.map((item) => (
-          <View key={item.label} style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>{item.label}</Text>
-            <Text style={styles.summaryValue}>{item.value}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-
-  const renderStepBody = () => {
+  const renderStepContent = () => {
     switch (currentStep) {
       case 0:
-        return renderJobDetailsStep();
+        return (
+          <View style={styles.section}>
+            <Text style={styles.label}>Reference number</Text>
+            <TextInput
+              mode="outlined"
+              value={formData.referenceNumber}
+              onChangeText={(value) => updateField('referenceNumber', value)}
+              placeholder="e.g. JOB-1001"
+              style={styles.input}
+            />
+
+            <Text style={styles.label}>Pickup address</Text>
+            <TextInput
+              mode="outlined"
+              value={formData.pickupAddress}
+              onChangeText={(value) => updateField('pickupAddress', value)}
+              multiline
+              style={[styles.input, styles.textArea]}
+              placeholder="e.g. 12 High Street, London, UK"
+            />
+
+            <Text style={styles.label}>Delivery address</Text>
+            <TextInput
+              mode="outlined"
+              value={formData.deliveryAddress}
+              onChangeText={(value) => updateField('deliveryAddress', value)}
+              multiline
+              style={[styles.input, styles.textArea]}
+              placeholder="e.g. 45 Market Road, Accra, Ghana"
+            />
+
+            <Text style={styles.label}>Freight type</Text>
+            <DropdownWithOther
+              value={formData.freightType}
+              options={[FREIGHT_TYPES.AIR, FREIGHT_TYPES.SEA, FREIGHT_TYPES.OTHER]}
+              onValueChange={(value) => updateField('freightType', value)}
+              placeholder="Select freight type"
+            />
+
+          </View>
+        );
+
       case 1:
-        return renderCustomerStep();
+        return (
+          <View style={styles.section}>
+            <View style={styles.segmentedRow}>
+              <TouchableOpacity
+                style={[styles.segmentButton, customerMode === 'existing' && styles.segmentButtonActive]}
+                onPress={() => switchCustomerMode('existing')}
+              >
+                <Text style={[styles.segmentText, customerMode === 'existing' && styles.segmentTextActive]}>Existing customer</Text>
+              </TouchableOpacity>
+              {!editingJob && (
+                <TouchableOpacity
+                  style={[styles.segmentButton, customerMode === 'new' && styles.segmentButtonActive]}
+                  onPress={() => switchCustomerMode('new')}
+                >
+                  <Text style={[styles.segmentText, customerMode === 'new' && styles.segmentTextActive]}>New customer</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {customerMode === 'existing' ? (
+              <>
+                {loadingCustomers ? (
+                  <ActivityIndicator style={styles.loader} />
+                ) : (
+                  <Menu
+                    visible={customerDropdownVisible}
+                    onDismiss={() => setCustomerDropdownVisible(false)}
+                    anchor={
+                      <Button mode="outlined" onPress={() => setCustomerDropdownVisible(true)}>
+                        {formData.customerName || 'Select customer'}
+                      </Button>
+                    }
+                  >
+                    {customers.length > 0 ? (
+                      customers.map((customer) => (
+                        <Menu.Item
+                          key={customer.id}
+                          onPress={() => selectExistingCustomer(customer)}
+                          title={customer.name || 'Customer'}
+                        />
+                      ))
+                    ) : (
+                      <Menu.Item onPress={() => setCustomerDropdownVisible(false)} title="No customers available" disabled />
+                    )}
+                  </Menu>
+                )}
+              </>
+            ) : (
+              <>
+                <Text style={styles.label}>Customer name</Text>
+                <TextInput mode="outlined" value={formData.customerName} onChangeText={(value) => updateField('customerName', value)} style={styles.input} placeholder="e.g. Jane Mensah" />
+
+                <Text style={styles.label}>Phone number</Text>
+                <TextInput mode="outlined" value={formData.customerPhone} onChangeText={(value) => updateField('customerPhone', value)} keyboardType="phone-pad" style={styles.input} placeholder="e.g. +44 7700 900000" />
+
+                <Text style={styles.label}>Email address</Text>
+                <TextInput mode="outlined" value={formData.customerEmail} onChangeText={(value) => updateField('customerEmail', value)} keyboardType="email-address" style={styles.input} placeholder="Optional" />
+
+                <Text style={styles.label}>City</Text>
+                <TextInput mode="outlined" value={formData.customerCity} onChangeText={(value) => updateField('customerCity', value)} style={styles.input} placeholder="e.g. London" />
+
+                <Text style={styles.label}>Address</Text>
+                <TextInput mode="outlined" value={formData.customerAddress} onChangeText={(value) => updateField('customerAddress', value)} multiline style={[styles.input, styles.textArea]} placeholder="Street address" />
+              </>
+            )}
+          </View>
+        );
+
       case 2:
-        return renderReceiverStep();
+        return (
+          <View style={styles.section}>
+            <Text style={styles.label}>Receiver name</Text>
+            <TextInput mode="outlined" value={formData.receiverName} onChangeText={(value) => updateField('receiverName', value)} style={styles.input} placeholder="e.g. Kwame Boateng" />
+
+            <Text style={styles.label}>Receiver address</Text>
+            <TextInput mode="outlined" value={formData.receiverAddress} onChangeText={(value) => updateField('receiverAddress', value)} multiline style={[styles.input, styles.textArea]} placeholder="Street address" />
+
+            <Text style={styles.label}>Receiver phone</Text>
+            <TextInput mode="outlined" value={formData.receiverPhone} onChangeText={(value) => updateField('receiverPhone', value)} keyboardType="phone-pad" style={styles.input} placeholder="Optional" />
+          </View>
+        );
+
       case 3:
-        return renderPackageStep();
+        return (
+          <View style={styles.section}>
+            <Text style={styles.label}>Package details</Text>
+            <TextInput
+              mode="outlined"
+              value={formData.description}
+              onChangeText={(value) => updateField('description', value)}
+              multiline
+              style={[styles.input, styles.textArea]}
+              placeholder="Describe the packages: type, quantity, approximate weight, contents..."
+            />
+
+            {canEditJobValue(user) && (
+              <>
+                <Text style={styles.label}>Estimated value</Text>
+                <TextInput
+                  mode="outlined"
+                  value={formData.estimatedPrice}
+                  onChangeText={(value) => updateField('estimatedPrice', value)}
+                  keyboardType="decimal-pad"
+                  style={styles.input}
+                  placeholder="Optional"
+                />
+              </>
+            )}
+
+            <Text style={styles.label}>Priority</Text>
+            <DropdownWithOther
+              value={formData.priority}
+              options={[PRIORITY_LEVELS.STANDARD, PRIORITY_LEVELS.EXPRESS, PRIORITY_LEVELS.URGENT, PRIORITY_LEVELS.OTHER]}
+              onValueChange={(value) => updateField('priority', value)}
+              placeholder="Select priority"
+            />
+          </View>
+        );
+
       case 4:
+        return (
+          <View style={styles.section}>
+            {reviewItems.map((item) => (
+              <View key={item.label} style={styles.reviewRow}>
+                <Text style={styles.reviewLabel}>{item.label}</Text>
+                <Text style={styles.reviewValue}>{item.value}</Text>
+              </View>
+            ))}
+          </View>
+        );
+
       default:
-        return renderReviewStep();
+        return null;
     }
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: 20 }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.contentWrap}>
-          <View style={styles.headerRow}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-              <Ionicons name="chevron-back" size={20} color="#111" />
-            </TouchableOpacity>
-            <Text style={styles.title}>{editingJob ? 'Edit Job' : 'Create New Job'}</Text>
-            <View style={styles.rightGhost} />
-          </View>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={insets.top + 76}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={22} color="#1f2937" />
+          </TouchableOpacity>
+          <Text style={styles.title}>{editingJob ? 'Edit Job' : 'Create Job'}</Text>
+        </View>
 
-          {renderStepIndicators()}
+        <View style={styles.stepIndicatorRow}>
+          <Text style={styles.stepLabel}>
+            Step {currentStep + 1} of {STEPS.length}
+          </Text>
+          <Text style={styles.stepName}>{STEPS[currentStep]}</Text>
+        </View>
 
-          <View style={styles.card}>{renderStepBody()}</View>
+        {editingJob && (
+          <Text style={styles.editHint}>
+            Nothing is deleted when you edit. A field left blank keeps its saved value.
+          </Text>
+        )}
 
-          <View style={styles.footerRow}>
-            {canGoBack ? (
+        {renderStepContent()}
+      </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
+        {canGoBack && (
+          <Button mode="outlined" onPress={goBack} style={styles.footerButton}>
+            Back
+          </Button>
+        )}
+
+        {!isReviewStep ? (
+          <Button
+            mode="contained"
+            onPress={goNext}
+            style={styles.footerButton}
+            disabled={!isCurrentStepValid}
+            loading={loading}
+          >
+            Next
+          </Button>
+        ) : (
+          <>
+            {(!editingJob || editingDraft) && (
               <Button
                 mode="outlined"
-                onPress={goBack}
-                style={styles.backActionBtn}
-                textColor="#111"
-                icon="arrow-left"
-                contentStyle={styles.uniformButtonContent}
-                labelStyle={styles.uniformButtonLabel}
+                onPress={() => handleSubmit(true)}
+                style={styles.footerButton}
+                loading={savingDraft}
               >
-                Back
-              </Button>
-            ) : null}
-
-            {!isReviewStep ? (
-              <Button
-                mode="contained"
-                onPress={goNext}
-                style={[styles.nextBtn, !canGoBack && styles.nextBtnFull]}
-                buttonColor="#ff9800"
-                textColor="#fff"
-                icon="arrow-right"
-                contentStyle={[styles.uniformButtonContent, styles.nextBtnContent]}
-                labelStyle={styles.uniformButtonLabel}
-                disabled={!isCurrentStepValid}
-              >
-                Next
-              </Button>
-            ) : (
-              <Button
-                mode="contained"
-                onPress={() => handleSubmit(false)}
-                style={[styles.nextBtn, !canGoBack && styles.nextBtnFull]}
-                buttonColor="#ff9800"
-                textColor="#fff"
-                icon="check"
-                contentStyle={[styles.uniformButtonContent, styles.nextBtnContent]}
-                labelStyle={styles.uniformButtonLabel}
-                loading={loading}
-                disabled={loading || savingDraft}
-              >
-                {editingJob ? 'Update Job' : 'Create Job'}
+                Save as Draft
               </Button>
             )}
-          </View>
-
-          <Button
-            mode="text"
-            onPress={() => handleSubmit(true)}
-            textColor="#8a8a8a"
-            loading={savingDraft}
-            disabled={loading || savingDraft}
-            style={styles.draftBtn}
-            contentStyle={styles.uniformButtonContent}
-            labelStyle={styles.uniformButtonLabel}
-          >
-            Save as draft
-          </Button>
-        </View>
-      </ScrollView>
+            <Button
+              mode="contained"
+              onPress={() => handleSubmit(false)}
+              style={styles.footerButton}
+              loading={loading}
+            >
+              {editingJob && !editingDraft ? 'Save Changes' : 'Create Job'}
+            </Button>
+          </>
+        )}
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -797,205 +614,157 @@ export default function CreateJobScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f8f8',
+    backgroundColor: '#f5f7fb',
   },
-  scrollView: {
-    flex: 1,
-  },
-  contentWrap: {
-    paddingHorizontal: 14,
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 120,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 16,
   },
-  backBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  backButton: {
+    width: touchTargets.touchable,
+    height: touchTargets.touchable,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  rightGhost: {
-    width: 32,
+    marginRight: 12,
   },
   title: {
-    fontSize: typography.lg,
+    fontSize: typography.title,
     fontWeight: '700',
-    color: '#111',
+    color: '#111827',
   },
-  stepperWrap: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    paddingHorizontal: 2,
-  },
-  stepItem: {
-    alignItems: 'center',
-    width: '19%',
-    position: 'relative',
-  },
-  stepConnector: {
-    position: 'absolute',
-    top: 12,
-    left: '55%',
-    width: '90%',
-    height: 2,
-    backgroundColor: '#ececec',
-  },
-  stepConnectorDone: {
-    backgroundColor: '#ff9800',
-  },
-  stepCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#f1f1f1',
-    borderWidth: 1,
-    borderColor: '#e6e6e6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  stepCircleActive: {
-    backgroundColor: '#fff4e8',
-    borderColor: '#ff9800',
-  },
-  stepCircleDone: {
-    backgroundColor: '#ff9800',
-    borderColor: '#ff9800',
-  },
-  stepNumber: {
-    fontSize: 11,
-    color: '#999',
-    fontWeight: '700',
-  },
-  stepNumberActive: {
-    color: '#fff',
+  stepIndicatorRow: {
+    marginBottom: 16,
   },
   stepLabel: {
-    fontSize: 9,
-    color: '#9a9a9a',
-    textAlign: 'center',
+    fontSize: 12,
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
-  stepLabelActive: {
-    color: '#ff9800',
+  stepName: {
+    fontSize: 22,
     fontWeight: '700',
+    color: '#111827',
+    marginTop: 4,
   },
-  card: {
+  editHint: {
+    color: '#6b7280',
+    marginBottom: 12,
+  },
+  section: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
-    padding: 14,
+    borderRadius: 16,
+    padding: 16,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
   },
-  sectionTitle: {
-    fontSize: typography.lg,
-    fontWeight: '700',
-    color: '#111',
-    marginBottom: 4,
-  },
-  sectionHint: {
-    fontSize: typography.xs,
-    color: '#8c8c8c',
-    marginBottom: 12,
-  },
-  input: {
-    marginBottom: 12,
-    backgroundColor: '#fff',
-  },
-  customerModeRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  customerModeBtn: {
-    flex: 1,
-    borderRadius: 8,
-  },
-  customerLoadingWrap: {
-    minHeight: 56,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  customerHintText: {
-    color: '#8c8c8c',
-    fontSize: typography.xs,
-    marginTop: -6,
-    marginBottom: 10,
-  },
-  dimensionRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  dimensionInput: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  summaryCard: {
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
-    borderRadius: 10,
-    backgroundColor: '#fff',
-    overflow: 'hidden',
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f4f4f4',
-  },
-  summaryLabel: {
-    fontSize: typography.xs,
-    color: '#666',
-    flex: 1,
-  },
-  summaryValue: {
-    fontSize: typography.xs,
-    color: '#111',
+  label: {
     fontWeight: '600',
-    flex: 1,
-    textAlign: 'right',
-  },
-  footerRow: {
-    flexDirection: 'row',
-    gap: 8,
+    color: '#374151',
+    marginBottom: 8,
     marginTop: 12,
   },
-  backActionBtn: {
+  input: {
+    backgroundColor: '#fff',
+  },
+  textArea: {
+    minHeight: 90,
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  footerButton: {
     flex: 1,
-    borderColor: '#e4e4e4',
+    marginHorizontal: 6,
+  },
+  segmentedRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  segmentButton: {
+    flex: 1,
+    paddingVertical: 10,
     borderRadius: 10,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    marginHorizontal: 4,
   },
-  backActionBtnPlaceholder: {
-    flex: 1,
+  segmentButtonActive: {
+    backgroundColor: '#ffedd5',
   },
-  nextBtn: {
-    flex: 1,
-    borderRadius: 10,
-  },
-  nextBtnContent: {
-    flexDirection: 'row-reverse',
-  },
-  nextBtnFull: {
-    width: '100%',
-  },
-  uniformButtonContent: {
-    minHeight: touchTargets.buttonHeight,
-  },
-  uniformButtonLabel: {
-    fontSize: typography.button,
+  segmentText: {
+    color: '#374151',
     fontWeight: '600',
   },
-  draftBtn: {
-    alignSelf: 'center',
-    marginTop: 10,
+  segmentTextActive: {
+    color: '#c2410c',
+  },
+  packageRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  packageText: {
+    flex: 1,
+    color: '#111827',
+  },
+  emptyText: {
+    color: '#6b7280',
+    marginBottom: 8,
+  },
+  packageInputRow: {
+    flexDirection: 'row',
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  packageInput: {
+    flex: 1,
+    marginRight: 8,
+    backgroundColor: '#fff',
+  },
+  packageWeightInput: {
+    width: 110,
+    backgroundColor: '#fff',
+  },
+  addPackageButton: {
+    marginTop: 8,
+  },
+  reviewRow: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  reviewLabel: {
+    color: '#6b7280',
+    fontSize: 12,
     marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  reviewValue: {
+    color: '#111827',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  loader: {
+    marginVertical: 24,
   },
 });

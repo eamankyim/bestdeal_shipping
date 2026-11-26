@@ -2,22 +2,22 @@
 
 Target: **iOS Unlisted App Store** + **Android APK** (internal link) via EAS.
 
-Production API (already set in `src/config/api.js`): `https://bestdealshippingapp.com/api`
+Production API (already set in `src/config/api.js`): `https://bestdealghanaapp.com/api`
 
 EAS project: [@eamankyim/bestdeal-shipping](https://expo.dev/accounts/eamankyim/projects/bestdeal-shipping)  
 `extra.eas.projectId` is already set in `app.json`.
 
 ASC / store URLs (use these in App Store Connect):
 
-- Privacy: `https://bestdealshippingapp.com/privacy`
-- Support: `https://bestdealshippingapp.com/support`
+- Privacy: `https://bestdealghanaapp.com/privacy`
+- Support: `https://bestdealghanaapp.com/support`
 - Support email: `support@icreationsglobal.com`
 
 ---
 
 ## Done by agent
 
-- Production API pointed at `https://bestdealshippingapp.com/api`
+- Production API pointed at `https://bestdealghanaapp.com/api`
 - EAS project linked; `eas.json` profiles for iOS production + Android APK preview/production
 - `app.json`: bundle ids, buildNumber, versionCode, projectId, permission strings
 - Frontend pages: `/privacy` and `/support` (React Router public routes)
@@ -29,7 +29,7 @@ ASC / store URLs (use these in App Store Connect):
 
 ## You must do (ordered)
 
-1. **Deploy frontend to Contabo** so `/privacy` and `/support` are live on `bestdealshippingapp.com`  
+1. **Deploy frontend to Contabo** so `/privacy` and `/support` are live on `bestdealghanaapp.com`  
    On the server (production branch, clean tree): run `./deploy-production.sh` from the repo root (fast-forward pull + rebuild/restart containers). Or merge/push to `production` if you use the GitHub Actions deploy workflow.
 2. **Verify** in a browser: both URLs return the pages (not the SPA catch-all / login).
 3. **Create the app in App Store Connect** (bundle id `com.bestdeal.shipping`), complete agreements / paid apps if prompted.

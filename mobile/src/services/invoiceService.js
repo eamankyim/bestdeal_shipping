@@ -2,6 +2,13 @@ import api from '../config/api';
 import logger from '../utils/logger';
 
 export const invoiceService = {
+  getInvoice: async id => (await api.get(`/invoices/${id}`)).data,
+  updateInvoice: async (id, data) => (await api.put(`/invoices/${id}`, data)).data,
+  sendInvoice: async id => (await api.post(`/invoices/${id}/send`)).data,
+  payInvoice: async (id, data) => (await api.post(`/invoices/${id}/pay`, data)).data,
+  cancelInvoice: async id => (await api.post(`/invoices/${id}/cancel`)).data,
+  addNote: async (id, data) => (await api.post(`/invoices/${id}/notes`, data)).data,
+
   getInvoices: async (filters = {}) => {
     try {
       const params = new URLSearchParams();

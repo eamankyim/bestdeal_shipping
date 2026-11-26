@@ -19,10 +19,10 @@ echo "✓ Backup created"
 # Step 2: Copy SSL certificates
 echo ""
 echo "=== Step 2: Copy SSL Certificates ==="
-cp /etc/letsencrypt/live/bestdealshippingapp.com/fullchain.pem ssl/bestdealshippingapp.com.crt
-cp /etc/letsencrypt/live/bestdealshippingapp.com/privkey.pem ssl/bestdealshippingapp.com.key
-chmod 644 ssl/bestdealshippingapp.com.crt
-chmod 600 ssl/bestdealshippingapp.com.key
+cp /etc/letsencrypt/live/bestdealghanaapp.com/fullchain.pem ssl/bestdealghanaapp.com.crt
+cp /etc/letsencrypt/live/bestdealghanaapp.com/privkey.pem ssl/bestdealghanaapp.com.key
+chmod 644 ssl/bestdealghanaapp.com.crt
+chmod 600 ssl/bestdealghanaapp.com.key
 echo "✓ Certificates copied to ssl/ directory"
 
 # Step 3: Show current config
@@ -36,7 +36,7 @@ echo "READY FOR CONFIGURATION"
 echo "=========================================="
 echo ""
 echo "The nginx config is at: ~/sabito/nginx/conf.d/sabito.conf"
-echo "SSL certificates are at: ~/sabito/ssl/bestdealshippingapp.com.crt and .key"
+echo "SSL certificates are at: ~/sabito/ssl/bestdealghanaapp.com.crt and .key"
 echo ""
 echo "Next: Add Best Deal domain configuration to sabito.conf"
 echo ""

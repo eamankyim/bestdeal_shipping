@@ -97,6 +97,10 @@ const createJobValidation = [
     .optional({ checkFalsy: true })
     .isISO8601()
     .withMessage('Invalid pickup date format'),
+  body('estimatedDelivery')
+    .optional({ checkFalsy: true })
+    .isISO8601()
+    .withMessage('Invalid expected delivery date format'),
   body('parcelDetails.description')
     .optional({ checkFalsy: true })
     .trim(),
@@ -206,6 +210,29 @@ const createBatchValidation = [
   validate,
 ];
 
+const updateBatchValidation = [
+  body(['name', 'route', 'vessel', 'containerNumber', 'notes'])
+    .optional({ checkFalsy: true })
+    .isString()
+    .withMessage('Must be text'),
+  body('departureDate')
+    .optional({ checkFalsy: true })
+    .isISO8601()
+    .withMessage('Invalid departure date format'),
+  body('eta')
+    .optional({ checkFalsy: true })
+    .isISO8601()
+    .withMessage('Invalid ETA format'),
+  body('jobs')
+    .optional()
+    .isArray({ min: 1 })
+    .withMessage('At least one job must be included in the batch'),
+  body('jobs.*')
+    .isUUID()
+    .withMessage('Invalid job ID'),
+  validate,
+];
+
 const updateBatchStatusValidation = [
   body('status')
     .notEmpty()
@@ -256,6 +283,7 @@ module.exports = {
   createJobValidation,
   updateJobStatusValidation,
   createBatchValidation,
+  updateBatchValidation,
   updateBatchStatusValidation,
   paginationValidation,
   uuidValidation,

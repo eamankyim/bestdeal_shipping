@@ -1,0 +1,6 @@
+# Kept out of the API image (Docker reads this because it sits next to backend.Dockerfile)
+node_modules
+.env
+.env.*
+*.env
+tests

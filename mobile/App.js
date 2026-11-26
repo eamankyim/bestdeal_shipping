@@ -15,6 +15,7 @@ import { theme } from './src/theme/theme';
 import LoadingScreen from './src/screens/common/LoadingScreen';
 import SplashScreen from './src/screens/common/SplashScreen';
 import logger from './src/utils/logger';
+import { authService } from './src/services/authService';
 
 const Stack = createStackNavigator();
 
@@ -94,7 +95,7 @@ export default function App() {
       // Extract token from URL
       // Expected formats:
       // - bestdeal://accept-invite?token=xxx
-      // - https://app.bestdeal.com/accept-invite/xxx
+      // - https://bestdealghanaapp.com/accept-invite/xxx
       // - bestdeal://accept-invite/xxx
       let token = null;
       
@@ -139,6 +140,17 @@ export default function App() {
         setUserToken(token);
         setUser(JSON.parse(userData));
         logger.info('User authenticated from storage');
+        // Pick up role or warehouse changes made since the last sign-in (menus depend on them)
+        authService.getCurrentUser()
+          .then(async (response) => {
+            const latest = response?.data?.user;
+            // Ignore the answer if they signed out while it was loading
+            if (!latest?.id || (await AsyncStorage.getItem('userToken')) !== token) return;
+            const refreshed = { ...JSON.parse(userData), ...latest };
+            await AsyncStorage.setItem('userData', JSON.stringify(refreshed));
+            setUser(refreshed);
+          })
+          .catch(() => logger.warn('Could not refresh the signed-in user'));
       } else {
         logger.debug('No stored authentication found');
       }

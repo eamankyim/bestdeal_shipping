@@ -9,10 +9,11 @@ import {
   Image,
   Linking,
 } from 'react-native';
-import { TextInput, Button, Text, ActivityIndicator } from 'react-native-paper';
+import { TextInput, Button, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authService } from '../../services/authService';
 import { theme, touchTargets, typography } from '../../theme/theme';
+import ThreeDotsLoader from '../../components/common/ThreeDotsLoader';
 
 export default function AcceptInviteScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
@@ -138,7 +139,7 @@ export default function AcceptInviteScreen({ navigation, route }) {
   if (fetchingInvite) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <ThreeDotsLoader color={theme.colors.primary} />
         <Text style={styles.loadingText}>Loading invitation details...</Text>
       </View>
     );

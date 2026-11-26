@@ -8,13 +8,13 @@ import {
 import {
   Card,
   Text,
-  ActivityIndicator,
   Chip,
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authService } from '../../services/authService';
 import { standardStyles, theme, spacing } from '../../theme/theme';
 import logger from '../../utils/logger';
+import ThreeDotsLoader from '../../components/common/ThreeDotsLoader';
 
 export default function RoleManagementScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -49,7 +49,7 @@ export default function RoleManagementScreen({ navigation }) {
   if (loading && !refreshing) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <ThreeDotsLoader color={theme.colors.primary} />
       </View>
     );
   }
@@ -88,7 +88,7 @@ export default function RoleManagementScreen({ navigation }) {
               <Card.Content>
                 <Text variant="titleMedium">{role.displayName || role.name}</Text>
                 <Text variant="bodySmall" style={styles.description}>
-                  {role.description || 'No description'}
+                  {role.name === 'customer-service' ? 'Full administrator and application access' : role.description || 'No description'}
                 </Text>
                 <Chip style={styles.chip}>
                   {role.userCount || 0} users

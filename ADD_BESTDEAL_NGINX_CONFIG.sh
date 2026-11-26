@@ -16,7 +16,7 @@ cp nginx/conf.d/sabito.conf nginx/conf.d/sabito.conf.backup.$(date +%Y%m%d_%H%M%
 echo "✓ Backup created"
 
 # Check if Best Deal config already exists
-if grep -q "bestdealshippingapp.com" nginx/conf.d/sabito.conf; then
+if grep -q "bestdealghanaapp.com" nginx/conf.d/sabito.conf; then
     echo "⚠ Best Deal configuration already exists!"
     exit 1
 fi
@@ -25,15 +25,15 @@ fi
 cat >> nginx/conf.d/sabito.conf << 'EOF'
 
 # ============================================================================
-# Best Deal Shipping App (bestdealshippingapp.com, www.bestdealshippingapp.com)
+# Best Deal Shipping App (bestdealghanaapp.com, www.bestdealghanaapp.com)
 # ============================================================================
 server {
     listen 443 ssl http2;
-    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+    server_name bestdealghanaapp.com www.bestdealghanaapp.com;
 
     # SSL configuration
-    ssl_certificate /etc/nginx/ssl/bestdealshippingapp.com.crt;
-    ssl_certificate_key /etc/nginx/ssl/bestdealshippingapp.com.key;
+    ssl_certificate /etc/nginx/ssl/bestdealghanaapp.com.crt;
+    ssl_certificate_key /etc/nginx/ssl/bestdealghanaapp.com.key;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_prefer_server_ciphers off;
@@ -93,7 +93,7 @@ echo "NEXT STEPS:"
 echo "=========================================="
 echo "1. Test nginx config: docker exec sabito-nginx nginx -t"
 echo "2. Reload nginx: docker restart sabito-nginx"
-echo "3. Test: curl -I https://www.bestdealshippingapp.com"
+echo "3. Test: curl -I https://www.bestdealghanaapp.com"
 echo ""
 
 

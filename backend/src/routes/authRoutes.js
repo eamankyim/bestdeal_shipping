@@ -10,7 +10,7 @@ const { authLimiter } = require('../middleware/rateLimiter');
  * /api/auth/create-superadmin:
  *   post:
  *     summary: Create first superadmin (One-time setup)
- *     description: Creates the initial superadmin account and automatically seeds system roles and settings if they don't exist. This endpoint only works if no admin or superadmin exists in the system. Use this for initial system setup. Roles and settings are automatically created during this process.
+ *     description: Creates the initial superadmin account and automatically seeds system roles and settings if they don't exist. This endpoint only works if no admin or superadmin exists in the system, and only on a server started with ALLOW_SUPERADMIN_SETUP=1 (off by default). Use this for initial system setup. Roles and settings are automatically created during this process.
  *     tags: [Authentication]
  *     requestBody:
  *       required: true

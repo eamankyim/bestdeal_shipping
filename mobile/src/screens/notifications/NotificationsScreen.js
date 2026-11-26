@@ -8,7 +8,7 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { Text, ActivityIndicator } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -16,6 +16,7 @@ import { format } from 'date-fns';
 import { spacing, typography } from '../../theme/theme';
 import { notificationService } from '../../services/notificationService';
 import logger from '../../utils/logger';
+import ThreeDotsLoader from '../../components/common/ThreeDotsLoader';
 
 function getNotificationIcon(type) {
   switch (type) {
@@ -199,7 +200,7 @@ export default function NotificationsScreen({ navigation }) {
 
       {loading && !refreshing ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#ff9800" />
+          <ThreeDotsLoader />
         </View>
       ) : (
         <FlatList

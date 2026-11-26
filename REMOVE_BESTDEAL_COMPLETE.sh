@@ -17,26 +17,26 @@ echo "✓ Backup created"
 # Step 2: Show current Best Deal config
 echo ""
 echo "=== Step 2: Current Best Deal Config in Sabito Nginx ==="
-docker exec sabito-nginx cat /etc/nginx/conf.d/sabito.conf | grep -B5 -A20 "server_name.*bestdealshippingapp.com" | head -30
+docker exec sabito-nginx cat /etc/nginx/conf.d/sabito.conf | grep -B5 -A20 "server_name.*bestdealghanaapp.com" | head -30
 
 # Step 3: Remove Best Deal config completely
 echo ""
 echo "=== Step 3: Remove Best Deal Config ==="
 # Remove HTTP redirect block for Best Deal
-sed -i '/server_name bestdealshippingapp.com www.bestdealshippingapp.com;/,/^}$/d' nginx/conf.d/sabito.conf
+sed -i '/server_name bestdealghanaapp.com www.bestdealghanaapp.com;/,/^}$/d' nginx/conf.d/sabito.conf
 
 # Also remove any Best Deal redirect blocks
 sed -i '/# Best Deal Shipping/,/^}$/d' nginx/conf.d/sabito.conf
 
 # Remove any remaining Best Deal server blocks
-sed -i '/server_name.*bestdealshippingapp/,/^}$/d' nginx/conf.d/sabito.conf
+sed -i '/server_name.*bestdealghanaapp/,/^}$/d' nginx/conf.d/sabito.conf
 
 echo "✓ Best Deal config removed"
 
 # Step 4: Verify removal
 echo ""
 echo "=== Step 4: Verify Best Deal Config Removed ==="
-docker exec sabito-nginx cat /etc/nginx/conf.d/sabito.conf | grep -A5 "server_name.*bestdealshippingapp.com" || echo "✓ No Best Deal config found"
+docker exec sabito-nginx cat /etc/nginx/conf.d/sabito.conf | grep -A5 "server_name.*bestdealghanaapp.com" || echo "✓ No Best Deal config found"
 
 # Step 5: Test nginx config
 echo ""
@@ -53,7 +53,7 @@ echo "✓ Nginx reloaded"
 echo ""
 echo "=== Step 7: Final Verification ==="
 echo "Best Deal config in sabito-nginx:"
-docker exec sabito-nginx cat /etc/nginx/conf.d/sabito.conf | grep -A5 "server_name.*bestdealshippingapp.com" || echo "✓ No Best Deal config found - Complete separation achieved!"
+docker exec sabito-nginx cat /etc/nginx/conf.d/sabito.conf | grep -A5 "server_name.*bestdealghanaapp.com" || echo "✓ No Best Deal config found - Complete separation achieved!"
 
 echo ""
 echo "=========================================="

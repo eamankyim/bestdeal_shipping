@@ -19,10 +19,10 @@ echo "✓ Backup created"
 # Step 2: Check if Best Deal block already exists
 echo ""
 echo "=== Step 2: Check if Best Deal Block Exists ==="
-if grep -q "server_name.*bestdealshippingapp.com" nginx/conf.d/sabito.conf; then
+if grep -q "server_name.*bestdealghanaapp.com" nginx/conf.d/sabito.conf; then
     echo "⚠ Best Deal server block already exists!"
     echo "Checking current configuration:"
-    grep -B5 -A30 "server_name.*bestdealshippingapp.com" nginx/conf.d/sabito.conf
+    grep -B5 -A30 "server_name.*bestdealghanaapp.com" nginx/conf.d/sabito.conf
     exit 1
 else
     echo "✓ Best Deal server block not found - will add it"
@@ -38,10 +38,10 @@ cat >> nginx/conf.d/sabito.conf << 'EOF'
 # Best Deal Shipping Application
 server {
     listen 443 ssl http2;
-    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+    server_name bestdealghanaapp.com www.bestdealghanaapp.com;
 
-    ssl_certificate /etc/nginx/ssl/bestdealshippingapp.com.crt;
-    ssl_certificate_key /etc/nginx/ssl/bestdealshippingapp.com.key;
+    ssl_certificate /etc/nginx/ssl/bestdealghanaapp.com.crt;
+    ssl_certificate_key /etc/nginx/ssl/bestdealghanaapp.com.key;
 
     # SSL Configuration
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -81,7 +81,7 @@ server {
 # HTTP to HTTPS redirect for Best Deal
 server {
     listen 80;
-    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+    server_name bestdealghanaapp.com www.bestdealghanaapp.com;
     return 301 https://$host$request_uri;
 }
 EOF
@@ -100,7 +100,7 @@ echo "=========================================="
 echo ""
 echo "Next steps:"
 echo "1. Reload nginx: docker exec sabito-nginx nginx -s reload"
-echo "2. Test in browser: https://www.bestdealshippingapp.com"
+echo "2. Test in browser: https://www.bestdealghanaapp.com"
 echo ""
 
 

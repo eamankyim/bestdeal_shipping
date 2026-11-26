@@ -62,8 +62,8 @@ echo "Testing Sabito (sabito.app):"
 curl -I https://sabito.app 2>&1 | head -5 || echo "⚠ Sabito test failed"
 
 echo ""
-echo "Testing Best Deal (www.bestdealshippingapp.com - without port!):"
-curl -k -I https://www.bestdealshippingapp.com 2>&1 | head -5 || echo "⚠ Best Deal test failed"
+echo "Testing Best Deal (www.bestdealghanaapp.com - without port!):"
+curl -k -I https://www.bestdealghanaapp.com 2>&1 | head -5 || echo "⚠ Best Deal test failed"
 
 # Step 6: SSL Certificates
 echo ""
@@ -73,7 +73,7 @@ echo | openssl s_client -connect sabito.app:443 -servername sabito.app 2>&1 | op
 
 echo ""
 echo "Best Deal certificate:"
-echo | openssl s_client -connect www.bestdealshippingapp.com:443 -servername www.bestdealshippingapp.com 2>&1 | openssl x509 -text -noout | grep -E "Subject:|DNS:" | head -3 || echo "⚠ Cannot verify certificate"
+echo | openssl s_client -connect www.bestdealghanaapp.com:443 -servername www.bestdealghanaapp.com 2>&1 | openssl x509 -text -noout | grep -E "Subject:|DNS:" | head -3 || echo "⚠ Cannot verify certificate"
 
 # Step 7: Check Logs
 echo ""

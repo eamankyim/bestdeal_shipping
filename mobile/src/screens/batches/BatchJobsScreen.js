@@ -10,8 +10,8 @@ import {
   Card,
   Text,
   Chip,
-  ActivityIndicator,
   DataTable,
+  Button,
   Divider,
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,17 +19,23 @@ import { batchService } from '../../services/batchService';
 import { standardStyles } from '../../theme/theme';
 import { formatJobStatusLabel, getJobStatusColor } from '../../utils/jobStatus';
 import { format } from 'date-fns';
+import ThreeDotsLoader from '../../components/common/ThreeDotsLoader';
+import { useAuth } from '../../hooks/useAuth';
+import { isGhanaWarehouse } from '../../utils/permissions';
 
 export default function BatchJobsScreen({ route, navigation }) {
-  const { batchId } = route.params;
+  const { batchId } = route.params || {};
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [batch, setBatch] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Reload on focus so changes made on the edit screen show up on return
   useEffect(() => {
     loadBatchJobs();
-  }, [batchId]);
+    return navigation.addListener('focus', loadBatchJobs);
+  }, [batchId, navigation]);
 
   const loadBatchJobs = async () => {
     try {
@@ -52,7 +58,7 @@ export default function BatchJobsScreen({ route, navigation }) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#ff9800" />
+        <ThreeDotsLoader />
       </View>
     );
   }
@@ -68,6 +74,17 @@ export default function BatchJobsScreen({ route, navigation }) {
             <Text variant="headlineSmall" style={styles.batchTitle}>
               Batch Details
             </Text>
+            {batch.name && <Text variant="titleMedium">{batch.name}</Text>}
+            <Text variant="bodyMedium">Status: {batch.status}</Text>
+            {['In Preparation', 'Ready to Ship'].includes(batch.status) && !isGhanaWarehouse(user) && (
+              <Button mode="contained" icon="pencil" style={{ marginVertical: 8 }} onPress={() => navigation.navigate('CreateBatch', { batch })}>
+                Edit Batch
+              </Button>
+            )}
+            {['In Preparation', 'Ready to Ship', 'Shipped', 'In Transit', 'Arrived', 'Distributed'].map(status => status !== batch.status && <Button key={status} onPress={() => Alert.alert('Update batch?', `Set batch status to ${status}?`, [{ text: 'Cancel' }, { text: 'Update', onPress: async () => {
+              try { await batchService.updateBatchStatus(batchId, { status }); await loadBatchJobs(); }
+              catch (error) { Alert.alert('Error', error.response?.data?.message || error.message); }
+            } }])}>{status}</Button>)}
             <Text variant="bodyMedium">Seal Number: {batch.sealNumber}</Text>
             {batch.vesselName && (
               <Text variant="bodyMedium">Vessel: {batch.vesselName}</Text>
@@ -75,6 +92,7 @@ export default function BatchJobsScreen({ route, navigation }) {
             {batch.flightNumber && (
               <Text variant="bodyMedium">Flight: {batch.flightNumber}</Text>
             )}
+            {batch.notes && <Text variant="bodySmall" style={styles.mutedText}>Notes: {batch.notes}</Text>}
             {batch.departureDate && (
               <Text variant="bodySmall" style={styles.mutedText}>
                 Departure: {format(new Date(batch.departureDate), 'MMM dd, yyyy')}

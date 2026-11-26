@@ -9,11 +9,11 @@ echo ""
 
 # Step 1: DNS Check
 echo "=== Step 1: DNS Resolution ==="
-echo "bestdealshippingapp.com:"
-nslookup bestdealshippingapp.com | grep -A2 "Name:" || echo "DNS not resolving!"
+echo "bestdealghanaapp.com:"
+nslookup bestdealghanaapp.com | grep -A2 "Name:" || echo "DNS not resolving!"
 echo ""
-echo "www.bestdealshippingapp.com:"
-nslookup www.bestdealshippingapp.com | grep -A2 "Name:" || echo "DNS not resolving!"
+echo "www.bestdealghanaapp.com:"
+nslookup www.bestdealghanaapp.com | grep -A2 "Name:" || echo "DNS not resolving!"
 echo ""
 echo "Server IP:"
 SERVER_IP=$(curl -4 ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')

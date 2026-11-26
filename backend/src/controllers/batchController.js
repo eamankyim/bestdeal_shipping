@@ -1,6 +1,22 @@
 const prisma = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/responseUtils');
 const { notifyBatchCreated } = require('../services/notificationService');
+const { notifyCustomersOfStatus } = require('../services/customerMessageService');
+const { isGhanaWarehouse, normalizeStatus } = require('../utils/jobAccess');
+const { isBlank } = require('../utils/jobEdit');
+
+const WAREHOUSE_STATUSES = ['arrived_at_warehouse', 'At Warehouse', 'at_warehouse', 'at_uk_warehouse', 'at_ghana_warehouse'];
+const EDITABLE_BATCH_STATUSES = ['In Preparation', 'Ready to Ship'];
+
+const destinationFromRoute = (route) => route.split('→')[1]?.trim() || route;
+/** Tell the customers of these jobs that they are in a batch. */
+const notifyBatched = async (jobIds) => {
+  if (jobIds.length === 0) return;
+  const jobs = await prisma.job.findMany({ where: { id: { in: jobIds } }, include: { customer: true } });
+  await notifyCustomersOfStatus(jobs, 'batched');
+};
+
+const sumField = (jobs, field) => jobs.reduce((sum, job) => sum + (parseFloat(job[field]) || 0), 0);
 
 // Map batch DB fields to legacy client-friendly names to avoid mobile crashes
 const mapBatchForClient = (batch) => {
@@ -61,7 +77,7 @@ exports.createBatch = async (req, res) => {
       where: {
         id: { in: jobs },
         batchId: null,
-        status: { in: ['arrived_at_warehouse', 'At Warehouse', 'at_warehouse', 'at_uk_warehouse', 'at_ghana_warehouse'] }
+        status: { in: WAREHOUSE_STATUSES }
       },
       select: {
         id: true,
@@ -80,8 +96,8 @@ exports.createBatch = async (req, res) => {
     }
 
     // Calculate totals
-    const totalWeight = jobDetails.reduce((sum, job) => sum + (parseFloat(job.weight) || 0), 0);
-    const totalValue = jobDetails.reduce((sum, job) => sum + (parseFloat(job.value) || 0), 0);
+    const totalWeight = sumField(jobDetails, 'weight');
+    const totalValue = sumField(jobDetails, 'value');
 
     // Create batch and update jobs in a transaction
     const result = await prisma.$transaction(async (tx) => {
@@ -89,8 +105,9 @@ exports.createBatch = async (req, res) => {
       const batch = await tx.batch.create({
         data: {
           batchId,
+          name,
           route: route, // Store full route
-          destination: route.split('→')[1]?.trim() || route,
+          destination: destinationFromRoute(route),
           carrier: vessel,
           trackingNumber: containerNumber,
           totalJobs: jobDetails.length,
@@ -139,6 +156,12 @@ exports.createBatch = async (req, res) => {
       console.error('⚠️ Failed to send batch notifications:', error);
     }
 
+    try {
+      await notifyBatched(jobs);
+    } catch (error) {
+      console.error('⚠️ Failed to message customers about the batch:', error);
+    }
+
     const clientBatch = mapBatchForClient(result);
 
     return sendSuccess(res, 201, 'Batch created successfully', {
@@ -179,7 +202,17 @@ exports.getAllBatches = async (req, res) => {
           select: {
             id: true,
             trackingId: true,
-            status: true
+            referenceNumber: true,
+            status: true,
+            weight: true,
+            value: true,
+            priority: true,
+            deliveryAddress: true,
+            customer: {
+              select: {
+                name: true
+              }
+            }
           }
         }
       },
@@ -258,6 +291,128 @@ exports.getBatchById = async (req, res) => {
 };
 
 /**
+ * Edit a batch while it is still being prepared. Blank fields keep their stored value.
+ * When `jobs` is sent it is the full list of jobs the batch should hold: new ones are added,
+ * and ones left out go back to the warehouse (they are never deleted).
+ * PUT /api/batches/:id
+ */
+exports.updateBatch = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, route, vessel, containerNumber, departureDate, eta, notes, jobs } = req.body;
+
+    if (isGhanaWarehouse(req.user)) {
+      return sendError(res, 403, 'Ghana Warehouse users can view batches but cannot edit them');
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      // Lock the batch so it cannot be shipped or edited by someone else halfway through
+      await tx.$queryRaw`SELECT id FROM batches WHERE id = ${id} FOR UPDATE`;
+      const batch = await tx.batch.findUnique({ where: { id }, include: { jobs: { select: { id: true } } } });
+      if (!batch) return { error: 'Batch not found', code: 404 };
+      if (!EDITABLE_BATCH_STATUSES.includes(batch.status)) {
+        return { error: `Only batches in preparation can be edited. This batch is ${batch.status}.`, code: 400 };
+      }
+
+      let added = [];
+      if (Array.isArray(jobs)) {
+        const current = batch.jobs.map((job) => job.id);
+        const wanted = [...new Set(jobs)];
+        added = wanted.filter((jobId) => !current.includes(jobId));
+        const removed = current.filter((jobId) => !wanted.includes(jobId));
+
+        if (added.length > 0) {
+          const { count } = await tx.job.updateMany({
+            where: { id: { in: added }, batchId: null, status: { in: WAREHOUSE_STATUSES } },
+            data: { status: 'batched', batchId: id },
+          });
+          // Throw so that the whole edit is rolled back
+          if (count !== added.length) throw Object.assign(new Error('Some jobs are no longer available for batching'), { statusCode: 400 });
+          await tx.jobTimeline.createMany({
+            data: added.map((jobId) => ({
+              jobId,
+              status: 'batched',
+              notes: `Job added to batch ${batch.batchId}`,
+              updatedBy: req.user.id,
+            })),
+          });
+        }
+
+        for (const jobId of removed) {
+          const lastWarehouseEntry = await tx.jobTimeline.findFirst({
+            where: { jobId, status: { in: WAREHOUSE_STATUSES } },
+            orderBy: { timestamp: 'desc' },
+          });
+          const status = normalizeStatus(lastWarehouseEntry?.status) || 'arrived_at_warehouse';
+          await tx.job.update({
+            where: { id: jobId },
+            data: { status: status === 'at_warehouse' ? 'arrived_at_warehouse' : status, batchId: null },
+          });
+          await tx.jobTimeline.create({
+            data: {
+              jobId,
+              status: status === 'at_warehouse' ? 'arrived_at_warehouse' : status,
+              notes: `Job removed from batch ${batch.batchId}`,
+              updatedBy: req.user.id,
+            },
+          });
+        }
+      }
+
+      const batchJobs = await tx.job.findMany({ where: { batchId: id }, select: { weight: true, value: true } });
+      const fields = {
+        ...(!isBlank(name) && { name: name.trim() }),
+        ...(!isBlank(route) && { route: route.trim(), destination: destinationFromRoute(route.trim()) }),
+        ...(!isBlank(vessel) && { carrier: vessel.trim() }),
+        ...(!isBlank(containerNumber) && { trackingNumber: containerNumber.trim() }),
+        ...(!isBlank(departureDate) && { estimatedShipDate: new Date(departureDate) }),
+        ...(!isBlank(eta) && { estimatedArrival: new Date(eta) }),
+        ...(!isBlank(notes) && { notes: notes.trim() }),
+      };
+      const updated = await tx.batch.update({
+        where: { id },
+        data: {
+          ...fields,
+          totalJobs: batchJobs.length,
+          totalWeight: sumField(batchJobs, 'weight'),
+          totalValue: sumField(batchJobs, 'value'),
+        },
+        include: {
+          jobs: { include: { customer: { select: { name: true, email: true, phone: true } } } },
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'update',
+          entityType: 'batch',
+          entityId: id,
+          oldValues: {
+            ...Object.fromEntries(Object.keys(fields).map((field) => [field, batch[field]])),
+            jobs: batch.jobs.map((job) => job.id),
+          },
+          newValues: { ...fields, jobs: updated.jobs.map((job) => job.id) },
+        },
+      });
+      return { batch: updated, added };
+    }, { timeout: 20000 });
+
+    if (result.error) return sendError(res, result.code, result.error);
+
+    try {
+      await notifyBatched(result.added);
+    } catch (error) {
+      console.error('⚠️ Failed to message customers about the batch:', error);
+    }
+    return sendSuccess(res, 200, 'Batch updated successfully', { batch: mapBatchForClient(result.batch) });
+  } catch (error) {
+    if (error.statusCode) return sendError(res, error.statusCode, error.message);
+    console.error('Error updating batch:', error);
+    return sendError(res, 500, 'Failed to update batch', error.message);
+  }
+};
+
+/**
  * Update batch status
  * PATCH /api/batches/:id/status
  */
@@ -266,12 +421,18 @@ exports.updateBatchStatus = async (req, res) => {
     const { id } = req.params;
     const { status, notes } = req.body;
 
+    const existingBatch = await prisma.batch.findUnique({ where: { id } });
+    if (!existingBatch) {
+      return sendError(res, 404, 'Batch not found');
+    }
+
     const batch = await prisma.batch.update({
       where: { id },
       data: {
         status,
         ...(status === 'Shipped' && { shippedAt: new Date() }),
-        ...(notes && { notes })
+        // Keep the notes written while the batch was being prepared
+        ...(notes && { notes: [existingBatch.notes, notes].filter(Boolean).join('\n') })
       },
       include: {
         jobs: {
@@ -342,11 +503,16 @@ exports.updateBatchStatus = async (req, res) => {
           include: {
             customer: {
               select: {
-                name: true
+                id: true,
+                name: true,
+                email: true,
+                phone: true
               }
             }
           }
         });
+
+        await notifyCustomersOfStatus(updatedJobs, jobStatus);
 
         // Send notification for each job
         for (const job of updatedJobs) {

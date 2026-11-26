@@ -36,13 +36,27 @@ import {
   PhoneOutlined,
   PlayCircleOutlined,
   HomeOutlined,
-  MoreOutlined
+  MoreOutlined,
+  FileTextOutlined
 } from '@ant-design/icons';
-import { JOB_STATUSES, getStatusColor, formatJobStatusLabel } from '../constants/jobStatuses';
+import { JOB_STATUSES, getStatusColor, formatJobStatusLabel, normalizeJobStatusKey } from '../constants/jobStatuses';
 import { jobAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 import { hasPermission } from '../utils/permissions';
+import { filesToUploads } from '../utils/imageUpload';
+import JobEditModal from '../components/jobs/JobEditModal';
+import JobEditHistory from '../components/jobs/JobEditHistory';
+import JobNotes from '../components/jobs/JobNotes';
+import JobNoteModal from '../components/jobs/JobNoteModal';
+import JobPhotos from '../components/jobs/JobPhotos';
+
+// Statuses are stored in mixed formats ("Pending Collection", "Assigned", "in_transit"), so compare
+// normalized keys. A driver can collect any job still waiting to be picked up, not only "assigned" ones.
+const AWAITING_COLLECTION = ['pending', 'pending_collection', 'assigned', 'en_route_to_customer'];
+const isAwaitingCollection = (status) => AWAITING_COLLECTION.includes(normalizeJobStatusKey(status));
+
+const canEdit = (status) => !['cancelled', 'delivered'].includes(normalizeJobStatusKey(status));
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -56,6 +70,8 @@ const DriverDashboardPage = () => {
   const [completionSubmitting, setCompletionSubmitting] = useState(false);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
+  const [editJobId, setEditJobId] = useState(null);
+  const [noteJob, setNoteJob] = useState(null);
   const [assignedJobs, setAssignedJobs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -156,11 +172,11 @@ const DriverDashboardPage = () => {
         ).length;
         
         const completed = transformedJobs.filter(j => 
-          ['delivered', 'arrived_at_warehouse'].includes(j.status)
+          ['delivered', 'arrived_at_warehouse'].includes(normalizeJobStatusKey(j.status))
         ).length;
         
         const pending = transformedJobs.filter(j => 
-          ['pending', 'assigned'].includes(j.status)
+          isAwaitingCollection(j.status)
         ).length;
         
         const totalWeight = transformedJobs.reduce((sum, j) => sum + (parseFloat(j.weight) || 0), 0);
@@ -198,7 +214,7 @@ const DriverDashboardPage = () => {
   };
 
   const recentCollections = assignedJobs.filter(j => 
-    ['collected', 'in_transit', 'arrived_at_warehouse'].includes(j.status)
+    ['collected', 'in_transit', 'arrived_at_warehouse'].includes(normalizeJobStatusKey(j.status))
   ).slice(0, 5);
 
   const getPriorityColor = (priority) => {
@@ -222,7 +238,7 @@ const DriverDashboardPage = () => {
       let nextStatus = 'collected';
       let notes = 'Driver collected package from customer';
       
-      if (job.status === 'collected') {
+      if (normalizeJobStatusKey(job.status) === 'collected') {
         nextStatus = 'in_transit';
         notes = 'Package in transit to warehouse';
       }
@@ -316,11 +332,12 @@ const DriverDashboardPage = () => {
     {
       title: 'Actions',
       key: 'actions',
+      width: 270,
       mobile: true,
       render: (_, record) => (
-        <Space size="small">
+        <Space size="small" wrap>
           {/* Show different buttons based on job status */}
-          {record.status === 'assigned' && (
+          {isAwaitingCollection(record.status) && (
             <Button 
               type="primary"
               size="small"
@@ -334,7 +351,7 @@ const DriverDashboardPage = () => {
             </Button>
           )}
           
-          {record.status === 'collected' && (
+          {normalizeJobStatusKey(record.status) === 'collected' && (
             <Button 
               type="primary"
               size="small"
@@ -348,7 +365,7 @@ const DriverDashboardPage = () => {
             </Button>
           )}
           
-          {record.status === 'in_transit' && (
+          {normalizeJobStatusKey(record.status) === 'in_transit' && (
             <Button 
               type="primary"
               size="small"
@@ -371,6 +388,30 @@ const DriverDashboardPage = () => {
             }}
           >
             View
+          </Button>
+
+          {canEdit(record.status) && (
+            <Button
+              size="small"
+              icon={<EditOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditJobId(record.id);
+              }}
+            >
+              Edit
+            </Button>
+          )}
+
+          <Button
+            size="small"
+            icon={<FileTextOutlined />}
+            onClick={(e) => {
+              e.stopPropagation();
+              setNoteJob(record);
+            }}
+          >
+            Add Note
           </Button>
         </Space>
       ),
@@ -395,6 +436,12 @@ const DriverDashboardPage = () => {
       console.error('❌ Failed to fetch job details:', error);
       message.error(error.message || 'Failed to load job details');
     }
+  };
+
+  // After an edit or a note: reload the list, and the drawer if it is open
+  const handleJobChanged = async () => {
+    if (isDetailsDrawerVisible && selectedJob) await handleViewJob({ id: selectedJob.id });
+    await fetchMyJobs(true);
   };
 
   const handleUpdateStatus = async (status, notes = '') => {
@@ -447,25 +494,6 @@ const DriverDashboardPage = () => {
     setCompletionModalVisible(true);
   };
 
-  const fileListToBase64 = (fileList) => {
-    if (!fileList || !fileList.length) return Promise.resolve([]);
-    const promises = fileList.map((item) => {
-      const file = item.originFileObj || item;
-      if (!file) return Promise.resolve(null);
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () =>
-          resolve({
-            fileData: reader.result,
-            fileName: file.name || `proof-${Date.now()}.jpg`,
-            mimeType: file.type || 'image/jpeg',
-          });
-        reader.readAsDataURL(file);
-      });
-    });
-    return Promise.all(promises).then((arr) => arr.filter(Boolean));
-  };
-
   const handleCompletionSubmit = async (values) => {
     if (!selectedJob?.id) return;
     const raw = values.collectionPhotos;
@@ -480,7 +508,7 @@ const DriverDashboardPage = () => {
     }
     setCompletionSubmitting(true);
     try {
-      const proofImages = await fileListToBase64(fileList);
+      const proofImages = await filesToUploads(fileList);
       if (!proofImages.length) {
         message.error('Could not read photos. Please try again.');
         setCompletionSubmitting(false);
@@ -592,6 +620,7 @@ const DriverDashboardPage = () => {
         onCancel={() => setCompletionModalVisible(false)}
         footer={null}
         width={700}
+        zIndex={1100} // above the job details drawer it can be opened from
       >
         <Form
           form={form}
@@ -717,7 +746,7 @@ const DriverDashboardPage = () => {
             <Dropdown
               overlay={
                 <Menu>
-                  {selectedJob.status === 'assigned' && (
+                  {isAwaitingCollection(selectedJob.status) && (
                     <Menu.Item
                       key="collected"
                       onClick={() => setCompletionModalVisible(true)}
@@ -726,7 +755,7 @@ const DriverDashboardPage = () => {
                       Mark as Collected
                     </Menu.Item>
                   )}
-                  {selectedJob.status === 'collected' && (
+                  {normalizeJobStatusKey(selectedJob.status) === 'collected' && (
                     <Menu.Item
                       key="in_transit"
                       onClick={() => handleUpdateStatus('in_transit', 'Package in transit to warehouse')}
@@ -735,7 +764,7 @@ const DriverDashboardPage = () => {
                       Mark as In Transit
                     </Menu.Item>
                   )}
-                  {selectedJob.status === 'in_transit' && (
+                  {normalizeJobStatusKey(selectedJob.status) === 'in_transit' && (
                     <Menu.Item
                       key="arrived_at_warehouse"
                       onClick={() => handleUpdateStatus('arrived_at_warehouse', 'Package arrived at warehouse')}
@@ -744,9 +773,14 @@ const DriverDashboardPage = () => {
                       Mark as Arrived at Warehouse
                     </Menu.Item>
                   )}
-                  {!['assigned', 'collected', 'in_transit'].includes(selectedJob.status) && (
-                    <Menu.Item disabled>No actions available</Menu.Item>
+                  {canEdit(selectedJob.status) && (
+                    <Menu.Item key="edit" icon={<EditOutlined />} onClick={() => setEditJobId(selectedJob.id)}>
+                      Edit Job
+                    </Menu.Item>
                   )}
+                  <Menu.Item key="addNote" icon={<FileTextOutlined />} onClick={() => setNoteJob(selectedJob)}>
+                    Add Note
+                  </Menu.Item>
                 </Menu>
               }
               trigger={['click']}
@@ -915,6 +949,10 @@ const DriverDashboardPage = () => {
                 <Text>{selectedJob.specialInstructions}</Text>
               </Card>
             )}
+
+            <JobNotes notes={selectedJob.jobNotes} onAdd={() => setNoteJob(selectedJob)} />
+
+            <JobPhotos documents={selectedJob.documents} />
             </Tabs.TabPane>
 
             {/* Activities Tab */}
@@ -962,9 +1000,16 @@ const DriverDashboardPage = () => {
                 <Text type="secondary">No activity recorded yet</Text>
               )}
             </Tabs.TabPane>
+
+            <Tabs.TabPane tab="Edit History" key="edit-history">
+              <JobEditHistory jobId={selectedJob.id} refreshKey={selectedJob.updatedAt} />
+            </Tabs.TabPane>
           </Tabs>
         )}
       </Drawer>
+
+      <JobEditModal jobId={editJobId} onClose={() => setEditJobId(null)} onSaved={handleJobChanged} />
+      <JobNoteModal job={noteJob} onClose={() => setNoteJob(null)} onAdded={handleJobChanged} />
     </div>
   );
 };

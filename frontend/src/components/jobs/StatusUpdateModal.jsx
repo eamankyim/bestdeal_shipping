@@ -11,6 +11,7 @@ const StatusUpdateModal = ({
   onCancel, 
   onOk, 
   currentStatus,
+  initialStatus = null,
   nextStatuses = [],
   loading = false,
   teamMembers = [],
@@ -23,11 +24,13 @@ const StatusUpdateModal = ({
   useEffect(() => {
     if (visible) {
       form.setFieldsValue({
+        status: initialStatus || nextStatuses[0] || currentStatus,
         reassignJob: false,
         assignedTo: null,
       });
       setReassignJob(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- set up once each time the dialog opens
   }, [visible, form]);
 
   const handleOk = async () => {

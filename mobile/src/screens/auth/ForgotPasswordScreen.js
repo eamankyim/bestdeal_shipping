@@ -1,5 +1,6 @@
+import { STORE_METADATA } from '../../config/constants';
 import React, { useState } from 'react';
-import { View, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, StyleSheet, Alert, Linking, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { TextInput, Button, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme, touchTargets, typography } from '../../theme/theme';
@@ -16,15 +17,11 @@ export default function ForgotPasswordScreen({ navigation }) {
     }
 
     setLoading(true);
-    // TODO: Implement password reset API call
-    setTimeout(() => {
-      setLoading(false);
-      Alert.alert(
-        'Email Sent',
-        'If an account exists with this email, you will receive password reset instructions.',
-        [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
-      );
-    }, 1000);
+    try {
+      await Linking.openURL(`mailto:${STORE_METADATA.SUPPORT_EMAIL}?subject=Password%20reset%20request&body=${encodeURIComponent('Please help reset the password for ' + email.trim())}`);
+    } catch (error) { Alert.alert('Contact support', STORE_METADATA.SUPPORT_EMAIL); }
+    finally { setLoading(false); }
+
   };
 
   return (
@@ -43,7 +40,7 @@ export default function ForgotPasswordScreen({ navigation }) {
               Reset Password
             </Text>
             <Text variant="bodyLarge" style={styles.subtitle}>
-              Enter your email address and we'll send you instructions to reset your password.
+              Enter your account email to request a password reset from support.
             </Text>
           </View>
 
@@ -80,7 +77,7 @@ export default function ForgotPasswordScreen({ navigation }) {
               buttonColor={theme.colors.bestdealOrange}
               labelStyle={styles.buttonLabel}
             >
-              Send Reset Link
+              Contact Support
             </Button>
           </View>
 

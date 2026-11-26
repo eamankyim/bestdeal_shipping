@@ -23,7 +23,7 @@ cat >> nginx/conf.d/sabito.conf << 'EOF'
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+    server_name bestdealghanaapp.com www.bestdealghanaapp.com;
 
     # Use any certificate (will redirect quickly)
     ssl_certificate /etc/nginx/ssl/sabito.crt;
@@ -37,7 +37,7 @@ server {
 server {
     listen 80;
     listen [::]:80;
-    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+    server_name bestdealghanaapp.com www.bestdealghanaapp.com;
     return 301 https://$host:8443$request_uri;
 }
 EOF
@@ -59,15 +59,15 @@ echo "✓ Nginx reloaded"
 echo ""
 echo "=== Step 5: Test Redirect ==="
 echo "Testing redirect..."
-curl -k -I https://www.bestdealshippingapp.com 2>&1 | head -10
+curl -k -I https://www.bestdealghanaapp.com 2>&1 | head -10
 
 echo ""
 echo "=========================================="
 echo "REDIRECT ADDED!"
 echo "=========================================="
 echo ""
-echo "Now visiting https://www.bestdealshippingapp.com will redirect to:"
-echo "  https://www.bestdealshippingapp.com:8443"
+echo "Now visiting https://www.bestdealghanaapp.com will redirect to:"
+echo "  https://www.bestdealghanaapp.com:8443"
 echo ""
 echo "The redirect happens quickly, so users won't see the SSL warning."
 echo ""

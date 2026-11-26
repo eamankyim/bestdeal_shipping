@@ -3,6 +3,33 @@ const { sendSuccess, sendError, sendPaginatedResponse } = require('../utils/resp
 const { asyncHandler } = require('../middleware/errorHandler');
 const { notifyJobCreated, notifyJobStatusChange, notifyDriverAssignment } = require('../services/notificationService');
 const { generateTrackingId } = require('../utils/trackingIdGenerator');
+const { notifyCustomerOfStatus, sendCustomerMessage } = require('../services/customerMessageService');
+const { DELIVERY_STATUSES, normalizeStatus, canAccessJob, canEditJob, canEditJobValue } = require('../utils/jobAccess');
+const { buildJobUpdate } = require('../utils/jobEdit');
+const { decodeFile, parseImage, contentDisposition } = require('../utils/imageUpload');
+
+const MAX_NOTE_LENGTH = 5000;
+const MAX_PROOF_IMAGES = 10;
+
+/** Attach uploaded files ({ fileData, fileName, mimeType }) to a job. */
+const saveJobFiles = async (files, { jobId, documentType, uploadedBy }) => {
+  // One by one: createMany doesn't support Bytes
+  for (const [index, file] of files.entries()) {
+    const buffer = file?.buffer || decodeFile(file?.fileData);
+    if (!buffer) continue;
+    await prisma.jobDocument.create({
+      data: {
+        jobId,
+        documentType,
+        fileName: file.fileName || `${documentType}-${index + 1}`,
+        fileData: buffer,
+        fileSize: buffer.length,
+        mimeType: file.mimeType || null,
+        uploadedBy,
+      },
+    });
+  }
+};
 
 /**
  * @route   GET /api/jobs
@@ -58,13 +85,7 @@ exports.getAllJobs = asyncHandler(async (req, res) => {
 
     case 'delivery_agent': {
       // Same as delivery dashboard: jobs in delivery statuses that are assigned to this agent OR unassigned
-      const deliveryStatuses = [
-        'Ready for Delivery', 'ready_for_delivery',
-        'Out for Delivery', 'out_for_delivery',
-        'Failed Delivery', 'failed_delivery',
-        'Delivery Attempted', 'Delivered', 'delivered',
-      ];
-      where.status = { in: deliveryStatuses };
+      where.status = { in: DELIVERY_STATUSES };
       where.OR = [
         { assignedDeliveryAgentId: req.user.id },
         { assignedDeliveryAgentId: null },
@@ -111,6 +132,12 @@ exports.getAllJobs = asyncHandler(async (req, res) => {
             id: true,
             name: true,
             email: true,
+          },
+        },
+        assignedDeliveryAgent: {
+          select: {
+            id: true,
+            name: true,
           },
         },
         batch: {
@@ -210,6 +237,21 @@ exports.getJobById = asyncHandler(async (req, res) => {
           email: true,
         },
       },
+      jobNotes: {
+        take: 100,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          note: true,
+          createdAt: true,
+          author: {
+            select: {
+              name: true,
+              role: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -217,24 +259,8 @@ exports.getJobById = asyncHandler(async (req, res) => {
     return sendError(res, 404, 'Job not found');
   }
 
-  // Check ownership for drivers and delivery agents
-  if (req.user.role === 'driver' && job.assignedDriverId !== req.user.id) {
+  if (!canAccessJob(req.user, job)) {
     return sendError(res, 403, 'Access denied. You can only view jobs assigned to you');
-  }
-
-  const isDeliveryAgent = req.user.role === 'delivery-agent' || req.user.role === 'delivery_agent';
-  if (isDeliveryAgent) {
-    const assignedToMe = job.assignedDeliveryAgentId === req.user.id;
-    const deliveryStatuses = [
-        'Ready for Delivery', 'ready_for_delivery',
-        'Out for Delivery', 'out_for_delivery',
-        'Failed Delivery', 'failed_delivery',
-        'Delivery Attempted', 'Delivered', 'delivered',
-      ];
-    const unassignedInDelivery = job.assignedDeliveryAgentId === null && deliveryStatuses.includes(job.status);
-    if (!assignedToMe && !unassignedInDelivery) {
-      return sendError(res, 403, 'Access denied. You can only view jobs assigned to you or ready for delivery');
-    }
   }
 
   return sendSuccess(res, 200, 'Job retrieved successfully', { job });
@@ -252,6 +278,7 @@ exports.createJob = asyncHandler(async (req, res) => {
     pickupAddress,
     deliveryAddress,
     pickupDate,
+    estimatedDelivery,
     parcelDetails,
     specialInstructions,
     priority = 'Standard',
@@ -318,6 +345,9 @@ exports.createJob = asyncHandler(async (req, res) => {
       pickupAddress,
       deliveryAddress,
       pickupDate: pickupDate ? new Date(pickupDate) : null,
+      estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : null,
+      // A job created by warehouse staff belongs to their warehouse
+      warehouseLocation: req.user.role === 'warehouse' ? req.user.warehouseLocation || null : null,
       description: normalizedDescription || null,
       weight: totalPackageWeight != null ? totalPackageWeight : null,
       dimensionsLength: parcelDetails?.dimensions?.length,
@@ -353,31 +383,8 @@ exports.createJob = asyncHandler(async (req, res) => {
     },
   });
 
-  // Create documents if provided
-  if (documents && Array.isArray(documents) && documents.length > 0) {
-    // Create documents one by one (createMany doesn't support Bytes)
-    for (const doc of documents) {
-      let fileBuffer = null;
-      
-      // Convert base64 to Buffer if fileData is provided
-      if (doc.fileData) {
-        // Remove data URL prefix (e.g., "data:image/png;base64,")
-        const base64Data = doc.fileData.split(',')[1] || doc.fileData;
-        fileBuffer = Buffer.from(base64Data, 'base64');
-      }
-      
-      await prisma.jobDocument.create({
-        data: {
-          jobId: job.id,
-          documentType: 'attachment',
-          fileName: doc.fileName,
-          fileData: fileBuffer,
-          fileSize: doc.fileSize || null,
-          mimeType: doc.mimeType || null,
-          uploadedBy: req.user.id,
-        },
-      });
-    }
+  if (Array.isArray(documents) && documents.length > 0) {
+    await saveJobFiles(documents, { jobId: job.id, documentType: 'attachment', uploadedBy: req.user.id });
   }
 
   // Fetch job with documents
@@ -393,7 +400,14 @@ exports.createJob = asyncHandler(async (req, res) => {
         },
       },
       documents: {
-        include: {
+        select: {
+          id: true,
+          documentType: true,
+          fileName: true,
+          fileSize: true,
+          mimeType: true,
+          uploadedAt: true,
+          uploadedBy: true,
           uploader: {
             select: {
               name: true,
@@ -413,25 +427,21 @@ exports.createJob = asyncHandler(async (req, res) => {
     // Don't fail the request if notifications fail
   }
 
+  if (normalizeStatus(requestedStatus) !== 'draft') {
+    await sendCustomerMessage('job_created', { customer: jobWithDocuments.customer, job: jobWithDocuments });
+  }
+
   return sendSuccess(res, 201, 'Job created successfully', { job: jobWithDocuments });
 });
 
 /**
  * @route   PUT /api/jobs/:id
- * @desc    Update job details
- * @access  Private
+ * @desc    Update job details. Blank fields keep their stored value, files are only ever added,
+ *          and the previous values are kept in the edit history.
+ * @access  All staff (drivers and delivery agents: their own jobs)
  */
 exports.updateJob = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const {
-    pickupAddress,
-    deliveryAddress,
-    pickupDate,
-    parcelDetails,
-    specialInstructions,
-    priority,
-    status,
-  } = req.body;
 
   const existingJob = await prisma.job.findUnique({
     where: { id },
@@ -441,44 +451,121 @@ exports.updateJob = asyncHandler(async (req, res) => {
     return sendError(res, 404, 'Job not found');
   }
 
-  const packageList = Array.isArray(parcelDetails?.packages) ? parcelDetails.packages.filter(Boolean) : [];
-  const normalizedDescription = packageList.length > 0
-    ? packageList.map((pkg) => pkg.description || `${pkg.packageType || 'Package'}${pkg.weight ? ` (${pkg.weight}kg)` : ''}`).filter(Boolean).join('; ')
-    : (parcelDetails?.description ?? existingJob.description);
-  const totalPackageWeight = packageList.length > 0
-    ? packageList.reduce((sum, pkg) => sum + (Number(pkg.weight) || 0), 0)
-    : (parcelDetails?.weight != null ? Number(parcelDetails.weight) : existingJob.weight ? Number(existingJob.weight) : existingJob.weight);
+  if (!canEditJob(req.user, existingJob)) {
+    return sendError(res, 403, 'Access denied. You can only edit jobs assigned to you');
+  }
 
-  // Update job: only update provided fields; don't reset original details when omitted
-  const job = await prisma.job.update({
-    where: { id },
-    data: {
-      ...Object.fromEntries(['referenceNumber', 'receiverName', 'receiverAddress', 'receiverContact', 'freightType', 'customerId'].filter(key => req.body[key] !== undefined).map(key => [key, req.body[key]])),
-      ...(req.body.receiverPhone !== undefined && { receiverContact: req.body.receiverPhone }),
-      ...(Array.isArray(parcelDetails?.packages) && { packages: packageList }),
-      ...(pickupAddress && { pickupAddress }),
-      ...(deliveryAddress && { deliveryAddress }),
-      ...(pickupDate && { pickupDate: new Date(pickupDate) }),
-      ...(parcelDetails && (parcelDetails.description !== undefined || packageList.length > 0) && { description: normalizedDescription }),
-      ...(parcelDetails && ('weight' in parcelDetails || packageList.length > 0) && { weight: totalPackageWeight ?? existingJob.weight }),
-      ...(parcelDetails && packageList.length > 0 && { quantity: packageList.length }),
-      ...(parcelDetails?.dimensions && (parcelDetails.dimensions.length != null || parcelDetails.dimensions.width != null || parcelDetails.dimensions.height != null) && {
-        ...(parcelDetails.dimensions.length != null && { dimensionsLength: parcelDetails.dimensions.length }),
-        ...(parcelDetails.dimensions.width != null && { dimensionsWidth: parcelDetails.dimensions.width }),
-        ...(parcelDetails.dimensions.height != null && { dimensionsHeight: parcelDetails.dimensions.height }),
-      }),
-      ...(parcelDetails && 'value' in parcelDetails && { value: parcelDetails.value ?? existingJob.value }),
-      ...(parcelDetails?.quantity != null && { quantity: parcelDetails.quantity }),
-      ...(status && { status }),
-      ...(specialInstructions !== undefined && { specialInstructions }),
-      ...(priority && { priority }),
-    },
-    include: {
-      customer: true,
+  const { data, oldValues, newValues } = buildJobUpdate(existingJob, req.body, req.user);
+
+  if (data.customerId) {
+    const customer = await prisma.customer.findUnique({ where: { id: data.customerId }, select: { id: true } });
+    if (!customer) return sendError(res, 400, 'Customer not found');
+  }
+
+  const include = {
+    customer: true,
+    assignedDriver: { select: { id: true, name: true, email: true } },
+  };
+
+  // The change and the record of what it replaced are saved together.
+  const job = Object.keys(data).length === 0
+    ? await prisma.job.findUnique({ where: { id }, include })
+    : await prisma.$transaction(async (tx) => {
+      const updated = await tx.job.update({ where: { id }, data, include });
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'update',
+          entityType: 'job',
+          entityId: id,
+          oldValues,
+          newValues,
+        },
+      });
+      return updated;
+    });
+
+  if (Array.isArray(req.body.documents) && req.body.documents.length > 0) {
+    await saveJobFiles(req.body.documents, { jobId: id, documentType: 'attachment', uploadedBy: req.user.id });
+  }
+
+  // The only status an edit can change is a draft being finished
+  if (data.status) await notifyCustomerOfStatus(job, data.status, existingJob.status);
+
+  return sendSuccess(res, 200, 'Job updated successfully', { job });
+});
+
+/**
+ * @route   GET /api/jobs/:id/edit-history
+ * @desc    Who changed which details, and what they were before
+ * @access  All staff (drivers and delivery agents: their own jobs)
+ */
+exports.getJobEditHistory = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const job = await prisma.job.findUnique({ where: { id } });
+  if (!job) return sendError(res, 404, 'Job not found');
+  if (!canAccessJob(req.user, job)) return sendError(res, 403, 'Access denied');
+
+  const logs = await prisma.auditLog.findMany({
+    where: { entityType: 'job', entityId: id, action: 'update' },
+    include: { user: { select: { name: true } } },
+    orderBy: { timestamp: 'desc' },
+    take: 50,
+  });
+
+  const customerIds = logs.flatMap((log) => [log.oldValues?.customerId, log.newValues?.customerId]).filter(Boolean);
+  const customers = customerIds.length
+    ? await prisma.customer.findMany({ where: { id: { in: customerIds } }, select: { id: true, name: true } })
+    : [];
+  const display = (field, value) =>
+    (field === 'customerId' ? customers.find((customer) => customer.id === value)?.name || value : value);
+
+  // Package prices are part of the packages list, so it is hidden together with the job value.
+  const hiddenFields = canEditJobValue(req.user) ? [] : ['value', 'packages'];
+  const history = logs.map((log) => ({
+    id: log.id,
+    editedBy: log.user?.name || 'Unknown',
+    timestamp: log.timestamp,
+    changes: Object.keys(log.newValues || {})
+      .filter((field) => !hiddenFields.includes(field))
+      .map((field) => ({
+        field,
+        from: display(field, log.oldValues?.[field] ?? null),
+        to: display(field, log.newValues[field]),
+      })),
+  })).filter((entry) => entry.changes.length > 0);
+
+  return sendSuccess(res, 200, 'Edit history retrieved successfully', { history });
+});
+
+/**
+ * @route   POST /api/jobs/:id/notes
+ * @desc    Add an internal note to a job (staff only, never shown on public tracking)
+ * @access  All staff (drivers and delivery agents: their own jobs)
+ */
+exports.addJobNote = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const note = String(req.body.note ?? '').trim();
+
+  if (!note) return sendError(res, 400, 'Please enter a note');
+  if (note.length > MAX_NOTE_LENGTH) return sendError(res, 400, `Notes can be up to ${MAX_NOTE_LENGTH} characters`);
+
+  const job = await prisma.job.findUnique({ where: { id } });
+  if (!job) return sendError(res, 404, 'Job not found');
+  if (!canAccessJob(req.user, job)) return sendError(res, 403, 'Access denied. You can only add notes to jobs assigned to you');
+
+  const jobNote = await prisma.jobNote.create({
+    data: { jobId: id, note, createdBy: req.user.id },
+    select: {
+      id: true,
+      note: true,
+      createdAt: true,
+      author: { select: { name: true, role: true } },
     },
   });
 
-  return sendSuccess(res, 200, 'Job updated successfully', { job });
+  return sendSuccess(res, 201, 'Note added', { note: jobNote });
 });
 
 /**
@@ -499,32 +586,38 @@ exports.updateJobStatus = asyncHandler(async (req, res) => {
     return sendError(res, 404, 'Job not found');
   }
 
-  // Check ownership for non-admin users
-  if (req.user.role === 'driver') {
-    if (job.assignedDriverId !== req.user.id) {
-      return sendError(res, 403, 'Access denied. You can only update jobs assigned to you');
-    }
-  } else if (req.user.role === 'delivery-agent' || req.user.role === 'delivery_agent') {
-    const assignedToMe = job.assignedDeliveryAgentId === req.user.id;
-    const deliveryStatuses = [
-        'Ready for Delivery', 'ready_for_delivery',
-        'Out for Delivery', 'out_for_delivery',
-        'Failed Delivery', 'failed_delivery',
-        'Delivery Attempted', 'Delivered', 'delivered',
-      ];
-    const unassignedInDelivery = job.assignedDeliveryAgentId === null && deliveryStatuses.includes(job.status);
-    if (!assignedToMe && !unassignedInDelivery) {
-      return sendError(res, 403, 'Access denied. You can only update jobs assigned to you or ready for delivery');
-    }
+  if (!canAccessJob(req.user, job)) {
+    return sendError(res, 403, 'Access denied. You can only update jobs assigned to you');
   }
 
   // When marking as collected, require 1–10 proof images from drivers
-  const normalizedStatus = (status || '').toLowerCase();
+  const normalizedStatus = normalizeStatus(status);
+  const images = Array.isArray(proofImages) ? proofImages.filter((image) => image?.fileData) : [];
   if (req.user.role === 'driver' && normalizedStatus === 'collected') {
-    const images = Array.isArray(proofImages) ? proofImages : [];
-    if (images.length < 1 || images.length > 10) {
+    if (images.length < 1 || images.length > MAX_PROOF_IMAGES) {
       return sendError(res, 400, 'Collection requires between 1 and 10 proof images');
     }
+  }
+
+  // Whoever marks an item delivered must photograph it, so everyone can see what was handed over.
+  if (normalizedStatus === 'delivered') {
+    const photos = images.map((image, index) => parseImage(image, `delivery-photo-${index + 1}`));
+    const deliveryPhotos = photos.filter(Boolean);
+    if (deliveryPhotos.length < 1 || images.length > MAX_PROOF_IMAGES) {
+      return sendError(res, 400, 'Please attach between 1 and 10 photos of the item being delivered');
+    }
+    // Files are stored before the status moves, so a job is never "delivered" without its photo.
+    await saveJobFiles(deliveryPhotos, { jobId: id, documentType: 'proof_of_delivery', uploadedBy: req.user.id });
+    await saveJobFiles(images.filter((_, index) => !photos[index]), { jobId: id, documentType: 'attachment', uploadedBy: req.user.id });
+  } else if (images.length > 0) {
+    await saveJobFiles(
+      images.map((image, index) => ({
+        ...image,
+        fileName: image.fileName || `${normalizedStatus}-proof-${index + 1}.jpg`,
+        mimeType: image.mimeType || 'image/jpeg',
+      })),
+      { jobId: id, documentType: 'photo', uploadedBy: req.user.id }
+    );
   }
 
   // Update job status
@@ -552,29 +645,6 @@ exports.updateJobStatus = asyncHandler(async (req, res) => {
     },
   });
 
-  // When status is collected, save proof images as job documents
-  if (Array.isArray(proofImages) && proofImages.length > 0) {
-    for (let i = 0; i < proofImages.length; i++) {
-      const img = proofImages[i];
-      if (!img || !img.fileData) continue;
-      const base64Data = (typeof img.fileData === 'string' && img.fileData.includes(','))
-        ? img.fileData.split(',')[1] || img.fileData
-        : img.fileData;
-      const fileBuffer = Buffer.from(base64Data, 'base64');
-      await prisma.jobDocument.create({
-        data: {
-          jobId: id,
-          documentType: 'photo',
-          fileName: img.fileName || `collection-proof-${i + 1}.jpg`,
-          fileData: fileBuffer,
-          fileSize: fileBuffer.length,
-          mimeType: img.mimeType || 'image/jpeg',
-          uploadedBy: req.user.id,
-        },
-      });
-    }
-  }
-
   // Auto-create draft invoice when job is delivered
   if (status === 'delivered') {
     try {
@@ -593,6 +663,10 @@ exports.updateJobStatus = asyncHandler(async (req, res) => {
     console.log(`📬 Sent ${notificationCount} notifications for status change: ${status}`);
   } catch (error) {
     console.error('⚠️ Failed to send status change notifications:', error);
+  }
+
+  if (normalizedStatus !== normalizeStatus(job.status)) {
+    await notifyCustomerOfStatus(updatedJob, status, job.status);
   }
 
   return sendSuccess(res, 200, 'Job status updated successfully', { job: updatedJob });
@@ -617,6 +691,11 @@ exports.assignDriver = asyncHandler(async (req, res) => {
   }
   if (!['driver', 'delivery_agent', 'delivery-agent'].includes(assignee.role)) {
     return sendError(res, 400, 'Invalid driver ID');
+  }
+
+  const existingJob = await prisma.job.findUnique({ where: { id }, select: { status: true } });
+  if (!existingJob) {
+    return sendError(res, 404, 'Job not found');
   }
 
   const isDriver = assignee.role === 'driver';
@@ -658,6 +737,11 @@ exports.assignDriver = asyncHandler(async (req, res) => {
     console.error('⚠️ Failed to send driver assignment notification:', error);
   }
 
+  // Swapping one driver for another is not news for the customer
+  if (normalizeStatus(existingJob.status) !== 'assigned') {
+    await notifyCustomerOfStatus(job, 'Assigned', existingJob.status);
+  }
+
   return sendSuccess(res, 200, 'Driver assigned successfully', { job });
 });
 
@@ -668,6 +752,10 @@ exports.assignDriver = asyncHandler(async (req, res) => {
  */
 exports.getJobTimeline = asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  const job = await prisma.job.findUnique({ where: { id } });
+  if (!job) return sendError(res, 404, 'Job not found');
+  if (!canAccessJob(req.user, job)) return sendError(res, 403, 'Access denied');
 
   const timeline = await prisma.jobTimeline.findMany({
     where: { jobId: id },
@@ -726,12 +814,20 @@ exports.assignDeliveryAgent = asyncHandler(async (req, res) => {
   const { deliveryAgentId } = req.body;
 
   // Check if delivery agent exists
-  const agent = await prisma.user.findUnique({
-    where: { id: deliveryAgentId },
-  });
+  const agent = deliveryAgentId
+    ? await prisma.user.findUnique({ where: { id: deliveryAgentId } })
+    : null;
 
-  if (!agent || (agent.role !== 'delivery-agent' && agent.role !== 'delivery_agent')) {
-    return sendError(res, 400, 'Invalid delivery agent ID');
+  if (!agent || !agent.active || (agent.role !== 'delivery-agent' && agent.role !== 'delivery_agent')) {
+    return sendError(res, 400, 'Choose an active dispatch rider');
+  }
+
+  const existingJob = await prisma.job.findUnique({ where: { id } });
+  if (!existingJob) {
+    return sendError(res, 404, 'Job not found');
+  }
+  if (['delivered', 'cancelled', 'closed', 'draft'].includes(normalizeStatus(existingJob.status))) {
+    return sendError(res, 400, `This job is ${existingJob.status.toLowerCase()}, so it cannot be dispatched`);
   }
 
   // Update job
@@ -757,7 +853,7 @@ exports.assignDeliveryAgent = asyncHandler(async (req, res) => {
     data: {
       jobId: id,
       status: 'out_for_delivery',
-      notes: `Assigned to delivery agent ${agent.name}`,
+      notes: `Assigned to dispatch rider ${agent.name}`,
       updatedBy: req.user.id,
     },
   });
@@ -776,6 +872,10 @@ exports.assignDeliveryAgent = asyncHandler(async (req, res) => {
     console.log(`📬 Notification sent to delivery agent for job ${job.trackingId}`);
   } catch (error) {
     console.error('⚠️ Failed to send delivery agent notification:', error);
+  }
+
+  if (normalizeStatus(existingJob.status) !== 'out_for_delivery') {
+    await notifyCustomerOfStatus(job, 'out_for_delivery');
   }
 
   return sendSuccess(res, 200, 'Delivery agent assigned successfully', { job });
@@ -798,6 +898,7 @@ exports.getDocument = asyncHandler(async (req, res) => {
           status: true,
           assignedDriverId: true,
           assignedDeliveryAgentId: true,
+          createdBy: true,
         },
       },
     },
@@ -807,24 +908,8 @@ exports.getDocument = asyncHandler(async (req, res) => {
     return sendError(res, 404, 'Document not found');
   }
 
-  // Check permissions (drivers/agents can only view their assigned jobs)
-  if (req.user.role === 'driver' && document.job.assignedDriverId !== req.user.id) {
+  if (!canAccessJob(req.user, document.job)) {
     return sendError(res, 403, 'Access denied');
-  }
-
-  const isDeliveryAgentDoc = req.user.role === 'delivery-agent' || req.user.role === 'delivery_agent';
-  if (isDeliveryAgentDoc) {
-    const assignedToMe = document.job.assignedDeliveryAgentId === req.user.id;
-    const deliveryStatuses = [
-        'Ready for Delivery', 'ready_for_delivery',
-        'Out for Delivery', 'out_for_delivery',
-        'Failed Delivery', 'failed_delivery',
-        'Delivery Attempted', 'Delivered', 'delivered',
-      ];
-    const unassignedInDelivery = document.job.assignedDeliveryAgentId === null && deliveryStatuses.includes(document.job.status);
-    if (!assignedToMe && !unassignedInDelivery) {
-      return sendError(res, 403, 'Access denied');
-    }
   }
 
   if (!document.fileData) {
@@ -833,7 +918,7 @@ exports.getDocument = asyncHandler(async (req, res) => {
 
   // Set appropriate headers
   res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
-  res.setHeader('Content-Disposition', `inline; filename="${document.fileName}"`);
+  res.setHeader('Content-Disposition', contentDisposition(document.fileName));
   res.setHeader('Content-Length', document.fileData.length);
 
   // Send the file

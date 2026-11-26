@@ -11,10 +11,10 @@ chmod 600 nginx/ssl/shipeaseshippingapp.com.key && \
 =======
 cd ~/bestdeal_shipping && \
 mkdir -p nginx/ssl nginx/conf.d && \
-cp /etc/letsencrypt/live/bestdealshippingapp.com/fullchain.pem nginx/ssl/bestdealshippingapp.com.crt && \
-cp /etc/letsencrypt/live/bestdealshippingapp.com/privkey.pem nginx/ssl/bestdealshippingapp.com.key && \
-chmod 644 nginx/ssl/bestdealshippingapp.com.crt && \
-chmod 600 nginx/ssl/bestdealshippingapp.com.key && \
+cp /etc/letsencrypt/live/bestdealghanaapp.com/fullchain.pem nginx/ssl/bestdealghanaapp.com.crt && \
+cp /etc/letsencrypt/live/bestdealghanaapp.com/privkey.pem nginx/ssl/bestdealghanaapp.com.key && \
+chmod 644 nginx/ssl/bestdealghanaapp.com.crt && \
+chmod 600 nginx/ssl/bestdealghanaapp.com.key && \
 >>>>>>> origin/master
 cat > nginx/Dockerfile << 'DOCKERFILEEOF'
 FROM nginx:alpine
@@ -56,7 +56,7 @@ cat > nginx/conf.d/bestdeal.conf << 'CONFEOF'
 server {
     listen 80;
     listen [::]:80;
-    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+    server_name bestdealghanaapp.com www.bestdealghanaapp.com;
 >>>>>>> origin/master
     return 301 https://$host$request_uri;
 }
@@ -68,9 +68,9 @@ server {
     ssl_certificate /etc/nginx/ssl/shipeaseshippingapp.com.crt;
     ssl_certificate_key /etc/nginx/ssl/shipeaseshippingapp.com.key;
 =======
-    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
-    ssl_certificate /etc/nginx/ssl/bestdealshippingapp.com.crt;
-    ssl_certificate_key /etc/nginx/ssl/bestdealshippingapp.com.key;
+    server_name bestdealghanaapp.com www.bestdealghanaapp.com;
+    ssl_certificate /etc/nginx/ssl/bestdealghanaapp.com.crt;
+    ssl_certificate_key /etc/nginx/ssl/bestdealghanaapp.com.key;
 >>>>>>> origin/master
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5:!RC4:!3DES;

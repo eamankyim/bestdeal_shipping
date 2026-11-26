@@ -18,7 +18,8 @@ import { jobService } from '../../services/jobService';
 
 /** Coerce API money values (number | string Decimal | null) to a finite number. */
 function toMoneyNumber(value) {
-  const n = Number(value ?? 0);
+  if (value && typeof value === 'object') return toMoneyNumber(value.amount ?? value.value ?? value.total ?? value.totalAmount ?? value.price ?? value.estimatedPrice ?? value.invoiceAmount ?? value.amountDue);
+  const n = Number(typeof value === 'string' ? value.replace(/[^0-9.-]+/g, '') : value ?? 0);
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -32,7 +33,7 @@ export default function PaymentRecordingModal({
   const amount = toMoneyNumber(invoiceAmount);
   const [paymentType, setPaymentType] = useState('full');
   const [amountPaid, setAmountPaid] = useState(amount.toFixed(2));
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentReference, setPaymentReference] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
@@ -41,14 +42,14 @@ export default function PaymentRecordingModal({
     if (visible && job) {
       setPaymentType('full');
       setAmountPaid(amount.toFixed(2));
-      setPaymentMethod('Cash');
+      setPaymentMethod('cash');
       setPaymentReference('');
       setNotes('');
     }
   }, [visible, job, amount]);
 
   const handleSubmit = async () => {
-    if (paymentType === 'part' && (!amountPaid || parseFloat(amountPaid) <= 0)) {
+    if (amount <= 0 || (paymentType === 'part' && (!Number.isFinite(Number(amountPaid)) || Number(amountPaid) <= 0))) {
       Alert.alert('Error', 'Please enter a valid payment amount');
       return;
     }
@@ -79,7 +80,7 @@ export default function PaymentRecordingModal({
         // Reset form
         setPaymentType('full');
         setAmountPaid(amount.toFixed(2));
-        setPaymentMethod('Cash');
+        setPaymentMethod('cash');
         setPaymentReference('');
         setNotes('');
       } else {
@@ -106,7 +107,7 @@ export default function PaymentRecordingModal({
     >
       <View style={styles.modalOverlay}>
         <Card style={styles.modalCard}>
-          <Card.Content>
+          <ScrollView><Card.Content>
             <Text variant="headlineSmall" style={styles.title}>
               Record Payment
             </Text>
@@ -164,9 +165,9 @@ export default function PaymentRecordingModal({
               onValueChange={setPaymentMethod}
               value={paymentMethod}
             >
-              <RadioButton.Item label="POS" value="POS" />
-              <RadioButton.Item label="Bank Transfer" value="Bank" />
-              <RadioButton.Item label="Cash" value="Cash" />
+              <RadioButton.Item label="POS" value="pos" />
+              <RadioButton.Item label="Bank Transfer" value="bank" />
+              <RadioButton.Item label="Cash" value="cash" />
             </RadioButton.Group>
 
             <TextInput
@@ -207,7 +208,7 @@ export default function PaymentRecordingModal({
                 Record Payment
               </Button>
             </View>
-          </Card.Content>
+          </Card.Content></ScrollView>
         </Card>
       </View>
     </Modal>

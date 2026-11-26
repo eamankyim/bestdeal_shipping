@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { authService } from '../../services/authService';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -21,8 +22,22 @@ export default function OrganisationSettingsScreen({ navigation }) {
   const [vatNumber, setVatNumber] = useState('');
   const [address, setAddress] = useState('');
 
-  const handleSave = () => {
-    Alert.alert('Coming Soon', 'Organisation settings update will be available soon');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    authService.getOrganisation().then(result => {
+      const data = result.data.organisation;
+      setCompanyName(data.companyName || ''); setBusinessReg(data.businessReg || '');
+      setVatNumber(data.vatNumber || ''); setAddress(data.address || '');
+    }).catch(error => Alert.alert('Error', error.response?.data?.message || 'Unable to load settings'));
+  }, []);
+  const handleSave = async () => {
+    setBusy(true);
+    try {
+      const result = await authService.updateOrganisation({ companyName, businessReg, vatNumber, address });
+      if (!result.success) throw new Error(result.message);
+      Alert.alert('Saved', result.message);
+    } catch (error) { Alert.alert('Error', error.response?.data?.message || error.message); }
+    finally { setBusy(false); }
   };
 
   return (
@@ -81,6 +96,8 @@ export default function OrganisationSettingsScreen({ navigation }) {
             <Button
               mode="contained"
               onPress={handleSave}
+              disabled={busy || !companyName.trim()}
+              loading={busy}
               style={styles.button}
               contentStyle={styles.buttonContent}
               labelStyle={styles.buttonLabel}

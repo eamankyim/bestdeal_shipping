@@ -53,7 +53,7 @@ docker logs host-nginx --tail 20
 echo ""
 echo "=== Step 7: Test Routing ==="
 echo "Testing Best Deal:"
-curl -k -I https://www.bestdealshippingapp.com 2>&1 | head -5
+curl -k -I https://www.bestdealghanaapp.com 2>&1 | head -5
 echo ""
 echo "Testing Sabito:"
 curl -k -I https://sabito.app 2>&1 | head -5

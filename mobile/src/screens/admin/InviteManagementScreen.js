@@ -11,7 +11,6 @@ import {
   Card,
   Text,
   Button,
-  ActivityIndicator,
   Chip,
   TextInput,
   Modal,
@@ -24,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { authService } from '../../services/authService';
 import { standardStyles, theme, spacing, touchTargets, typography } from '../../theme/theme';
 import logger from '../../utils/logger';
+import ThreeDotsLoader from '../../components/common/ThreeDotsLoader';
 
 export default function InviteManagementScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -110,7 +110,7 @@ export default function InviteManagementScreen({ navigation }) {
       // Construct invite link - adjust URL scheme based on your app configuration
       const inviteLink = invite.token 
         ? `bestdeal://accept-invite/${invite.token}` 
-        : `https://app.bestdeal.com/accept-invite/${invite.token || invite.id}`;
+        : `https://bestdealghanaapp.com/accept-invite/${invite.token || invite.id}`;
       
       const message = `You've been invited to join BestDeal Shipping!\n\nEmail: ${invite.email}\nRole: ${invite.role}\n\nClick here to accept: ${inviteLink}`;
       
@@ -163,7 +163,7 @@ export default function InviteManagementScreen({ navigation }) {
   if (loading && !refreshing) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <ThreeDotsLoader color={theme.colors.primary} />
       </View>
     );
   }

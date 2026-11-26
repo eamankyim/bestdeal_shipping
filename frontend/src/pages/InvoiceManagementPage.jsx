@@ -34,12 +34,17 @@ import {
 } from '@ant-design/icons';
 import { invoiceAPI } from '../utils/api';
 import ResponsiveTable from '../components/common/ResponsiveTable';
+import InvoiceNotes from '../components/invoices/InvoiceNotes';
+import { useAuth } from '../contexts/AuthContext';
+import { canManageInvoices } from '../utils/permissions';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
 
 const InvoiceManagementPage = () => {
+  const { currentUser } = useAuth();
+  const canManage = canManageInvoices(currentUser); // the Ghana warehouse can only view and add notes
   const [invoiceModalVisible, setInvoiceModalVisible] = useState(false);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -248,7 +253,7 @@ const InvoiceManagementPage = () => {
       mobile: true,
       render: (_, record) => (
         <Space>
-          {record.status === 'Draft' && (
+          {canManage && record.status === 'Draft' && (
             <Button 
               size="small"
               type="primary"
@@ -262,7 +267,7 @@ const InvoiceManagementPage = () => {
               Send
             </Button>
           )}
-          {record.status === 'Pending' && (
+          {canManage && record.status === 'Pending' && (
             <Button 
               size="small"
               type="primary"
@@ -409,11 +414,21 @@ const InvoiceManagementPage = () => {
       const response = await invoiceAPI.send(invoice.id);
       
       if (response.success) {
-        message.success({ 
-          content: `Invoice ${invoice.invoiceNumber} sent to ${invoice.customer}!`,
-          key: 'sendInvoice',
-          duration: 3
-        });
+        const { emailDelivery, smsDelivery } = response.data;
+        const channels = [emailDelivery?.sent && 'email', smsDelivery?.sent && 'SMS'].filter(Boolean);
+        if (channels.length > 0) {
+          message.success({
+            content: `Invoice ${invoice.invoiceNumber} sent to ${invoice.customer} by ${channels.join(' and ')}!`,
+            key: 'sendInvoice',
+            duration: 3
+          });
+        } else {
+          message.warning({
+            content: `Invoice ${invoice.invoiceNumber} is finalised, but ${invoice.customer} was not told: ${emailDelivery?.reason || 'nothing was sent'}.`,
+            key: 'sendInvoice',
+            duration: 6
+          });
+        }
         
         // Refresh invoices list
         await fetchInvoices();
@@ -429,6 +444,7 @@ const InvoiceManagementPage = () => {
   };
 
   const handleMarkAsPaid = async (invoice) => {
+    const payment = { paymentMethod: 'bank_transfer', paymentReference: '' };
     Modal.confirm({
       title: 'Mark Invoice as Paid?',
       content: (
@@ -437,7 +453,7 @@ const InvoiceManagementPage = () => {
           <p>Amount: <strong>£{invoice.amount.toFixed(2)}</strong></p>
           <Form layout="vertical" style={{ marginTop: 16 }}>
             <Form.Item label="Payment Method">
-              <Select defaultValue="bank_transfer" id="paymentMethod">
+              <Select defaultValue="bank_transfer" onChange={(value) => { payment.paymentMethod = value; }}>
                 <Option value="bank_transfer">Bank Transfer</Option>
                 <Option value="cash">Cash</Option>
                 <Option value="card">Card</Option>
@@ -445,7 +461,7 @@ const InvoiceManagementPage = () => {
               </Select>
             </Form.Item>
             <Form.Item label="Payment Reference (Optional)">
-              <Input placeholder="Transaction ID or reference" id="paymentReference" />
+              <Input placeholder="Transaction ID or reference" onChange={(event) => { payment.paymentReference = event.target.value.trim(); }} />
             </Form.Item>
           </Form>
         </div>
@@ -455,15 +471,9 @@ const InvoiceManagementPage = () => {
       onOk: async () => {
         setMarkingPaid(true);
         try {
-          const paymentMethod = document.getElementById('paymentMethod')?.value || 'bank_transfer';
-          const paymentReference = document.getElementById('paymentReference')?.value || '';
-          
           message.loading({ content: 'Marking invoice as paid...', key: 'markPaid' });
           
-          const response = await invoiceAPI.markAsPaid(invoice.id, {
-            paymentMethod,
-            paymentReference
-          });
+          const response = await invoiceAPI.markAsPaid(invoice.id, payment);
           
           if (response.success) {
             message.success({ 
@@ -632,7 +642,7 @@ const InvoiceManagementPage = () => {
       <Card>
         <Tabs 
           defaultActiveKey="invoices" 
-          items={tabItems}
+          items={canManage ? tabItems : tabItems.filter((tab) => tab.key === 'invoices')}
         />
       </Card>
 
@@ -874,7 +884,7 @@ const InvoiceManagementPage = () => {
           >
             Download
           </Button>,
-          ...(selectedInvoice?.status === 'Pending' ? [
+          ...(canManage && selectedInvoice?.status === 'Pending' ? [
             <Button 
               key="resend"
               icon={<SendOutlined />}
@@ -1016,6 +1026,9 @@ const InvoiceManagementPage = () => {
                 </Card>
               </Col>
             </Row>
+
+            {/* Notes on the state of the invoice */}
+            <InvoiceNotes key={selectedInvoice.id} invoiceId={selectedInvoice.id} />
           </div>
         )}
       </Drawer>

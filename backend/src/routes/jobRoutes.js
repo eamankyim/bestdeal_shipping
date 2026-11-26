@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const packageDetails = require('../middleware/packageDetails');
 const jobController = require('../controllers/jobController');
-const { authenticate, authorize } = require('../middleware/auth');
+const { authenticate, authorize, authorizeIf } = require('../middleware/auth');
+const { canCreateJob, isStaff } = require('../utils/jobAccess');
 const {
   createJobValidation,
   updateJobStatusValidation,
@@ -119,8 +120,8 @@ router.get('/:id', uuidValidation, jobController.getJobById);
  *       201:
  *         description: Job created successfully
  */
-// Only admin and customer-service can create jobs
-router.post('/', authorize('admin', 'customer-service'), packageDetails, createJobValidation, jobController.createJob);
+// Admin, customer service and UK-side warehouse staff can create jobs
+router.post('/', authorizeIf(canCreateJob, 'Only admin, customer service and UK warehouse staff can create jobs.'), packageDetails, createJobValidation, jobController.createJob);
 
 /**
  * @swagger
@@ -158,8 +159,12 @@ router.post('/', authorize('admin', 'customer-service'), packageDetails, createJ
  *       200:
  *         description: Job updated successfully
  */
-// Only admin can fully update job details
-router.put('/:id', authorize('admin'), uuidValidation, packageDetails, jobController.updateJob);
+// All staff can edit job details (the controller limits drivers and delivery agents to their own jobs)
+router.put('/:id', authorizeIf(isStaff, 'Only staff can edit jobs.'), uuidValidation, packageDetails, jobController.updateJob);
+
+// All staff can add notes to a job, and see what was changed by earlier edits
+router.post('/:id/notes', authorizeIf(isStaff, 'Only staff can add notes.'), uuidValidation, jobController.addJobNote);
+router.get('/:id/edit-history', authorizeIf(isStaff, 'Only staff can view the edit history.'), uuidValidation, jobController.getJobEditHistory);
 
 /**
  * @swagger

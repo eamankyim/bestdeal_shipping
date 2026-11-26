@@ -1,4 +1,6 @@
 const nodemailer = require('nodemailer');
+const { getLynkEmailSetup } = require('./smsService');
+const { sendLynkEmail } = require('./lynkApi');
 
 const DEFAULT_FROM_NAME = 'BestDeal Shipping';
 
@@ -58,7 +60,39 @@ const getFromAddress = () => {
   return `"${config.fromName}" <${config.user}>`;
 };
 
+/** Can emails be sent right now, through Lynk or SMTP? */
+const isEmailReady = async () => {
+  const lynk = await getLynkEmailSetup();
+  return lynk.enabled ? lynk.configured : isEmailConfigured();
+};
+
+/** Lets an admin check the Lynk key before switching emails over to it. */
+const sendTestEmail = async (to) => {
+  const lynk = await getLynkEmailSetup();
+  if (!lynk.configured) return { sent: false, reason: lynk.problem };
+  try {
+    const { id } = await sendLynkEmail({
+      apiKey: lynk.apiKey,
+      to,
+      subject: 'Test email',
+      text: 'Your email set-up is working.',
+      html: '<p>Your email set-up is working.</p>',
+      fromName: getEmailConfig().fromName,
+    });
+    return { sent: true, messageId: id };
+  } catch (error) {
+    return { sent: false, reason: error.message };
+  }
+};
+
 const sendEmail = async ({ to, subject, text, html }) => {
+  const lynk = await getLynkEmailSetup();
+  if (lynk.enabled) {
+    if (!lynk.configured) return { sent: false, reason: lynk.problem };
+    const { id } = await sendLynkEmail({ apiKey: lynk.apiKey, to, subject, text, html, fromName: getEmailConfig().fromName });
+    return { sent: true, messageId: id };
+  }
+
   if (!isEmailConfigured()) {
     console.warn('Email delivery skipped: SMTP email delivery is not configured');
     return { sent: false, reason: 'SMTP email delivery is not configured' };
@@ -107,41 +141,12 @@ const sendInvitationEmail = async ({ to, role, inviteLink, inviterName }) => {
   });
 };
 
-const sendInvoiceEmail = async ({ invoice }) => {
-  const customer = invoice.customer;
-  const total = Number(invoice.total || 0).toFixed(2);
-  const safeCustomerName = escapeHtml(customer.name || 'Customer');
-  const safeInvoiceNumber = escapeHtml(invoice.invoiceNumber);
-  const safeTotal = escapeHtml(total);
-  const safeDueDate = invoice.dueDate ? escapeHtml(new Date(invoice.dueDate).toDateString()) : null;
-
-  return sendEmail({
-    to: customer.email,
-    subject: `Invoice ${invoice.invoiceNumber} from BestDeal Shipping`,
-    text: [
-      `Hello ${customer.name || 'Customer'},`,
-      '',
-      `Invoice ${invoice.invoiceNumber} is ready.`,
-      `Total: ${total}`,
-      invoice.dueDate ? `Due date: ${new Date(invoice.dueDate).toDateString()}` : null,
-      '',
-      'Please contact BestDeal Shipping if you have any questions.',
-    ].filter(Boolean).join('\n'),
-    html: `
-      <p>Hello ${safeCustomerName},</p>
-      <p>Invoice <strong>${safeInvoiceNumber}</strong> is ready.</p>
-      <p><strong>Total:</strong> ${safeTotal}</p>
-      ${safeDueDate ? `<p><strong>Due date:</strong> ${safeDueDate}</p>` : ''}
-      <p>Please contact BestDeal Shipping if you have any questions.</p>
-    `,
-  });
-};
-
 module.exports = {
   getEmailConfig,
   isEmailConfigured,
+  isEmailReady,
   sendEmail,
+  sendTestEmail,
   sendInvitationEmail,
-  sendInvoiceEmail,
   verifyEmailTransport,
 };

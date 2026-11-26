@@ -99,8 +99,11 @@ const handleResponse = async (response) => {
  * @param {object} options - Fetch options
  * @returns {Promise} - API response
  */
-export const apiRequest = async (endpoint, options = {}) => {
-  const url = `${config.api.fullUrl}${endpoint}`;
+export const apiRequest = async (endpoint, { params, ...options } = {}) => {
+  const query = new URLSearchParams(
+    Object.entries(params || {}).filter(([, value]) => value !== undefined && value !== null && value !== '')
+  ).toString();
+  const url = `${config.api.fullUrl}${endpoint}${query ? `?${query}` : ''}`;
   
   const defaultOptions = {
     headers: getHeaders(options.auth !== false),
@@ -260,12 +263,15 @@ export const jobAPI = {
   assignDeliveryAgent: (id, deliveryAgentId) => api.post(`/jobs/${id}/assign-delivery-agent`, { deliveryAgentId }),
   recordPayment: (id, paymentData) => api.post(`/jobs/${id}/payment`, paymentData),
   revertStatus: (id, data) => api.post(`/jobs/${id}/revert-status`, data),
+  addNote: (id, note) => api.post(`/jobs/${id}/notes`, { note }),
+  getEditHistory: (id) => api.get(`/jobs/${id}/edit-history`),
 };
 
 export const batchAPI = {
   getAll: (params) => api.get('/batches', { params }),
   getById: (id) => api.get(`/batches/${id}`),
   create: (data) => api.post('/batches', data),
+  update: (id, data) => api.put(`/batches/${id}`, data),
   updateStatus: (id, data) => api.patch(`/batches/${id}/status`, data),
 };
 
@@ -276,6 +282,17 @@ export const invoiceAPI = {
   send: (id) => api.post(`/invoices/${id}/send`),
   markAsPaid: (id, data) => api.post(`/invoices/${id}/pay`, data),
   cancel: (id) => api.post(`/invoices/${id}/cancel`),
+  addNote: (id, data) => api.post(`/invoices/${id}/notes`, data),
+};
+
+export const settingsAPI = {
+  getCustomerMessages: () => api.get('/settings/customer-messages'),
+  updateCustomerMessages: (messages) => api.put('/settings/customer-messages', { messages }),
+  getSms: () => api.get('/settings/sms'),
+  updateSms: (data) => api.put('/settings/sms', data),
+  sendTestSms: (phone) => api.post('/settings/sms/test', { phone }),
+  sendTestEmail: (email) => api.post('/settings/email/test', { email }),
+  getSmsHistory: (params) => api.get('/settings/sms/history', { params }),
 };
 
 export const trackingAPI = {

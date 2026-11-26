@@ -60,9 +60,9 @@ if docker ps | grep -q sabito-nginx; then
     echo "Checking certificate mounts:"
     docker inspect sabito-nginx | grep -A5 "Mounts" | grep letsencrypt || echo "Certificates need to be mounted"
     
-    # Check current nginx config for bestdealshippingapp.com
+    # Check current nginx config for bestdealghanaapp.com
     echo ""
-    echo "Checking for bestdealshippingapp.com config:"
+    echo "Checking for bestdealghanaapp.com config:"
     docker exec sabito-nginx cat /etc/nginx/conf.d/default.conf 2>/dev/null | grep -i "bestdeal" || echo "Not configured yet"
     
 else

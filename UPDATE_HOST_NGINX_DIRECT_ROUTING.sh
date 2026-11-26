@@ -49,10 +49,10 @@ server {
     ssl_certificate /etc/nginx/ssl/shipeaseshippingapp.com.crt;
     ssl_certificate_key /etc/nginx/ssl/shipeaseshippingapp.com.key;
 =======
-    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+    server_name bestdealghanaapp.com www.bestdealghanaapp.com;
     
-    ssl_certificate /etc/nginx/ssl/bestdealshippingapp.com.crt;
-    ssl_certificate_key /etc/nginx/ssl/bestdealshippingapp.com.key;
+    ssl_certificate /etc/nginx/ssl/bestdealghanaapp.com.crt;
+    ssl_certificate_key /etc/nginx/ssl/bestdealghanaapp.com.key;
 >>>>>>> origin/master
     ssl_protocols TLSv1.2 TLSv1.3;
     
@@ -109,7 +109,7 @@ server {
 <<<<<<< HEAD
     server_name shipeaseshippingapp.com www.shipeaseshippingapp.com;
 =======
-    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+    server_name bestdealghanaapp.com www.bestdealghanaapp.com;
 >>>>>>> origin/master
     return 301 https://$host$request_uri;
 }
@@ -159,6 +159,6 @@ echo "Test: curl -k https://shipeaseshippingapp.com/api/health"
 echo "   - Frontend: bestdeal_frontend:3000"
 echo "   - Backend:  bestdeal_backend:4001"
 echo ""
-echo "Test: curl -k https://bestdealshippingapp.com/api/health"
+echo "Test: curl -k https://bestdealghanaapp.com/api/health"
 >>>>>>> origin/master
 

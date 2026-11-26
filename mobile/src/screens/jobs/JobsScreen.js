@@ -1,3 +1,5 @@
+import useScreenRefresh from '../../hooks/useScreenRefresh';
+import { canCreateJobs, normalizeRole } from '../../utils/permissions';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -7,7 +9,7 @@ import {
   TouchableOpacity,
   Image,
 } from 'react-native';
-import { Text, Chip, FAB, ActivityIndicator } from 'react-native-paper';
+import { Text, Chip, FAB } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
@@ -16,6 +18,7 @@ import { spacing, touchTargets, typography } from '../../theme/theme';
 import { formatJobStatusLabel, getJobStatusTone, normalizeJobStatusKey } from '../../utils/jobStatus';
 import { format } from 'date-fns';
 import SearchBellHeader from '../../components/common/SearchBellHeader';
+import ThreeDotsLoader from '../../components/common/ThreeDotsLoader';
 
 const TABS = [
   { key: 'all', label: 'All Jobs' },
@@ -24,7 +27,7 @@ const TABS = [
   { key: 'completed', label: 'Completed' },
 ];
 
-export default function JobsScreen({ navigation }) {
+export default function JobsScreen({ navigation, route }) {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [jobs, setJobs] = useState([]);
@@ -32,11 +35,15 @@ export default function JobsScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState(route?.params?.initialTab || 'all');
 
   useEffect(() => {
-    loadJobs();
-  }, []);
+    if (route?.params?.initialTab) {
+      setActiveTab(route.params.initialTab);
+    }
+  }, [route?.params?.initialTab]);
+
+
 
   const loadJobs = async () => {
     try {
@@ -44,7 +51,7 @@ export default function JobsScreen({ navigation }) {
       setLoadError(false);
       const filters = getUserFilters();
       filters.limit = 50;
-      const response = await jobService.getJobs(filters);
+      const response = await jobService.getAllJobs(filters);
 
       if (response.success) {
         const raw = response.data?.data || response.data || [];
@@ -60,12 +67,13 @@ export default function JobsScreen({ navigation }) {
   };
 
   const getUserFilters = () => {
-    const role = user?.role;
+    const role = normalizeRole(user?.role);
     if (role === 'driver') return { assignedDriverId: user.id };
-    if (role === 'delivery_agent') return { status: 'Out for Delivery' };
-    if (role === 'warehouse_staff') return { status: 'At Warehouse' };
+
     return {};
   };
+
+  useScreenRefresh(loadJobs);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -82,7 +90,7 @@ export default function JobsScreen({ navigation }) {
 
         const st = normalizeJobStatusKey(job.status).replace(/_/g, ' ');
         if (activeTab === 'all') return true;
-        if (activeTab === 'pending') return st.includes('pending') || st.includes('assigned');
+        if (activeTab === 'pending') return st.includes('pending') || st.includes('assigned') || st === 'draft';
         if (activeTab === 'in_progress') {
           return (
             st.includes('in progress') ||
@@ -156,7 +164,7 @@ export default function JobsScreen({ navigation }) {
   if (loading && jobs.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#ff9800" />
+        <ThreeDotsLoader />
       </View>
     );
   }
@@ -217,7 +225,7 @@ export default function JobsScreen({ navigation }) {
         }
       />
 
-      {(user?.role === 'admin' || user?.role === 'customer-service') && (
+      {canCreateJobs(user) && (
         <FAB
           icon="plus"
           style={[styles.fab, { right: spacing.md, bottom: insets.bottom + 88 }]}

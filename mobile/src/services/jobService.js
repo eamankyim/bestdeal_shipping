@@ -3,6 +3,22 @@ import { API_ENDPOINTS } from '../config/constants';
 import logger from '../utils/logger';
 
 export const jobService = {
+  deleteJob: async id => (await api.delete(`/jobs/${id}`)).data,
+  addNote: async (id, note) => (await api.post(`/jobs/${id}/notes`, { note })).data,
+  getAllJobs: async (filters = {}) => {
+    const jobs = [];
+    let page = 1;
+    let more = true;
+    while (more) {
+      const response = await jobService.getJobs({ ...filters, page, limit: 100 });
+      if (!response.success) throw new Error(response.message || 'Unable to load jobs');
+      const data = response.data?.jobs || response.data?.data || response.data || [];
+      jobs.push(...(Array.isArray(data) ? data : []));
+      more = response.pagination?.hasNext === true;
+      page += 1;
+    }
+    return { success: true, data: jobs };
+  },
   getJobs: async (filters = {}) => {
     try {
       logger.debug('Fetching jobs', { filters });
@@ -80,22 +96,21 @@ export const jobService = {
   updateJobStatus: async (id, status, notes, document) => {
     try {
       logger.info('Updating job status', { jobId: id, status });
-      const formData = new FormData();
-      formData.append('status', status);
-      if (notes) formData.append('notes', notes);
+      const payload = { status, notes: typeof notes === 'string' ? notes : '' };
       if (document) {
-        formData.append('document', {
-          uri: document.uri,
-          type: document.type || 'application/pdf',
-          name: document.name || 'document.pdf',
-        });
+        let fileData = document.fileData;
+        if (!fileData) {
+          const blob = await (await fetch(document.uri)).blob();
+          fileData = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        }
+        payload.proofImages = [{ fileData, fileName: document.name || 'proof.jpg', mimeType: document.type || 'image/jpeg' }];
       }
-      
-      const response = await api.patch(API_ENDPOINTS.JOBS.UPDATE_STATUS(id), formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await api.patch(API_ENDPOINTS.JOBS.UPDATE_STATUS(id), payload);
       logger.info('Job status updated successfully', { jobId: id, status });
       return response.data;
     } catch (error) {

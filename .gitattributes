@@ -1,0 +1,4 @@
+# Left out of `git archive`, which the production deploy uses: the server installs and builds these itself
+frontend/node_modules export-ignore
+frontend/build export-ignore
+backend/node_modules export-ignore

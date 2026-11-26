@@ -1,0 +1,39 @@
+# Caddy gets and renews the HTTPS certificates by itself once the domain points at this server.
+# TEST_DOMAIN (optional) serves the same site on a second address, e.g. for checking a new
+# server before the real domain is moved to it.
+
+{$SITE_DOMAIN} {$TEST_DOMAIN} {
+	encode zstd gzip
+
+	# Photos are sent as part of the request; keep well above what the app sends
+	request_body {
+		max_size 25MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy backend:4000
+	}
+
+	handle {
+		root * /srv
+		# Built files have a content hash in their name, so they can be cached for good;
+		# everything else (index.html) is checked again so a new release shows up at once
+		@hashed path /static/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		@other not path /static/*
+		header @other Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+www.{$SITE_DOMAIN} {
+	redir https://{$SITE_DOMAIN}{uri} permanent
+}

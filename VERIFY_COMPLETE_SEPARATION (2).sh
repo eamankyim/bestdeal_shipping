@@ -14,13 +14,13 @@ docker exec sabito-nginx cat /etc/nginx/conf.d/sabito.conf | grep -A5 "server_na
 
 echo ""
 echo "Best Deal domains in sabito-nginx:"
-docker exec sabito-nginx cat /etc/nginx/conf.d/sabito.conf | grep -A5 "server_name.*bestdealshippingapp.com" || echo "✓ No Best Deal config in sabito-nginx"
+docker exec sabito-nginx cat /etc/nginx/conf.d/sabito.conf | grep -A5 "server_name.*bestdealghanaapp.com" || echo "✓ No Best Deal config in sabito-nginx"
 
 # Step 2: Check Best Deal Nginx
 echo ""
 echo "=== Step 2: Best Deal Nginx Configuration ==="
 echo "Best Deal domains handled:"
-docker exec bestdeal_nginx cat /etc/nginx/conf.d/bestdeal.conf | grep -A5 "server_name.*bestdealshippingapp.com" | head -15
+docker exec bestdeal_nginx cat /etc/nginx/conf.d/bestdeal.conf | grep -A5 "server_name.*bestdealghanaapp.com" | head -15
 
 echo ""
 echo "Proxy configuration:"
@@ -43,8 +43,8 @@ echo "Testing Sabito (sabito.app):"
 curl -I https://sabito.app 2>&1 | head -5 || echo "Sabito test failed"
 
 echo ""
-echo "Testing Best Deal (www.bestdealshippingapp.com:8443):"
-curl -k -I https://www.bestdealshippingapp.com:8443 2>&1 | head -5 || echo "Best Deal test failed"
+echo "Testing Best Deal (www.bestdealghanaapp.com:8443):"
+curl -k -I https://www.bestdealghanaapp.com:8443 2>&1 | head -5 || echo "Best Deal test failed"
 
 # Step 5: Check Logs
 echo ""
@@ -54,7 +54,7 @@ docker logs --tail 10 sabito-nginx 2>&1 | grep -E "sabito.app|GET|POST" | tail -
 
 echo ""
 echo "Best Deal nginx recent requests:"
-docker logs --tail 10 bestdeal_nginx 2>&1 | grep -E "bestdealshippingapp.com|GET|POST" | tail -5 || echo "No recent requests"
+docker logs --tail 10 bestdeal_nginx 2>&1 | grep -E "bestdealghanaapp.com|GET|POST" | tail -5 || echo "No recent requests"
 
 echo ""
 echo "=========================================="
@@ -63,7 +63,7 @@ echo "=========================================="
 echo ""
 echo "If properly separated:"
 echo "  ✓ Sabito nginx only handles sabito.app domains"
-echo "  ✓ Best Deal nginx only handles bestdealshippingapp.com domains"
+echo "  ✓ Best Deal nginx only handles bestdealghanaapp.com domains"
 echo "  ✓ No Best Deal config in sabito-nginx"
 echo "  ✓ Best Deal proxies to bestdeal_frontend:3000"
 echo ""

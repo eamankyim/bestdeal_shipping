@@ -8,7 +8,7 @@
     "dev": "nodemon server.js",
     "build": "prisma generate && echo 'Prisma Client generated successfully'",
     "postinstall": "prisma generate",
-    "vercel-build": "prisma generate && prisma db push --accept-data-loss --skip-generate",
+    "vercel-build": "prisma generate && prisma db push --skip-generate",
     "create-admin": "node create-admin.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

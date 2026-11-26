@@ -39,6 +39,8 @@ model User {
   createdInvoices      Invoice[]      @relation("InvoiceCreator")
   jobTimelines         JobTimeline[]
   jobDocuments         JobDocument[]
+  jobNotes             JobNote[]      @relation("JobNoteAuthor")
+  invoiceNotes         InvoiceNote[]  @relation("InvoiceNoteAuthor")
   auditLogs            AuditLog[]
 
   @@index([email])
@@ -165,6 +167,7 @@ model Job {
   batch           Batch?        @relation(fields: [batchId], references: [id])
   timeline        JobTimeline[]
   documents       JobDocument[]
+  jobNotes        JobNote[]
   invoiceItems    InvoiceItem[]
 
   @@index([trackingId])
@@ -218,11 +221,28 @@ model JobDocument {
   @@map("job_documents")
 }
 
+// Internal staff notes. Kept apart from JobTimeline because timeline notes are shown on the public tracking page.
+model JobNote {
+  id        String   @id @default(uuid())
+  jobId     String   @map("job_id")
+  note      String   @db.Text
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  job    Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  author User @relation("JobNoteAuthor", fields: [createdBy], references: [id])
+
+  @@index([jobId, createdAt])
+  @@map("job_notes")
+}
+
 // ==================== Batch Management ====================
 
 model Batch {
   id                 String    @id @default(uuid())
   batchId            String    @unique @map("batch_id")
+  name               String?
   destination        String
   route              String?   // Full route (e.g., "London → Accra")
   carrier            String?
@@ -294,6 +314,7 @@ model Invoice {
   customer Customer      @relation(fields: [customerId], references: [id])
   creator  User          @relation("InvoiceCreator", fields: [createdBy], references: [id])
   items    InvoiceItem[]
+  invoiceNotes InvoiceNote[]
 
   @@index([invoiceNumber])
   @@index([customerId])
@@ -319,6 +340,27 @@ model InvoiceItem {
   @@index([invoiceId])
   @@index([jobId])
   @@map("invoice_items")
+}
+
+// Notes on the state of an invoice, with an optional reference number and image.
+model InvoiceNote {
+  id              String   @id @default(uuid())
+  invoiceId       String   @map("invoice_id")
+  note            String   @db.Text
+  referenceNumber String?  @map("reference_number")
+  imageData       Bytes?   @map("image_data")
+  imageName       String?  @map("image_name")
+  imageMimeType   String?  @map("image_mime_type")
+  imageSize       Int?     @map("image_size")
+  createdBy       String   @map("created_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  author  User    @relation("InvoiceNoteAuthor", fields: [createdBy], references: [id])
+
+  @@index([invoiceId, createdAt])
+  @@map("invoice_notes")
 }
 
 // ==================== Pricing ====================
@@ -397,6 +439,27 @@ model Setting {
 
   @@index([key])
   @@map("settings")
+}
+
+// One row per SMS to a customer, so admins can see what went out and why anything did not.
+// No foreign keys: the history must survive a job or customer being deleted.
+model SmsMessage {
+  id                String   @id @default(uuid())
+  event             String   // customer message key, e.g. 'shipped', or 'test'
+  recipient         String
+  body              String   @db.Text
+  status            String   // 'sent' (accepted by the provider), 'failed', 'skipped' (no usable number)
+  error             String?
+  provider          String?
+  providerMessageId String?  @map("provider_message_id")
+  reference         String?  // tracking ID or invoice number
+  jobId             String?  @map("job_id")
+  customerId        String?  @map("customer_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([jobId])
+  @@map("sms_messages")
 }
 
 // ==================== Audit Logs ====================

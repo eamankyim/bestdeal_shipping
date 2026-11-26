@@ -20,12 +20,20 @@ const batchRoutes = require('./routes/batchRoutes');
 const invoiceRoutes = require('./routes/invoiceRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
 
 // Import swagger annotations
 require('./docs/swagger-annotations');
 
 // Create Express app
 const app = express();
+
+// Requests arrive through one proxy (Vercel's, or Caddy on our own server, which sets
+// TRUST_PROXY=1); trust it so req.ip (used by the rate limiters) is the real client IP
+// instead of one shared proxy address.
+if (process.env.VERCEL || process.env.TRUST_PROXY === '1') {
+  app.set('trust proxy', 1);
+}
 
 // ==================== Middleware ====================
 
@@ -132,6 +140,7 @@ app.use('/api/batches', batchRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Swagger Documentation (Multiple paths for convenience)
 const swaggerOptions = {

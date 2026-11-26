@@ -1,16 +1,21 @@
 const express = require('express');
 const router = express.Router();
 const invoiceController = require('../controllers/invoiceController');
-const { authenticate, authorize } = require('../middleware/auth');
+const { authenticate, authorize, authorizeIf } = require('../middleware/auth');
+const { canViewInvoices } = require('../utils/jobAccess');
+
+const invoiceViewers = authorizeIf(canViewInvoices, 'Only finance, admin and Ghana warehouse staff can view invoices.');
 
 // All invoice routes require authentication
 router.use(authenticate);
 
-// Get all invoices (Admin, Finance, Customer Service)
-router.get('/', authorize('admin', 'finance', 'customer-service'), invoiceController.getAllInvoices);
+// View invoices (Admin, Finance, Customer Service, Ghana Warehouse)
+router.get('/', invoiceViewers, invoiceController.getAllInvoices);
+router.get('/:id', invoiceViewers, invoiceController.getInvoiceById);
 
-// Get invoice by ID (Admin, Finance, Customer Service)
-router.get('/:id', authorize('admin', 'finance', 'customer-service'), invoiceController.getInvoiceById);
+// Notes on the state of an invoice (Admin, Finance, Customer Service, Ghana Warehouse)
+router.post('/:id/notes', invoiceViewers, invoiceController.addInvoiceNote);
+router.get('/notes/:noteId/image', invoiceViewers, invoiceController.getInvoiceNoteImage);
 
 // Update invoice (Admin, Finance, Customer Service) - Only for drafts
 router.put('/:id', authorize('admin', 'finance', 'customer-service'), invoiceController.updateInvoice);

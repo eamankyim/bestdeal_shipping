@@ -1,3 +1,5 @@
+import useScreenRefresh from '../../hooks/useScreenRefresh';
+import { hasAdminAccess } from '../../utils/permissions';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -7,11 +9,14 @@ import {
   TouchableOpacity,
   Alert,
   Image,
+  Modal,
+  ScrollView,
 } from 'react-native';
 import {
   Text,
-  ActivityIndicator,
   FAB,
+  TextInput,
+  Button,
 } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,18 +25,85 @@ import { spacing } from '../../theme/theme';
 import logger from '../../utils/logger';
 import { customerService } from '../../services/customerService';
 import SearchBellHeader from '../../components/common/SearchBellHeader';
+import ThreeDotsLoader from '../../components/common/ThreeDotsLoader';
 
 export default function CustomersScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const [editingCustomer, setEditingCustomer] = useState(null);
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const [customerForm, setCustomerForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    customerType: 'Individual',
+  });
 
-  useEffect(() => {
-    loadCustomers();
-  }, []);
+
+
+  const resetCustomerForm = () => {
+    setEditingCustomer(null);
+    setCustomerForm({
+      name: '',
+      email: '',
+      phone: '',
+      address: '',
+      customerType: 'Individual',
+    });
+  };
+
+  const validateCustomerForm = () => {
+    if (!customerForm.name?.trim()) {
+      Alert.alert('Missing customer name', 'Please add the customer name before saving.');
+      return false;
+    }
+    if (!customerForm.phone?.trim()) {
+      Alert.alert('Missing phone number', 'Please add the customer phone number so we can contact them.');
+      return false;
+    }
+    if (customerForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerForm.email)) {
+      Alert.alert('Invalid email', 'Please use a valid email address or leave it blank.');
+      return false;
+    }
+    if (!customerForm.address?.trim()) {
+      Alert.alert('Missing address', 'Please add the customer address before creating the record.');
+      return false;
+    }
+    return true;
+  };
+
+  const handleCreateCustomer = async () => {
+    if (!validateCustomerForm()) return;
+
+    setCreatingCustomer(true);
+    try {
+      const payload = {
+        name: customerForm.name.trim(),
+        email: customerForm.email.trim() || undefined,
+        phone: customerForm.phone.trim(),
+        address: customerForm.address.trim(),
+        customerType: customerForm.customerType,
+      };
+
+      if (editingCustomer) await customerService.updateCustomer(editingCustomer.id, payload);
+      else await customerService.createCustomer(payload);
+      Alert.alert('Success', 'Customer saved successfully.');
+      setCreateModalVisible(false);
+      resetCustomerForm();
+      await loadCustomers();
+    } catch (error) {
+      const message = error?.response?.data?.message || 'We could not create this customer right now. Please try again.';
+      Alert.alert('Could not create customer', message);
+    } finally {
+      setCreatingCustomer(false);
+    }
+  };
 
   const loadCustomers = async () => {
     try {
@@ -56,6 +128,8 @@ export default function CustomersScreen() {
     }
   };
 
+  useScreenRefresh(loadCustomers);
+
   const onRefresh = () => {
     setRefreshing(true);
     loadCustomers();
@@ -70,7 +144,16 @@ export default function CustomersScreen() {
     <TouchableOpacity
       activeOpacity={0.85}
       style={styles.customerCard}
-      onPress={() => Alert.alert('Customer', `${item.name || 'Unnamed customer'}`)}
+      onPress={() => {
+        if (!hasAdminAccess(user)) return Alert.alert(item.name || 'Customer', [item.email, item.phone, item.address].filter(Boolean).join('\n'));
+        Alert.alert(item.name || 'Customer', [item.email, item.phone, item.address].filter(Boolean).join('\n'), [
+          { text: 'Close' },
+          { text: 'Edit', onPress: () => { setEditingCustomer(item); setCustomerForm({ name: item.name || '', email: item.email || '', phone: item.phone || '', address: item.address || '', customerType: item.customerType || 'Individual' }); setCreateModalVisible(true); } },
+          { text: 'Delete', style: 'destructive', onPress: () => Alert.alert('Delete customer?', 'Customers with jobs may not be deleted.', [{ text: 'Cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => {
+            try { await customerService.deleteCustomer(item.id); await loadCustomers(); } catch (error) { Alert.alert('Error', error.response?.data?.message || error.message); }
+          } }]) },
+        ]);
+      }}
     >
       <View style={styles.customerTopRow}>
         <View style={styles.avatarWrap}>
@@ -94,7 +177,7 @@ export default function CustomersScreen() {
   if (loading && !refreshing) {
     return (
       <View style={[styles.loading, { paddingTop: insets.top }]}> 
-        <ActivityIndicator size="large" color="#ff9800" />
+        <ThreeDotsLoader />
       </View>
     );
   }
@@ -127,7 +210,7 @@ export default function CustomersScreen() {
             <TouchableOpacity
               style={styles.addButton}
               activeOpacity={0.85}
-              onPress={() => Alert.alert('Coming Soon', 'Create Customer feature coming soon')}
+              onPress={() => { resetCustomerForm(); setCreateModalVisible(true); }}
             >
               <Ionicons name="add" size={18} color="#fff" />
               <Text style={styles.addBtnText}>Add New Customer</Text>
@@ -137,15 +220,97 @@ export default function CustomersScreen() {
         contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}
       />
 
-      {(user?.role === 'admin' || user?.role === 'customer-service') && (
+      {(hasAdminAccess(user)) && (
         <FAB
           icon="plus"
           style={[styles.fab, { right: spacing.md, bottom: insets.bottom + 88 }]}
-          onPress={() => Alert.alert('Coming Soon', 'Create Customer feature coming soon')}
+          onPress={() => { resetCustomerForm(); setCreateModalVisible(true); }}
           color="#ffffff"
           customSize={56}
         />
       )}
+
+      <Modal
+        visible={createModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setCreateModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{editingCustomer ? 'Edit customer' : 'Add customer'}</Text>
+              <TouchableOpacity onPress={() => setCreateModalVisible(false)}>
+                <Ionicons name="close" size={22} color="#444" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <TextInput
+                label="Customer name"
+                value={customerForm.name}
+                onChangeText={(value) => setCustomerForm((prev) => ({ ...prev, name: value }))}
+                mode="outlined"
+                style={styles.modalInput}
+              />
+
+              <TextInput
+                label="Phone number"
+                value={customerForm.phone}
+                onChangeText={(value) => setCustomerForm((prev) => ({ ...prev, phone: value }))}
+                mode="outlined"
+                keyboardType="phone-pad"
+                style={styles.modalInput}
+              />
+
+              <TextInput
+                label="Email (optional)"
+                value={customerForm.email}
+                onChangeText={(value) => setCustomerForm((prev) => ({ ...prev, email: value }))}
+                mode="outlined"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                style={styles.modalInput}
+              />
+
+              <TextInput
+                label="Address"
+                value={customerForm.address}
+                onChangeText={(value) => setCustomerForm((prev) => ({ ...prev, address: value }))}
+                mode="outlined"
+                multiline
+                style={styles.modalInput}
+              />
+
+              <TextInput
+                label="Customer type"
+                value={customerForm.customerType}
+                onChangeText={(value) => setCustomerForm((prev) => ({ ...prev, customerType: value || 'Individual' }))}
+                mode="outlined"
+                style={styles.modalInput}
+              />
+
+              <View style={styles.modalActions}>
+                <Button mode="text" onPress={() => {
+                  setCreateModalVisible(false);
+                  resetCustomerForm();
+                }}>
+                  Cancel
+                </Button>
+                <Button
+                  mode="contained"
+                  onPress={handleCreateCustomer}
+                  loading={creatingCustomer}
+                  disabled={creatingCustomer}
+                  buttonColor="#ff9800"
+                >
+                  Save customer
+                </Button>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -256,5 +421,39 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowRadius: 0,
     zIndex: 1000,
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  modalSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    padding: 18,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111',
+  },
+  modalInput: {
+    marginBottom: 10,
+    backgroundColor: '#fff',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 8,
   },
 });

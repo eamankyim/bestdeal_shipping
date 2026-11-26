@@ -57,7 +57,7 @@ echo "Testing Sabito..."
 curl -k -I https://sabito.app 2>&1 | head -3 > $BACKUP_DIR/test-sabito-before.txt || echo "Sabito test failed" > $BACKUP_DIR/test-sabito-before.txt
 
 echo "Testing Best Deal..."
-curl -k -I https://www.bestdealshippingapp.com 2>&1 | head -3 > $BACKUP_DIR/test-bestdeal-before.txt || echo "Best Deal test failed" > $BACKUP_DIR/test-bestdeal-before.txt
+curl -k -I https://www.bestdealghanaapp.com 2>&1 | head -3 > $BACKUP_DIR/test-bestdeal-before.txt || echo "Best Deal test failed" > $BACKUP_DIR/test-bestdeal-before.txt
 
 echo "✓ Service tests saved"
 

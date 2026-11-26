@@ -1,8 +1,9 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../hooks/useAuth';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Screens
 import HomeScreen from '../screens/home/HomeScreen';
@@ -10,7 +11,6 @@ import JobsScreen from '../screens/jobs/JobsScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import JobDetailScreen from '../screens/jobs/JobDetailScreen';
 import CreateJobScreen from '../screens/jobs/CreateJobScreen';
-import MapScreen from '../screens/map/MapScreen';
 import CameraScreen from '../screens/camera/CameraScreen';
 import BatchJobsScreen from '../screens/batches/BatchJobsScreen';
 import CreateBatchScreen from '../screens/batches/CreateBatchScreen';
@@ -24,7 +24,15 @@ import ChangePasswordScreen from '../screens/profile/ChangePasswordScreen';
 import InviteManagementScreen from '../screens/admin/InviteManagementScreen';
 import RoleManagementScreen from '../screens/admin/RoleManagementScreen';
 import OrganisationSettingsScreen from '../screens/admin/OrganisationSettingsScreen';
+import CustomerMessagesScreen from '../screens/admin/CustomerMessagesScreen';
 import NotificationsScreen from '../screens/notifications/NotificationsScreen';
+
+import EditUserScreen from '../screens/admin/EditUserScreen';
+import TrackingScreen from '../screens/tracking/TrackingScreen';
+
+import InvoiceDetailScreen from '../screens/invoices/InvoiceDetailScreen';
+
+import BatchesScreen from '../screens/batches/BatchesScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -84,6 +92,10 @@ function AccountStack() {
         component={SettingsScreen}
         options={{ title: 'Settings' }}
       />
+      <Stack.Screen name="Batches" component={BatchesScreen} options={{ title: "Batches" }} />
+      <Stack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} options={{ title: "Invoice" }} />
+      <Stack.Screen name="EditUser" component={EditUserScreen} options={{ title: "Edit Member" }} />
+      <Stack.Screen name="Tracking" component={TrackingScreen} options={{ title: "Track Shipment" }} />
       <Stack.Screen 
         name="TeamMembers" 
         component={TeamMembersScreen}
@@ -114,15 +126,20 @@ function AccountStack() {
         component={OrganisationSettingsScreen}
         options={{ title: 'Organisation Settings' }}
       />
+      <Stack.Screen
+        name="CustomerMessages"
+        component={CustomerMessagesScreen}
+        options={{ title: 'Customer Messages' }}
+      />
     </Stack.Navigator>
   );
 }
 
 function MainTabs() {
-  const { user } = useAuth();
-  const isDriver = user?.role === 'driver';
-  const isDeliveryAgent = user?.role === 'delivery_agent';
-  const isWarehouseStaff = user?.role === 'warehouse_staff';
+  const insets = useSafeAreaInsets();
+  // Android's safe-area bottom inset often under-reports the space taken by
+  // gesture/nav bars, so pad generously beyond it; iOS's inset is reliable.
+  const bottomPadding = Platform.OS === 'android' ? Math.max(insets.bottom, 12) + 20 : Math.max(insets.bottom, 8);
 
   return (
     <Tab.Navigator
@@ -136,8 +153,6 @@ function MainTabs() {
             iconName = focused ? 'briefcase' : 'briefcase-outline';
           } else if (route.name === 'Customers') {
             iconName = focused ? 'people' : 'people-outline';
-          } else if (route.name === 'Map') {
-            iconName = focused ? 'map' : 'map-outline';
           } else if (route.name === 'Account') {
             iconName = focused ? 'person' : 'person-outline';
           }
@@ -147,21 +162,17 @@ function MainTabs() {
         tabBarActiveTintColor: '#ff9800', // Orange
         tabBarInactiveTintColor: '#7b7b7b',
         tabBarStyle: {
-          position: 'absolute',
-          left: 16,
-          right: 16,
-          bottom: 16,
-          borderRadius: 16,
-          height: 68,
+          height: 60 + bottomPadding,
           paddingTop: 8,
-          paddingBottom: 8,
-          borderTopWidth: 0,
+          paddingBottom: bottomPadding,
+          borderTopWidth: 1,
+          borderTopColor: '#f0f0f0',
           backgroundColor: '#ffffff',
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.06,
-          shadowRadius: 10,
-          elevation: 6,
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.04,
+          shadowRadius: 8,
+          elevation: 8,
         },
         tabBarLabelStyle: {
           fontSize: 12,
@@ -172,9 +183,6 @@ function MainTabs() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Jobs" component={JobsStack} />
-      {(isDriver || isDeliveryAgent) && (
-        <Tab.Screen name="Map" component={MapScreen} />
-      )}
       <Tab.Screen name="Customers" component={CustomersScreen} />
       <Tab.Screen name="Account" component={AccountStack} />
     </Tab.Navigator>

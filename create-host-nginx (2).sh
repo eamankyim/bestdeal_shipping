@@ -19,8 +19,8 @@ echo ""
 echo "=== Step 2: Copy SSL Certificates ==="
 cp /etc/letsencrypt/live/sabito.app/fullchain.pem ~/host-nginx/ssl/sabito.crt
 cp /etc/letsencrypt/live/sabito.app/privkey.pem ~/host-nginx/ssl/sabito.key
-cp /etc/letsencrypt/live/bestdealshippingapp.com/fullchain.pem ~/host-nginx/ssl/bestdealshippingapp.com.crt
-cp /etc/letsencrypt/live/bestdealshippingapp.com/privkey.pem ~/host-nginx/ssl/bestdealshippingapp.com.key
+cp /etc/letsencrypt/live/bestdealghanaapp.com/fullchain.pem ~/host-nginx/ssl/bestdealghanaapp.com.crt
+cp /etc/letsencrypt/live/bestdealghanaapp.com/privkey.pem ~/host-nginx/ssl/bestdealghanaapp.com.key
 chmod 644 ~/host-nginx/ssl/*.crt
 chmod 600 ~/host-nginx/ssl/*.key
 echo "✓ SSL certificates copied"
@@ -93,10 +93,10 @@ server {
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+    server_name bestdealghanaapp.com www.bestdealghanaapp.com;
 
-    ssl_certificate /etc/nginx/ssl/bestdealshippingapp.com.crt;
-    ssl_certificate_key /etc/nginx/ssl/bestdealshippingapp.com.key;
+    ssl_certificate /etc/nginx/ssl/bestdealghanaapp.com.crt;
+    ssl_certificate_key /etc/nginx/ssl/bestdealghanaapp.com.key;
 
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5:!RC4:!3DES;
@@ -133,7 +133,7 @@ server {
 server {
     listen 80;
     listen [::]:80;
-    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+    server_name bestdealghanaapp.com www.bestdealghanaapp.com;
     return 301 https://$host$request_uri;
 }
 EOF

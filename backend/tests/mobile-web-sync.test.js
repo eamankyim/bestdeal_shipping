@@ -34,6 +34,10 @@ function controller(tx) {
     '../utils/responseUtils': response,
     '../middleware/errorHandler': { asyncHandler: fn => fn },
     '../services/notificationService': {}, '../utils/trackingIdGenerator': {},
+    '../services/customerMessageService': {},
+    '../utils/jobAccess': require('../src/utils/jobAccess'),
+    '../utils/jobEdit': require('../src/utils/jobEdit'),
+    '../utils/imageUpload': require('../src/utils/imageUpload'),
   });
 }
 test('partial payments preserve earlier receipts and reject overpayment', async () => {

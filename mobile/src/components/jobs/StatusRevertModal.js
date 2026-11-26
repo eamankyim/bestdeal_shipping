@@ -13,6 +13,7 @@ import {
   TextInput,
   Menu,
   Divider,
+  Portal,
 } from 'react-native-paper';
 
 export default function StatusRevertModal({
@@ -82,6 +83,8 @@ export default function StatusRevertModal({
       animationType="slide"
       transparent={true}
     >
+      {/* Menus render into the nearest Portal.Host; without one in here they open behind this dialog */}
+      <Portal.Host>
       <View style={styles.modalOverlay}>
         <Card style={styles.modalCard}>
           <Card.Content>
@@ -171,6 +174,7 @@ export default function StatusRevertModal({
           </Card.Content>
         </Card>
       </View>
+      </Portal.Host>
     </Modal>
   );
 }

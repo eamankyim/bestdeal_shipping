@@ -43,11 +43,11 @@ if [ -f /etc/letsencrypt/live/shipeaseshippingapp.com/fullchain.pem ]; then
     chmod 644 nginx/ssl/shipeaseshippingapp.com.crt
     chmod 600 nginx/ssl/shipeaseshippingapp.com.key
 =======
-if [ -f /etc/letsencrypt/live/bestdealshippingapp.com/fullchain.pem ]; then
-    cp /etc/letsencrypt/live/bestdealshippingapp.com/fullchain.pem nginx/ssl/bestdealshippingapp.com.crt
-    cp /etc/letsencrypt/live/bestdealshippingapp.com/privkey.pem nginx/ssl/bestdealshippingapp.com.key
-    chmod 644 nginx/ssl/bestdealshippingapp.com.crt
-    chmod 600 nginx/ssl/bestdealshippingapp.com.key
+if [ -f /etc/letsencrypt/live/bestdealghanaapp.com/fullchain.pem ]; then
+    cp /etc/letsencrypt/live/bestdealghanaapp.com/fullchain.pem nginx/ssl/bestdealghanaapp.com.crt
+    cp /etc/letsencrypt/live/bestdealghanaapp.com/privkey.pem nginx/ssl/bestdealghanaapp.com.key
+    chmod 644 nginx/ssl/bestdealghanaapp.com.crt
+    chmod 600 nginx/ssl/bestdealghanaapp.com.key
 >>>>>>> origin/master
     echo "✓ SSL certificates copied"
     ls -la nginx/ssl/
@@ -132,7 +132,7 @@ cat > nginx/conf.d/bestdeal.conf << 'EOF'
 server {
     listen 80;
     listen [::]:80;
-    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+    server_name bestdealghanaapp.com www.bestdealghanaapp.com;
 >>>>>>> origin/master
     
     # Redirect HTTP to HTTPS
@@ -149,11 +149,11 @@ server {
     ssl_certificate /etc/nginx/ssl/shipeaseshippingapp.com.crt;
     ssl_certificate_key /etc/nginx/ssl/shipeaseshippingapp.com.key;
 =======
-    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+    server_name bestdealghanaapp.com www.bestdealghanaapp.com;
 
     # SSL Configuration
-    ssl_certificate /etc/nginx/ssl/bestdealshippingapp.com.crt;
-    ssl_certificate_key /etc/nginx/ssl/bestdealshippingapp.com.key;
+    ssl_certificate /etc/nginx/ssl/bestdealghanaapp.com.crt;
+    ssl_certificate_key /etc/nginx/ssl/bestdealghanaapp.com.key;
 >>>>>>> origin/master
 
     # SSL Settings

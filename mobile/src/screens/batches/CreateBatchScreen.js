@@ -21,29 +21,31 @@ import { batchService } from '../../services/batchService';
 import { jobService } from '../../services/jobService';
 import { standardStyles, touchTargets, typography } from '../../theme/theme';
 
-export default function CreateBatchScreen({ navigation }) {
+export default function CreateBatchScreen({ navigation, route }) {
+  const editingBatch = route?.params?.batch;
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [availableJobs, setAvailableJobs] = useState([]);
-  const [selectedJobs, setSelectedJobs] = useState([]);
+  const [selectedJobs, setSelectedJobs] = useState(editingBatch?.jobs?.map((job) => job.id) || []);
   const [formData, setFormData] = useState({
-    name: '',
-    sealNumber: '',
-    route: 'UK → Ghana',
-    vessel: '',
+    name: editingBatch?.name || '',
+    sealNumber: editingBatch?.sealNumber || '',
+    route: editingBatch ? editingBatch.route || '' : 'UK → Ghana',
+    vessel: editingBatch?.vesselName || '',
     flightNumber: '',
-    departureDate: '',
-    estimatedArrivalDate: '',
-    notes: '',
+    departureDate: editingBatch?.departureDate?.slice(0, 10) || '',
+    estimatedArrivalDate: editingBatch?.estimatedArrivalDate?.slice(0, 10) || '',
+    notes: editingBatch?.notes || '',
   });
 
   useEffect(() => {
+    navigation.setOptions({ title: editingBatch ? 'Edit Batch' : 'Create Batch' });
     loadAvailableJobs();
   }, []);
 
   const loadAvailableJobs = async () => {
     try {
-      const response = await jobService.getJobs({ status: 'At Warehouse' });
+      const response = await jobService.getAllJobs();
       if (response.success) {
         const jobs =
           response?.data?.jobs ||
@@ -51,7 +53,9 @@ export default function CreateBatchScreen({ navigation }) {
           response?.data?.data ||
           response?.data ||
           [];
-        setAvailableJobs(Array.isArray(jobs) ? jobs : []);
+        const ready = Array.isArray(jobs) ? jobs.filter(job => !job.batchId && ['at_warehouse', 'arrived_at_warehouse', 'at_uk_warehouse', 'at_ghana_warehouse'].includes(String(job.status).toLowerCase().replace(/ /g, '_'))) : [];
+        // When editing, the batch's own jobs come first so they can be kept or taken out
+        setAvailableJobs([...(editingBatch?.jobs || []), ...ready]);
       }
     } catch (error) {
       console.error('Error loading jobs:', error);
@@ -67,12 +71,13 @@ export default function CreateBatchScreen({ navigation }) {
   };
 
   const handleSubmit = async () => {
-    if (!formData.name || !formData.sealNumber) {
+    // When editing, a blank field keeps its saved value
+    if (!editingBatch && (!formData.name || !formData.sealNumber)) {
       Alert.alert('Error', 'Batch name and seal number are required');
       return;
     }
 
-    if (!formData.route) {
+    if (!editingBatch && !formData.route) {
       Alert.alert('Error', 'Route is required');
       return;
     }
@@ -95,22 +100,24 @@ export default function CreateBatchScreen({ navigation }) {
         jobs: selectedJobs, // Backend expects 'jobs' not 'jobIds'
       };
 
-      const response = await batchService.createBatch(batchData);
+      const response = editingBatch
+        ? await batchService.updateBatch(editingBatch.id, batchData)
+        : await batchService.createBatch(batchData);
       
       if (response.success) {
-        Alert.alert('Success', 'Batch created successfully!', [
+        Alert.alert('Success', editingBatch ? 'Batch updated successfully!' : 'Batch created successfully!', [
           {
             text: 'OK',
             onPress: () => navigation.goBack(),
           },
         ]);
       } else {
-        Alert.alert('Error', response.message || 'Failed to create batch');
+        Alert.alert('Error', response.message || 'Failed to save batch');
       }
     } catch (error) {
       Alert.alert(
         'Error',
-        error.response?.data?.message || 'Failed to create batch'
+        error.response?.data?.message || 'Failed to save batch'
       );
     } finally {
       setLoading(false);
@@ -126,8 +133,14 @@ export default function CreateBatchScreen({ navigation }) {
         <Card style={styles.card} elevation={0}>
           <Card.Content>
             <Text variant="headlineSmall" style={styles.title}>
-              Create New Batch
+              {editingBatch ? `Edit ${editingBatch.batchId}` : 'Create New Batch'}
             </Text>
+
+            {editingBatch && (
+              <Text variant="bodySmall" style={styles.hintText}>
+                Blank fields keep their saved value. Jobs you untick go back to the warehouse; nothing is deleted.
+              </Text>
+            )}
 
             <Text variant="titleMedium" style={styles.sectionTitle}>
               Batch Information
@@ -278,7 +291,7 @@ export default function CreateBatchScreen({ navigation }) {
               contentStyle={styles.submitButtonContent}
               labelStyle={styles.submitButtonLabel}
             >
-              Create Batch
+              {editingBatch ? 'Save Changes' : 'Create Batch'}
             </Button>
           </Card.Content>
         </Card>

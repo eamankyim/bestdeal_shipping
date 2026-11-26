@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import useScreenRefresh from '../../hooks/useScreenRefresh';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Image } from 'react-native';
-import { Text, Chip, ActivityIndicator } from 'react-native-paper';
+import { Text, Chip } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
@@ -9,6 +10,7 @@ import { spacing, touchTargets, typography } from '../../theme/theme';
 import { formatJobStatusLabel, getJobStatusTone } from '../../utils/jobStatus';
 import { format } from 'date-fns';
 import SearchBellHeader from '../../components/common/SearchBellHeader';
+import ThreeDotsLoader from '../../components/common/ThreeDotsLoader';
 
 export default function HomeScreen({ navigation }) {
   const { user } = useAuth();
@@ -22,18 +24,22 @@ export default function HomeScreen({ navigation }) {
   const [recentJobs, setRecentJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const hasLoadedOnce = useRef(false);
   const [loadError, setLoadError] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
+
 
   const loadDashboardData = async () => {
     try {
-      setLoading(true);
+      // Only block the whole screen with the big spinner on the very first
+      // load. Later reloads (pull-to-refresh, focus, background poll) update
+      // data quietly instead of re-showing it on top of the refresh spinner.
+      if (!hasLoadedOnce.current) {
+        setLoading(true);
+      }
       setLoadError(false);
-      const response = await jobService.getJobs({ limit: 50 });
+      const response = await jobService.getAllJobs({ limit: 50 });
 
       if (response.success) {
         const jobsRaw =
@@ -50,6 +56,7 @@ export default function HomeScreen({ navigation }) {
       console.error('Error loading dashboard:', error);
       setLoadError(true);
     } finally {
+      hasLoadedOnce.current = true;
       setLoading(false);
       setRefreshing(false);
     }
@@ -64,9 +71,9 @@ export default function HomeScreen({ navigation }) {
     };
 
     jobs.forEach((job) => {
-      if (job.status === 'Delivered' || job.status === 'Closed') {
+      if (['delivered', 'closed'].includes(String(job.status).toLowerCase())) {
         next.completed += 1;
-      } else if (job.status === 'Pending Collection' || job.status === 'Assigned') {
+      } else if (['pending', 'pending collection', 'pending_collection', 'assigned', 'draft'].includes(String(job.status).toLowerCase())) {
         next.pending += 1;
       } else {
         next.inProgress += 1;
@@ -75,6 +82,24 @@ export default function HomeScreen({ navigation }) {
 
     setStats(next);
   };
+
+  const handleStatPress = (type) => {
+    const statMap = {
+      total: 'all',
+      pending: 'pending',
+      progress: 'in_progress',
+      completed: 'completed',
+    };
+
+    navigation.navigate('Jobs', {
+      screen: 'JobsList',
+      params: {
+        initialTab: statMap[type] || 'all',
+      },
+    });
+  };
+
+  useScreenRefresh(loadDashboardData);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -93,7 +118,7 @@ export default function HomeScreen({ navigation }) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#ff9800" />
+        <ThreeDotsLoader />
       </View>
     );
   }
@@ -117,10 +142,10 @@ export default function HomeScreen({ navigation }) {
         <Text style={styles.subtitle}>Here's what's happening today.</Text>
 
         <View style={styles.statsGrid}>
-          <StatCard icon="briefcase-outline" value={stats.total} label="Total Jobs" type="total" />
-          <StatCard icon="time-outline" value={stats.pending} label="Pending" type="pending" />
-          <StatCard icon="refresh-circle-outline" value={stats.inProgress} label="In Progress" type="progress" />
-          <StatCard icon="checkmark-circle" value={stats.completed} label="Completed" type="completed" />
+          <StatCard icon="briefcase-outline" value={stats.total} label="Total Jobs" type="total" onPress={() => handleStatPress('total')} />
+          <StatCard icon="time-outline" value={stats.pending} label="Pending" type="pending" onPress={() => handleStatPress('pending')} />
+          <StatCard icon="refresh-circle-outline" value={stats.inProgress} label="In Progress" type="progress" onPress={() => handleStatPress('progress')} />
+          <StatCard icon="checkmark-circle" value={stats.completed} label="Completed" type="completed" onPress={() => handleStatPress('completed')} />
         </View>
 
         <View style={styles.recentHeader}>
@@ -204,7 +229,7 @@ export default function HomeScreen({ navigation }) {
   );
 }
 
-function StatCard({ icon, value, label, type }) {
+function StatCard({ icon, value, label, type, onPress }) {
   const themeByType = {
     total: {
       bg: '#fff7ef',
@@ -234,22 +259,24 @@ function StatCard({ icon, value, label, type }) {
   const tone = themeByType[type] || themeByType.total;
 
   return (
-    <View style={[styles.statCard, { backgroundColor: tone.bg }]}>
-      <View style={styles.statRow}>
-        <View style={styles.statIconColumn}>
-          <View style={styles.statIconWrap}>
-            <Ionicons name={icon} style={styles.statIcon} color={tone.iconColor} />
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={styles.statCardWrap}>
+      <View style={[styles.statCard, { backgroundColor: tone.bg }]}>
+        <View style={styles.statRow}>
+          <View style={styles.statIconColumn}>
+            <View style={styles.statIconWrap}>
+              <Ionicons name={icon} style={styles.statIcon} color={tone.iconColor} />
+            </View>
           </View>
-        </View>
-        <View style={styles.statTextColumn}>
-          <View style={styles.statCaretRow}>
-            <Ionicons name="chevron-forward" size={15} color="#a7a7a7" />
+          <View style={styles.statTextColumn}>
+            <View style={styles.statCaretRow}>
+              <Ionicons name="chevron-forward" size={15} color="#a7a7a7" />
+            </View>
+            <Text style={[styles.statValue, { color: tone.valueColor }]}>{value}</Text>
+            <Text style={styles.statLabel}>{label}</Text>
           </View>
-          <Text style={[styles.statValue, { color: tone.valueColor }]}>{value}</Text>
-          <Text style={styles.statLabel}>{label}</Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -290,15 +317,16 @@ const styles = StyleSheet.create({
     rowGap: 10,
     marginBottom: 18,
   },
-  statCard: {
+  statCardWrap: {
     width: '48.5%',
+  },
+  statCard: {
     borderRadius: 14,
     paddingTop: 10,
     paddingBottom: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: '#ececec',
-    alignSelf: 'flex-start',
   },
   statRow: {
     flexDirection: 'row',

@@ -24,6 +24,11 @@ export const batchService = {
     return response.data;
   },
 
+  updateBatch: async (id, batchData) => {
+    const response = await api.put(`/batches/${id}`, batchData);
+    return response.data;
+  },
+
   updateBatchStatus: async (id, statusData) => {
     const response = await api.patch(`/batches/${id}/status`, statusData);
     return response.data;

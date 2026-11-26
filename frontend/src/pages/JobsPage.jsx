@@ -6,9 +6,8 @@ import {
   Input, 
   Select, 
   DatePicker, 
-  InputNumber, 
-  Switch, 
-  Upload, 
+  InputNumber,
+  Upload,
   Space, 
   Tag, 
   Typography,
@@ -40,26 +39,37 @@ import {
   MailOutlined,
   PhoneOutlined,
   FileTextOutlined,
-  UndoOutlined
+  UndoOutlined,
+  CarOutlined
 } from '@ant-design/icons';
 import { useLocation } from 'react-router-dom';
-import dayjs from 'dayjs';
 import ResponsiveTable from '../components/common/ResponsiveTable';
-import { STATUS_GROUPS, getStatusColor, formatJobStatusLabel } from '../constants/jobStatuses';
+import { STATUS_GROUPS, getStatusColor, formatJobStatusLabel, normalizeJobStatusKey } from '../constants/jobStatuses';
 import { jobAPI, customerAPI, authAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
-import { hasPermission } from '../utils/permissions';
-import { compressFiles } from '../utils/fileCompression';
+import { hasPermission, canAssignRider, canCreateJobs, canEditJobs } from '../utils/permissions';
+import { filesToUploads } from '../utils/imageUpload';
 import DropdownWithOther from '../components/common/DropdownWithOther';
 import { FREIGHT_TYPES, PRIORITY_LEVELS } from '../utils/countryCodes';
 import StatusUpdateModal from '../components/jobs/StatusUpdateModal';
 import PaymentRecordingModal from '../components/jobs/PaymentRecordingModal';
 import StatusRevertModal from '../components/jobs/StatusRevertModal';
+import JobEditModal from '../components/jobs/JobEditModal';
+import JobEditHistory from '../components/jobs/JobEditHistory';
+import JobNotes from '../components/jobs/JobNotes';
+import JobNoteModal from '../components/jobs/JobNoteModal';
+import JobPhotos from '../components/jobs/JobPhotos';
+import DeliverJobModal from '../components/jobs/DeliverJobModal';
+import AssignRiderModal from '../components/jobs/AssignRiderModal';
+import config from '../config/env';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { OptGroup } = Select;
 const { TextArea } = Input;
+
+// Jobs that have reached Ghana and can be handed to a dispatch rider
+const DISPATCHABLE_STATUSES = ['arrived_at_destination', 'at_ghana_warehouse', 'ready_for_delivery', 'out_for_delivery', 'failed_delivery'];
 
 // Text File Viewer Component
 const TextFileViewer = ({ documentUrl, fileName, fileExtension }) => {
@@ -154,7 +164,11 @@ const JobsPage = () => {
   const [isPaymentModalVisible, setIsPaymentModalVisible] = useState(false);
   const [isRevertStatusModalVisible, setIsRevertStatusModalVisible] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
-  const [editingJobId, setEditingJobId] = useState(null);
+  const [editJobId, setEditJobId] = useState(null);
+  const [noteJob, setNoteJob] = useState(null);
+  const [deliverJob, setDeliverJob] = useState(null);
+  const [riderJob, setRiderJob] = useState(null);
+  const [chosenStatus, setChosenStatus] = useState(null); // picked from the drawer menu
   const [customerType, setCustomerType] = useState('existing'); // 'existing' or 'new'
   const [statusFilter, setStatusFilter] = useState(null); // Status filter
   const [form] = Form.useForm();
@@ -231,13 +245,19 @@ const JobsPage = () => {
     return () => clearInterval(interval);
   }, [apiError]);
 
-  // Open modal automatically if navigated from dashboard with state
+  // Open modal or job drawer automatically if navigated from a dashboard
   useEffect(() => {
     if (location.state?.openNewJobModal) {
       console.log('🚀 Opening New Job modal from dashboard');
       setIsModalVisible(true);
-      // Clear the state so modal doesn't reopen on refresh
-      window.history.replaceState({}, document.title);
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+    }
+
+    if (location.state?.selectedJobId) {
+      const selectedJobId = location.state.selectedJobId;
+      console.log('🚀 Opening job drawer from dashboard:', selectedJobId);
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+      handleViewJob({ id: selectedJobId });
     }
   }, [location.state]);
 
@@ -267,7 +287,7 @@ const JobsPage = () => {
           deliveryAddress: job.deliveryAddress,
           status: job.status,
           priority: job.priority || 'Standard',
-          assignedTo: job.assignedDriver?.name || 'Unassigned',
+          assignedTo: job.assignedDeliveryAgent?.name || job.assignedDriver?.name || 'Unassigned',
           eta: job.estimatedDelivery ? new Date(job.estimatedDelivery).toLocaleDateString() : 'TBD',
           pickupDate: job.pickupDate ? new Date(job.pickupDate).toLocaleDateString() : 'N/A',
           createdAt: job.createdAt,
@@ -278,11 +298,11 @@ const JobsPage = () => {
         
         // Calculate statistics
         const total = transformedJobs.length;
-        const pending = transformedJobs.filter(j => j.status === 'pending').length;
+        const pending = transformedJobs.filter(j => ['pending', 'pending_collection'].includes(normalizeJobStatusKey(j.status))).length;
         const inProgress = transformedJobs.filter(j => 
-          ['assigned', 'collected', 'in_transit', 'arrived_at_warehouse', 'out_for_delivery'].includes(j.status)
+          ['assigned', 'collected', 'in_transit', 'arrived_at_warehouse', 'out_for_delivery'].includes(normalizeJobStatusKey(j.status))
         ).length;
-        const completed = transformedJobs.filter(j => j.status === 'delivered').length;
+        const completed = transformedJobs.filter(j => normalizeJobStatusKey(j.status) === 'delivered').length;
         
         setStats([
           { title: 'Total Jobs', value: total, color: '#1890ff' },
@@ -449,62 +469,31 @@ const JobsPage = () => {
       console.log('📝 Form values:', values);
       
       // Prepare job data
-      const packageList = Array.isArray(values.packageList) ? values.packageList.filter(Boolean) : [];
-      if (packageList.length === 0) {
-        message.error('Please add at least one package before creating the job.');
+      const packageDescription = values.packageDescription?.trim() || '';
+      if (!packageDescription) {
+        message.error('Please describe the package(s) before creating the job.');
         setSubmitting(false);
         return;
       }
-
-      const normalizedPackageList = packageList.map((pkg) => ({
-        packageType: pkg.packageType || 'Document',
-        description: pkg.description?.trim() || '',
-        weight: pkg.weight != null && pkg.weight !== '' ? Number(pkg.weight) : undefined,
-        estimatedPrice: pkg.estimatedPrice != null && pkg.estimatedPrice !== '' ? Number(pkg.estimatedPrice) : undefined,
-        fragile: !!pkg.fragile,
-        insurance: !!pkg.insurance,
-      })).filter((pkg) => pkg.description || pkg.weight != null || pkg.estimatedPrice != null);
-
-      if (normalizedPackageList.length === 0) {
-        message.error('Please add at least one package with a description, weight, or price.');
-        setSubmitting(false);
-        return;
-      }
-
-      const totals = normalizedPackageList.reduce((acc, pkg) => {
-        acc.weight += Number(pkg.weight || 0);
-        acc.estimatedPrice += Number(pkg.estimatedPrice || 0);
-        return acc;
-      }, { weight: 0, estimatedPrice: 0 });
 
       const jobData = {
         referenceNumber: values.referenceNumber,
         pickupAddress: values.pickupAddress,
         deliveryAddress: values.deliveryAddress,
         pickupDate: values.pickupDate ? values.pickupDate.toISOString() : null,
+        estimatedDelivery: values.deliveryDate ? values.deliveryDate.toISOString() : null,
         // Receiver information (delivery address is same as receiver address)
         receiverName: values.receiverName,
         receiverAddress: values.deliveryAddress,
         receiverContact: values.receiverContact,
         parcelDetails: {
-          description: normalizedPackageList.map((pkg) => pkg.description || `${pkg.packageType || 'Package'}${pkg.weight ? ` (${pkg.weight}kg)` : ''}`).filter(Boolean).join('; '),
-          weight: totals.weight > 0 ? totals.weight : null,
-          dimensions: null,
-          quantity: normalizedPackageList.length,
-          value: totals.estimatedPrice > 0 ? totals.estimatedPrice : undefined,
-          packages: normalizedPackageList.map((pkg) => ({
-            packageType: pkg.packageType || 'Document',
-            description: pkg.description || undefined,
-            weight: pkg.weight != null ? Number(pkg.weight) : undefined,
-            estimatedPrice: pkg.estimatedPrice != null ? Number(pkg.estimatedPrice) : undefined,
-            fragile: pkg.fragile,
-            insurance: pkg.insurance,
-          })),
+          description: packageDescription,
+          value: values.estimatedValue != null && values.estimatedValue !== '' ? Number(values.estimatedValue) : undefined,
         },
         specialInstructions: values.specialInstructions,
         priority: values.priority || 'Standard',
         assignedDriverId: values.assignedTo || null,
-        ...(!editingJobId && { status: 'Pending Collection' }),
+        status: 'Pending Collection',
       };
 
       // If creating a new customer
@@ -532,48 +521,9 @@ const JobsPage = () => {
       // Add documents if any
       if (values.documents && values.documents.fileList && values.documents.fileList.length > 0) {
         try {
-          // Extract original file objects
-          const originalFiles = values.documents.fileList.map(file => file.originFileObj || file);
-
-          // Show loading message for compression
-          message.loading({ content: 'Compressing files...', key: 'compressing', duration: 0 });
-
-          // Compress all files to 5MB maximum each
-          const compressedFiles = await compressFiles(originalFiles, 5);
-
-          // Validate total file size (25MB max total after compression)
-          const maxTotalSize = 25 * 1024 * 1024; // 25MB
-          const totalSize = compressedFiles.reduce((sum, file) => sum + file.size, 0);
-
-          if (totalSize > maxTotalSize) {
-            message.destroy('compressing');
-            message.error(`Total file size after compression (${(totalSize / 1024 / 1024).toFixed(2)}MB) exceeds maximum allowed size of 25MB. Please upload fewer files.`);
-            setSubmitting(false);
-            return;
-          }
-
+          message.loading({ content: 'Preparing files...', key: 'compressing', duration: 0 });
+          jobData.documents = await filesToUploads(values.documents.fileList);
           message.destroy('compressing');
-          message.success({ content: `Compressed ${compressedFiles.length} file(s) successfully`, key: 'compressing', duration: 2 });
-
-          // Convert compressed files to base64 for storage in database
-          const documentPromises = compressedFiles.map(file => {
-            return new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => {
-                resolve({
-                  fileName: file.name,
-                  fileSize: file.size,
-                  mimeType: file.type,
-                  fileData: reader.result, // Base64 string
-                });
-              };
-              reader.onerror = reject;
-              reader.readAsDataURL(file);
-            });
-          });
-          
-          jobData.documents = await Promise.all(documentPromises);
-          console.log('📎 Documents to upload:', jobData.documents.length, 'files');
         } catch (error) {
           message.destroy('compressing');
           message.error(error.message || 'Failed to compress files. Please check file sizes and try again.');
@@ -582,35 +532,24 @@ const JobsPage = () => {
         }
       }
 
-      // Call API to create or update job
-      let response;
-      if (editingJobId) {
-        response = await jobAPI.update(editingJobId, jobData);
-      } else {
-        response = await jobAPI.create(jobData);
-      }
-      
+      const response = await jobAPI.create(jobData);
+
       if (response.success) {
-        if (editingJobId) {
-          message.success(`Job updated successfully!`);
-        } else {
-          message.success(`Job created successfully! Tracking ID: ${response.data.job?.trackingId || 'N/A'}`);
-          
-          // Broadcast new job to other tabs
-          const channel = new BroadcastChannel('job_updates');
-          channel.postMessage({
-            type: 'JOB_CREATED',
-            jobId: response.data.job?.id,
-            trackingId: response.data.job?.trackingId,
-            timestamp: new Date().toISOString()
-          });
-          channel.close();
-        }
-        
+        message.success(`Job created successfully! Tracking ID: ${response.data.job?.trackingId || 'N/A'}`);
+
+        // Broadcast new job to other tabs
+        const channel = new BroadcastChannel('job_updates');
+        channel.postMessage({
+          type: 'JOB_CREATED',
+          jobId: response.data.job?.id,
+          trackingId: response.data.job?.trackingId,
+          timestamp: new Date().toISOString()
+        });
+        channel.close();
+
         setIsModalVisible(false);
         form.resetFields();
         setCustomerType('existing');
-        setEditingJobId(null);
         
         // Refresh jobs list
         await fetchJobs();
@@ -620,7 +559,7 @@ const JobsPage = () => {
           await fetchCustomers();
         }
       } else {
-        message.error(response.message || (editingJobId ? 'Failed to update job' : 'Failed to create job'));
+        message.error(response.message || 'Failed to create job');
       }
     } catch (error) {
       if (error.name === 'ValidationError') {
@@ -638,7 +577,6 @@ const JobsPage = () => {
     setIsModalVisible(false);
     form.resetFields();
     setCustomerType('existing');
-    setEditingJobId(null);
   };
 
   const handleCustomerTypeChange = (e) => {
@@ -687,7 +625,7 @@ const JobsPage = () => {
       
       // Fetch document from backend
       const token = localStorage.getItem('shipease_token');
-      const apiUrl = `${process.env.REACT_APP_API_URL}${process.env.REACT_APP_API_BASE_PATH}/jobs/documents/${document.id}`;
+      const apiUrl = `${config.api.fullUrl}/jobs/documents/${document.id}`;
       
       console.log('📄 Fetching document from:', apiUrl);
       
@@ -756,24 +694,13 @@ const JobsPage = () => {
       // Prepare form data if document is provided
       let requestData;
       if (document) {
-        const formData = new FormData();
-        formData.append('status', status);
-        if (notes) formData.append('notes', notes);
-        formData.append('document', document);
-        
-        // Use fetch directly for multipart/form-data
-        const token = localStorage.getItem('shipease_token');
-        const apiUrl = `${process.env.REACT_APP_API_URL}${process.env.REACT_APP_API_BASE_PATH}/jobs/${selectedJob.id}/status`;
-        
-        const response = await fetch(apiUrl, {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          body: formData
+        // The API has no multipart parser; it takes attached files as base64 `proofImages`
+        // (drivers must attach at least one photo when marking a job collected).
+        const data = await jobAPI.updateStatus(selectedJob.id, {
+          status,
+          notes,
+          proofImages: await filesToUploads([document]),
         });
-        
-        const data = await response.json();
         
         if (data.success) {
           message.success({ content: `Job marked as ${statusLabel}`, key: 'statusUpdate', duration: 2 });
@@ -838,6 +765,7 @@ const JobsPage = () => {
       'pending': ['assigned'],
       'assigned': ['collected', 'collection_failed'], // Added collection_failed
       'collected': ['arrived_at_warehouse'], // Only warehouse staff can update to this
+      'in_transit': ['arrived_at_warehouse'], // driver heading back to the warehouse
       'collection_failed': ['assigned'], // Can retry collection
       'arrived_at_warehouse': ['batched'], // Only warehouse staff can update to this
       'batched': ['shipped'],
@@ -851,13 +779,24 @@ const JobsPage = () => {
       'draft': ['pending'], // Draft can be activated
     };
     
-    let nextStatuses = statusFlow[currentStatus] || [];
+    // Stored statuses mix formats ("Pending Collection", "Assigned", "in_transit"), so look up by normalized key.
+    const STATUS_ALIASES = { pending_collection: 'pending', at_warehouse: 'arrived_at_warehouse', returning_to_warehouse: 'in_transit', en_route_to_customer: 'assigned' };
+    const statusKey = normalizeJobStatusKey(currentStatus);
+    const flowKey = STATUS_ALIASES[statusKey] || statusKey;
+    let nextStatuses = statusFlow[flowKey] || [];
     
     // Filter statuses based on user role
     if (userRole) {
+      // Finance can edit jobs and add notes, but does not move them along
+      if (userRole === 'finance') return [];
+
       // Drivers can only update to "collected" or "collection_failed"
       // They cannot update to "arrived_at_warehouse" - that's for warehouse staff only
       if (userRole === 'driver') {
+        // Drivers only see jobs assigned to them, so a job still awaiting pickup is theirs to collect.
+        if (['pending', 'assigned'].includes(flowKey)) {
+          nextStatuses = ['collected', 'collection_failed'];
+        }
         nextStatuses = nextStatuses.filter(status => 
           status !== 'arrived_at_warehouse' && 
           status !== 'batched' && 
@@ -927,42 +866,18 @@ const JobsPage = () => {
     });
   };
 
-  const handleEditJob = async (job) => {
-    try {
-      // Fetch full job details
-      const response = await jobAPI.getById(job.id);
-      if (response.success && response.data) {
-        const jobData = response.data.job;
-        
-        // Set form values for editing
-        form.setFieldsValue({
-          packageList: jobData.packages?.length ? jobData.packages : [{ packageType: 'Parcel', description: jobData.description || '', weight: Number(jobData.weight || 0), estimatedPrice: Number(jobData.value || 0) }],
-          referenceNumber: jobData.referenceNumber,
-          customerId: jobData.customer?.id,
-          pickupAddress: jobData.pickupAddress,
-          deliveryAddress: jobData.deliveryAddress,
-          pickupDate: jobData.pickupDate ? dayjs(jobData.pickupDate) : null,
-          receiverName: jobData.receiverName,
-          receiverContact: jobData.receiverContact || '',
-          weight: jobData.weight,
-          estimatedPrice: jobData.estimatedPrice || jobData.value,
-          description: jobData.description,
-          priority: jobData.priority || 'Standard',
-          assignedTo: jobData.assignedDriverId,
-          specialInstructions: jobData.specialInstructions,
-        });
-        
-        setCustomerType('existing');
-        setEditingJobId(job.id);
-        setIsModalVisible(true);
-      }
-    } catch (error) {
-      console.error('Failed to load job for editing:', error);
-      message.error('Failed to load job details');
-    }
+  const refreshSelectedJob = async () => {
+    if (selectedJob) await handleViewJob({ id: selectedJob.id });
+    await fetchJobs(true);
   };
 
   const handleStatusUpdate = (status) => {
+    // Delivering has its own dialog because it needs a photo of the item
+    if (status === 'delivered') {
+      setDeliverJob(selectedJob);
+      return;
+    }
+    setChosenStatus(status);
     setIsStatusUpdateModalVisible(true);
   };
 
@@ -972,7 +887,12 @@ const JobsPage = () => {
     // If reassignment is requested, assign the job first
     if (reassignTo !== null && reassignTo !== undefined) {
       try {
-        await jobAPI.assignDriver(selectedJob.id, reassignTo);
+        const member = teamMembers.find((item) => item.id === reassignTo);
+        if (member?.role === 'delivery-agent' || member?.role === 'delivery_agent') {
+          await jobAPI.assignDeliveryAgent(selectedJob.id, reassignTo);
+        } else {
+          await jobAPI.assignDriver(selectedJob.id, reassignTo);
+        }
         message.success('Job reassigned successfully');
       } catch (error) {
         message.error('Failed to reassign job');
@@ -1116,7 +1036,7 @@ const JobsPage = () => {
             </Space>
           </Col>
           <Col xs={24} lg={8} style={{ textAlign: 'right' }} className="mobile-full-width">
-            {(['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) || currentUser?.role === 'customer-service') && (
+            {canCreateJobs(currentUser) && (
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
@@ -1167,13 +1087,13 @@ const JobsPage = () => {
 
       {/* New Job Modal */}
       <Modal
-        title={editingJobId ? "Edit Job" : "Create New Job"}
-        visible={isModalVisible}
+        title="Create New Job"
+        open={isModalVisible}
         onOk={handleModalOk}
         onCancel={handleModalCancel}
         confirmLoading={submitting}
         width={window.innerWidth <= 768 ? '95%' : 800}
-        okText={submitting ? (editingJobId ? "Updating Job..." : "Creating Job...") : (editingJobId ? "Update Job" : "Create Job")}
+        okText={submitting ? 'Creating Job...' : 'Create Job'}
         footer={(_, { OkBtn, CancelBtn }) => (
           <>
             <CancelBtn />
@@ -1450,69 +1370,22 @@ const JobsPage = () => {
 
           {/* Package Details */}
           <Card size="small" title="Package Details" style={{ marginBottom: 16 }}>
-            <Row gutter={16}>
-              <Col xs={24} sm={8}>
-                <Form.Item
-                  name="packageType"
-                  label="Package Type"
-                  rules={[{ required: true, message: 'Please select package type!' }]}
-                >
-                  <DropdownWithOther
-                    options={['Document', 'Parcel', 'Box', 'Fragile', 'Heavy']}
-                    placeholder="Select package type"
-                  />
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={8}>
-                <Form.Item name="weight" label="Weight (kg) - Optional">
-                  <InputNumber
-                    min={0.1}
-                    max={1000}
-                    step={0.1}
-                    style={{ width: '100%' }}
-                    placeholder="Enter weight"
-                  />
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={8}>
-                <Form.Item name="estimatedPrice" label="Estimated Price (£) - Optional">
-                  <InputNumber
-                    min={0}
-                    step={0.01}
-                    style={{ width: '100%' }}
-                    placeholder="Enter estimated price (optional)"
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-
             <Form.Item
-              name="description"
-              label="Package Description"
+              name="packageDescription"
+              label="Package Details"
+              rules={[{ required: true, message: 'Please describe the package(s)!' }]}
             >
-              <TextArea rows={2} placeholder="Describe the package contents" />
+              <TextArea rows={3} placeholder="Describe the packages: type, quantity, approximate weight, contents..." />
             </Form.Item>
 
-            <Row gutter={16}>
-              <Col xs={24} sm={12}>
-                <Form.Item
-                  name="fragile"
-                  label="Fragile Package"
-                  valuePropName="checked"
-                >
-                  <Switch />
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={12}>
-                <Form.Item
-                  name="insurance"
-                  label="Insurance Required"
-                  valuePropName="checked"
-                >
-                  <Switch />
-                </Form.Item>
-              </Col>
-            </Row>
+            <Form.Item name="estimatedValue" label="Estimated Value (£) - Optional">
+              <InputNumber
+                min={0}
+                step={0.01}
+                style={{ width: '100%' }}
+                placeholder="Enter estimated value (optional)"
+              />
+            </Form.Item>
           </Card>
 
           <Form.Item
@@ -1525,7 +1398,7 @@ const JobsPage = () => {
           <Form.Item
             name="documents"
             label="Upload Documents (Optional)"
-            extra="Files will be automatically compressed to 5MB maximum each. Images are compressed automatically. PDFs and other files must be under 5MB. Maximum 5 files, 25MB total."
+            extra="Up to 5 files, 3MB in total. Photos are compressed automatically."
           >
             <Upload 
               beforeUpload={(file) => {
@@ -1533,7 +1406,7 @@ const JobsPage = () => {
                 // Just validate that it's not extremely large (e.g., over 50MB)
                 const absoluteMaxSize = 50 * 1024 * 1024; // 50MB absolute max
                 if (file.size > absoluteMaxSize) {
-                  message.error(`${file.name} is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum allowed is 50MB. Files will be compressed to 5MB during upload.`);
+                  message.error(`${file.name} is too large (${(file.size / 1024 / 1024).toFixed(2)}MB).`);
                   return Upload.LIST_IGNORE;
                 }
                 return false; // Prevent auto upload
@@ -1544,123 +1417,6 @@ const JobsPage = () => {
             </Upload>
           </Form.Item>
 
-          {/* Package List - New Section */}
-          <Card size="small" title="Package List" style={{ marginBottom: 16 }}>
-            <Form.List name="packageList">
-              {(fields, { add, remove }) => (
-                <>
-                  {fields.map(({ key, name, fieldKey, ...restField }) => (
-                    <Row gutter={16} key={key}>
-                      <Col xs={24} sm={10}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'packageType']}
-                          fieldKey={[fieldKey, 'packageType']}
-                          label="Package Type"
-                          rules={[{ required: true, message: 'Please select package type!' }]}
-                        >
-                          <DropdownWithOther
-                            options={['Document', 'Parcel', 'Box', 'Fragile', 'Heavy']}
-                            placeholder="Select package type"
-                          />
-                        </Form.Item>
-                      </Col>
-                      <Col xs={24} sm={10}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'description']}
-                          fieldKey={[fieldKey, 'description']}
-                          label="Description"
-                          rules={[{ required: true, message: 'Please enter package description!' }]}
-                        >
-                          <Input placeholder="Enter package description" />
-                        </Form.Item>
-                      </Col>
-                      <Col xs={24} sm={4}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'weight']}
-                          fieldKey={[fieldKey, 'weight']}
-                          label="Weight (kg)"
-                          rules={[{ required: true, message: 'Please enter weight!' }]}
-                        >
-                          <InputNumber
-                            min={0.1}
-                            max={1000}
-                            step={0.1}
-                            style={{ width: '100%' }}
-                            placeholder="Enter weight"
-                          />
-                        </Form.Item>
-                      </Col>
-                      <Col xs={24} sm={4}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'estimatedPrice']}
-                          fieldKey={[fieldKey, 'estimatedPrice']}
-                          label="Estimated Price (£)"
-                          rules={[{ required: true, message: 'Please enter estimated price!' }]}
-                        >
-                          <InputNumber
-                            min={0}
-                            step={0.01}
-                            style={{ width: '100%' }}
-                            placeholder="Enter estimated price"
-                          />
-                        </Form.Item>
-                      </Col>
-                      <Col xs={24} sm={4}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'fragile']}
-                          fieldKey={[fieldKey, 'fragile']}
-                          label="Fragile"
-                          valuePropName="checked"
-                        >
-                          <Switch />
-                        </Form.Item>
-                      </Col>
-                      <Col xs={24} sm={4}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'insurance']}
-                          fieldKey={[fieldKey, 'insurance']}
-                          label="Insurance"
-                          valuePropName="checked"
-                        >
-                          <Switch />
-                        </Form.Item>
-                      </Col>
-                      <Col xs={24} sm={4}>
-                        <Form.Item>
-                          <Button
-                            type="danger"
-                            icon={<UndoOutlined />}
-                            onClick={() => remove(name)}
-                            style={{ width: '100%' }}
-                          >
-                            Remove Package
-                          </Button>
-                        </Form.Item>
-                      </Col>
-                    </Row>
-                  ))}
-                  <Row gutter={16}>
-                    <Col xs={24} sm={12}>
-                      <Button
-                        type="dashed"
-                        onClick={() => add()}
-                        style={{ width: '100%' }}
-                        icon={<PlusOutlined />}
-                      >
-                        Add Another Package
-                      </Button>
-                    </Col>
-                  </Row>
-                </>
-              )}
-            </Form.List>
-          </Card>
         </Form>
       </Modal>
 
@@ -1673,7 +1429,7 @@ const JobsPage = () => {
         width={720}
         className="user-details-drawer"
         extra={
-          selectedJob && ['admin', 'superadmin', 'customer-service', 'driver', 'delivery-agent', 'warehouse'].includes(currentUser?.role) && (
+          selectedJob && canEditJobs(currentUser) && (
             <Dropdown
               overlay={
                 <Menu>
@@ -1690,21 +1446,32 @@ const JobsPage = () => {
                           </Menu.Item>
                         ))}
                       </Menu.ItemGroup>
-                      {(['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) || currentUser?.role === 'warehouse_staff' || currentUser?.role === 'warehouse') && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered' && (
-                        <Menu.Divider />
-                      )}
+                      <Menu.Divider />
                     </>
                   )}
-                  {(['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) || currentUser?.role === 'warehouse_staff' || currentUser?.role === 'warehouse') && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered' && (
+                  {!['cancelled', 'delivered'].includes(normalizeJobStatusKey(selectedJob.status)) && (
                     <Menu.Item
                       key="edit"
                       icon={<EditOutlined />}
-                      onClick={() => {
-                        setIsDetailsDrawerVisible(false);
-                        handleEditJob({ id: selectedJob.id });
-                      }}
+                      onClick={() => setEditJobId(selectedJob.id)}
                     >
                       Edit Job
+                    </Menu.Item>
+                  )}
+                  <Menu.Item
+                    key="addNote"
+                    icon={<FileTextOutlined />}
+                    onClick={() => setNoteJob(selectedJob)}
+                  >
+                    Add Note
+                  </Menu.Item>
+                  {canAssignRider(currentUser) && DISPATCHABLE_STATUSES.includes(normalizeJobStatusKey(selectedJob.status)) && (
+                    <Menu.Item
+                      key="assignRider"
+                      icon={<CarOutlined />}
+                      onClick={() => setRiderJob(selectedJob)}
+                    >
+                      {selectedJob.assignedDeliveryAgent ? 'Change Dispatch Rider' : 'Assign Dispatch Rider'}
                     </Menu.Item>
                   )}
                   {/* Warehouse manager can record payment */}
@@ -1723,7 +1490,7 @@ const JobsPage = () => {
                     </>
                   )}
                   {/* Admin can revert status */}
-                  {['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) && selectedJob.status !== 'pending' && selectedJob.status !== 'draft' && (
+                  {['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) && normalizeJobStatusKey(selectedJob.status) !== 'pending' && normalizeJobStatusKey(selectedJob.status) !== 'draft' && (
                     <>
                       <Menu.Divider />
                       <Menu.Item
@@ -1737,7 +1504,7 @@ const JobsPage = () => {
                       </Menu.Item>
                     </>
                   )}
-                  {['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered' && (
+                  {['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) && normalizeJobStatusKey(selectedJob.status) !== 'cancelled' && normalizeJobStatusKey(selectedJob.status) !== 'delivered' && (
                     <Menu.Item
                       key="cancel"
                       danger
@@ -1745,10 +1512,6 @@ const JobsPage = () => {
                     >
                       Cancel Job
                     </Menu.Item>
-                  )}
-                  {getNextStatusOptions(selectedJob.status, currentUser?.role).length === 0 && 
-                   !(['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) && selectedJob.status !== 'cancelled' && selectedJob.status !== 'delivered') && (
-                    <Menu.Item disabled>No actions available</Menu.Item>
                   )}
                 </Menu>
               }
@@ -1839,6 +1602,27 @@ const JobsPage = () => {
               </div>
             </Card>
 
+            {/* Receiver Information Card */}
+            {(selectedJob.receiverName || selectedJob.receiverContact || selectedJob.receiverAddress) && (
+              <Card 
+                size="small" 
+                title={<span className="user-info-title">Receiver Information</span>}
+                className="user-info-card"
+                style={{ marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 8 }}
+              >
+                <div className="user-info-list">
+                  {[['Name', selectedJob.receiverName], ['Phone', selectedJob.receiverContact], ['Address', selectedJob.receiverAddress]]
+                    .filter(([, value]) => value)
+                    .map(([label, value]) => (
+                      <div className="user-info-item" key={label}>
+                        <div className="user-info-label">{label}</div>
+                        <div className="user-info-value"><Text>{value}</Text></div>
+                      </div>
+                    ))}
+                </div>
+              </Card>
+            )}
+
             {/* Package Details Card */}
             <Card 
               size="small" 
@@ -1855,27 +1639,11 @@ const JobsPage = () => {
                     </div>
                 </div>
               )}
-              {selectedJob.weight && (
-                  <div className="user-info-item">
-                    <div className="user-info-label">Weight</div>
-                    <div className="user-info-value">
-                  <Text>{selectedJob.weight} kg</Text>
-                    </div>
-                </div>
-              )}
                 {canViewRevenue && selectedJob.value && (
                   <div className="user-info-item">
                     <div className="user-info-label">Value</div>
                     <div className="user-info-value">
                   <Text>£{selectedJob.value}</Text>
-                    </div>
-                </div>
-              )}
-              {selectedJob.quantity && (
-                  <div className="user-info-item">
-                    <div className="user-info-label">Quantity</div>
-                    <div className="user-info-value">
-                  <Text>{selectedJob.quantity}</Text>
                     </div>
                 </div>
               )}
@@ -1890,6 +1658,12 @@ const JobsPage = () => {
               style={{ marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 8 }}
             >
               <div className="user-info-list">
+                {selectedJob.referenceNumber && (
+                  <div className="user-info-item">
+                    <div className="user-info-label">Reference</div>
+                    <div className="user-info-value"><Text>{selectedJob.referenceNumber}</Text></div>
+                  </div>
+                )}
                 <div className="user-info-item">
                   <div className="user-info-label">Status</div>
                   <div className="user-info-value">
@@ -1912,6 +1686,18 @@ const JobsPage = () => {
                 <Text>{selectedJob.assignedDriver?.name || 'Unassigned'}</Text>
               </div>
                 </div>
+                {selectedJob.assignedDeliveryAgent && (
+                  <div className="user-info-item">
+                    <div className="user-info-label">Dispatch Rider</div>
+                    <div className="user-info-value"><Text>{selectedJob.assignedDeliveryAgent.name}</Text></div>
+                  </div>
+                )}
+                {selectedJob.estimatedDelivery && (
+                  <div className="user-info-item">
+                    <div className="user-info-label">Expected Delivery</div>
+                    <div className="user-info-value"><Text>{new Date(selectedJob.estimatedDelivery).toLocaleDateString()}</Text></div>
+                  </div>
+                )}
                 <div className="user-info-item">
                   <div className="user-info-label">Pickup Date</div>
                   <div className="user-info-value">
@@ -1937,6 +1723,10 @@ const JobsPage = () => {
                 <Text>{selectedJob.specialInstructions}</Text>
               </Card>
             )}
+
+            <JobNotes notes={selectedJob.jobNotes} onAdd={() => setNoteJob(selectedJob)} />
+
+            <JobPhotos documents={selectedJob.documents} />
 
             {/* Documents Card */}
             <Card size="small" title="Attached Documents">
@@ -2024,6 +1814,10 @@ const JobsPage = () => {
               ) : (
                 <Text type="secondary">No activity recorded yet</Text>
               )}
+            </Tabs.TabPane>
+
+            <Tabs.TabPane tab="Edit History" key="edit-history">
+              <JobEditHistory jobId={selectedJob.id} refreshKey={selectedJob.updatedAt} />
             </Tabs.TabPane>
           </Tabs>
         )}
@@ -2179,11 +1973,17 @@ const JobsPage = () => {
         onCancel={handleStatusUpdateCancel}
         onOk={handleStatusUpdateOk}
         currentStatus={selectedJob?.status}
-        nextStatuses={selectedJob ? getNextStatusOptions(selectedJob.status, currentUser?.role) : []}
+        initialStatus={chosenStatus}
+        nextStatuses={selectedJob ? getNextStatusOptions(selectedJob.status, currentUser?.role).filter(status => status !== 'delivered') : []}
         loading={updatingStatus}
         teamMembers={teamMembers}
         allowReassignment={true}
       />
+
+      <JobEditModal jobId={editJobId} onClose={() => setEditJobId(null)} onSaved={refreshSelectedJob} />
+      <JobNoteModal job={noteJob} onClose={() => setNoteJob(null)} onAdded={refreshSelectedJob} />
+      <DeliverJobModal job={deliverJob} onClose={() => setDeliverJob(null)} onDelivered={refreshSelectedJob} />
+      <AssignRiderModal job={riderJob} onClose={() => setRiderJob(null)} onAssigned={refreshSelectedJob} />
 
       {/* Payment Recording Modal */}
       <PaymentRecordingModal

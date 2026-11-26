@@ -3,6 +3,11 @@ import { API_ENDPOINTS } from '../config/constants';
 import logger from '../utils/logger';
 
 export const authService = {
+  getOrganisation: async () => (await api.get('/auth/organisation')).data,
+  updateOrganisation: async data => (await api.put('/auth/organisation', data)).data,
+  resetUserPassword: async (id, newPassword) => (await api.patch(`/auth/users/${id}/reset-password`, { newPassword })).data,
+  deleteUser: async (id) => (await api.delete(`/auth/users/${id}`)).data,
+
   login: async (email, password) => {
     try {
       logger.info('Attempting login', { email });
@@ -128,7 +133,7 @@ export const authService = {
 
   getTeamMembers: async () => {
     try {
-      const response = await api.get(API_ENDPOINTS.USERS.TEAM_MEMBERS);
+      const response = await api.get('/auth/users');
       return response.data;
     } catch (error) {
       logger.error('Failed to get team members', error, {
@@ -175,7 +180,7 @@ export const authService = {
   updateUser: async (userId, data) => {
     try {
       logger.info('Updating user', { userId });
-      const response = await api.put(`/auth/users/${userId}`, data);
+      const response = await api.patch(`/auth/users/${userId}`, data);
       logger.info('User updated successfully', { userId });
       return response.data;
     } catch (error) {

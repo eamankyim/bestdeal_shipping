@@ -1,3 +1,4 @@
+import { hasAdminAccess } from '../../utils/permissions';
 import React from 'react';
 import {
   View,
@@ -43,15 +44,17 @@ export default function ProfileScreen({ navigation }) {
     { icon: 'mail-outline', title: 'Invite Management', route: 'InviteManagement' },
     { icon: 'shield-outline', title: 'Role Management', route: 'RoleManagement' },
     { icon: 'business-outline', title: 'Organisation Settings', route: 'OrganisationSettings' },
+    { icon: 'chatbubble-ellipses-outline', title: 'Customer Messages', route: 'CustomerMessages' },
   ];
 
   const managementItems = [
     { icon: 'people-outline', title: 'Customers', route: 'Customers' },
-    { icon: 'cube-outline', title: 'Batch Jobs', route: 'BatchJobs' },
+    { icon: 'cube-outline', title: 'Batches', route: 'Batches' },
     { icon: 'add-circle-outline', title: 'Create Batch', route: 'CreateBatch' },
   ];
 
   const moreItems = [
+    { icon: 'location-outline', title: 'Track Shipment', route: 'Tracking' },
     { icon: 'document-text-outline', title: 'Invoices', route: 'Invoices' },
     { icon: 'bar-chart-outline', title: 'Reports', route: 'Reports' },
   ];
@@ -118,7 +121,7 @@ export default function ProfileScreen({ navigation }) {
           ))}
         </View>
 
-        {(user?.role === 'admin' || user?.role === 'superadmin') && (
+        {(hasAdminAccess(user)) && (
           <>
             <Text style={styles.groupTitle}>Business</Text>
             <View style={styles.groupCard}>

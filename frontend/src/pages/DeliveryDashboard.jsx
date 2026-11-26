@@ -18,20 +18,31 @@ import {
   ClockCircleOutlined,
   EnvironmentOutlined,
   PhoneOutlined,
-  EyeOutlined
+  EyeOutlined,
+  EditOutlined,
+  FileTextOutlined,
+  CameraOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { dashboardAPI, jobAPI } from '../utils/api';
 import ResponsiveTable from '../components/common/ResponsiveTable';
-import { formatJobStatusLabel, getStatusColor } from '../constants/jobStatuses';
+import { formatJobStatusLabel, getStatusColor, normalizeJobStatusKey } from '../constants/jobStatuses';
+import DeliverJobModal from '../components/jobs/DeliverJobModal';
+import JobEditModal from '../components/jobs/JobEditModal';
+import JobNoteModal from '../components/jobs/JobNoteModal';
 
 const { Title, Text } = Typography;
+
+const isDeliverable = (status) => ['ready_for_delivery', 'out_for_delivery'].includes(normalizeJobStatusKey(status));
 
 const DeliveryDashboard = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
   const [error, setError] = useState(null);
+  const [deliverJob, setDeliverJob] = useState(null);
+  const [editJobId, setEditJobId] = useState(null);
+  const [noteJob, setNoteJob] = useState(null);
 
   useEffect(() => {
     fetchDeliveryDashboard();
@@ -103,6 +114,12 @@ const DeliveryDashboard = () => {
       color: '#52c41a',
     },
     {
+      title: 'Out for Delivery',
+      value: stats?.outForDelivery || 0,
+      prefix: <RocketOutlined />,
+      color: '#722ed1',
+    },
+    {
       title: 'Delivery Attempted',
       value: stats?.attempted || 0,
       prefix: <CheckCircleOutlined />,
@@ -158,10 +175,10 @@ const DeliveryDashboard = () => {
     },
     {
       title: 'Delivery Address',
-      dataIndex: 'customer',
+      dataIndex: 'deliveryAddress',
       key: 'address',
       ellipsis: true,
-      render: (customer) => customer?.address || 'N/A',
+      render: (address, record) => address || record.customer?.address || 'N/A',
       mobile: false,
     },
     {
@@ -185,9 +202,23 @@ const DeliveryDashboard = () => {
     {
       title: 'Actions',
       key: 'actions',
+      width: 270,
       mobile: true,
       render: (_, record) => (
-        <Space>
+        <Space wrap>
+          {isDeliverable(record.status) && (
+            <Button
+              size="small"
+              type="primary"
+              icon={<CameraOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeliverJob(record);
+              }}
+            >
+              Mark Delivered
+            </Button>
+          )}
           <Button 
             size="small" 
             icon={<EyeOutlined />}
@@ -197,6 +228,28 @@ const DeliveryDashboard = () => {
             }}
           >
             View
+          </Button>
+          {normalizeJobStatusKey(record.status) !== 'delivered' && (
+            <Button
+              size="small"
+              icon={<EditOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditJobId(record.id);
+              }}
+            >
+              Edit
+            </Button>
+          )}
+          <Button
+            size="small"
+            icon={<FileTextOutlined />}
+            onClick={(e) => {
+              e.stopPropagation();
+              setNoteJob(record);
+            }}
+          >
+            Add Note
           </Button>
           {record.customer?.phone && (
             <Button 
@@ -232,10 +285,10 @@ const DeliveryDashboard = () => {
         </Col>
       </Row>
 
-      {/* Statistics Cards - four in a row */}
+      {/* Statistics Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         {statsCards.map((stat, index) => (
-          <Col xs={12} sm={12} md={6} lg={6} key={index}>
+          <Col xs={12} sm={12} md={8} lg={{ flex: '20%' }} key={index}>
             <Card>
               <Statistic
                 title={stat.title}
@@ -279,6 +332,10 @@ const DeliveryDashboard = () => {
           </Card>
         </Col>
       </Row>
+
+      <DeliverJobModal job={deliverJob} onClose={() => setDeliverJob(null)} onDelivered={fetchDeliveryDashboard} />
+      <JobEditModal jobId={editJobId} onClose={() => setEditJobId(null)} onSaved={fetchDeliveryDashboard} />
+      <JobNoteModal job={noteJob} onClose={() => setNoteJob(null)} />
 
       {/* Quick Actions */}
       {assignedDeliveries && assignedDeliveries.length > 0 && (

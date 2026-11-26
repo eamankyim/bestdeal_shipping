@@ -13,25 +13,25 @@ echo ""
 
 # Step 1: Verify SSL certificates are copied
 echo "=== Step 1: Verify SSL Certificates ==="
-if [ -f ssl/bestdealshippingapp.com.crt ] && [ -f ssl/bestdealshippingapp.com.key ]; then
+if [ -f ssl/bestdealghanaapp.com.crt ] && [ -f ssl/bestdealghanaapp.com.key ]; then
     echo "✓ SSL certificates found"
     ls -la ssl/ | grep bestdeal
 else
     echo "✗ SSL certificates not found, copying..."
-    cp /etc/letsencrypt/live/bestdealshippingapp.com/fullchain.pem ssl/bestdealshippingapp.com.crt
-    cp /etc/letsencrypt/live/bestdealshippingapp.com/privkey.pem ssl/bestdealshippingapp.com.key
-    chmod 644 ssl/bestdealshippingapp.com.crt
-    chmod 600 ssl/bestdealshippingapp.com.key
+    cp /etc/letsencrypt/live/bestdealghanaapp.com/fullchain.pem ssl/bestdealghanaapp.com.crt
+    cp /etc/letsencrypt/live/bestdealghanaapp.com/privkey.pem ssl/bestdealghanaapp.com.key
+    chmod 644 ssl/bestdealghanaapp.com.crt
+    chmod 600 ssl/bestdealghanaapp.com.key
     echo "✓ Certificates copied"
 fi
 
 # Step 2: Check if config already has Best Deal
 echo ""
 echo "=== Step 2: Check Existing Config ==="
-if grep -q "bestdealshippingapp.com" nginx/conf.d/sabito.conf; then
+if grep -q "bestdealghanaapp.com" nginx/conf.d/sabito.conf; then
     echo "⚠ Best Deal configuration already exists!"
     echo "Current Best Deal config:"
-    grep -A30 "bestdealshippingapp.com" nginx/conf.d/sabito.conf | head -35
+    grep -A30 "bestdealghanaapp.com" nginx/conf.d/sabito.conf | head -35
     echo ""
     read -p "Do you want to update it? (y/n) " -n 1 -r
     echo
@@ -58,15 +58,15 @@ sed -i '/# =====================================================================
 cat >> nginx/conf.d/sabito.conf << 'EOF'
 
 # ============================================================================
-# Best Deal Shipping App (bestdealshippingapp.com, www.bestdealshippingapp.com)
+# Best Deal Shipping App (bestdealghanaapp.com, www.bestdealghanaapp.com)
 # ============================================================================
 server {
     listen 443 ssl http2;
-    server_name bestdealshippingapp.com www.bestdealshippingapp.com;
+    server_name bestdealghanaapp.com www.bestdealghanaapp.com;
 
     # SSL configuration
-    ssl_certificate /etc/nginx/ssl/bestdealshippingapp.com.crt;
-    ssl_certificate_key /etc/nginx/ssl/bestdealshippingapp.com.key;
+    ssl_certificate /etc/nginx/ssl/bestdealghanaapp.com.crt;
+    ssl_certificate_key /etc/nginx/ssl/bestdealghanaapp.com.key;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_prefer_server_ciphers off;
@@ -141,8 +141,8 @@ echo "SETUP COMPLETE!"
 echo "=========================================="
 echo ""
 echo "Test the configuration:"
-echo "  curl -I https://www.bestdealshippingapp.com"
-echo "  curl -I https://bestdealshippingapp.com"
+echo "  curl -I https://www.bestdealghanaapp.com"
+echo "  curl -I https://bestdealghanaapp.com"
 echo ""
 
 

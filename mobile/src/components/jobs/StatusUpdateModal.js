@@ -1,3 +1,4 @@
+import { normalizeRole, hasAdminAccess } from '../../utils/permissions';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -14,10 +15,11 @@ import {
   Menu,
   Divider,
   Checkbox,
+  Portal,
 } from 'react-native-paper';
 import * as DocumentPicker from 'expo-document-picker';
-import * as ImagePicker from 'expo-image-picker';
 import { JOB_STATUSES } from '../../config/constants';
+import { choosePhoto, takePhoto } from '../../utils/photos';
 
 export default function StatusUpdateModal({
   visible,
@@ -39,6 +41,7 @@ export default function StatusUpdateModal({
 
   const getAvailableStatuses = () => {
     const statuses = [];
+    if (hasAdminAccess({ role: userRole })) return Object.values(JOB_STATUSES).filter(value => value !== 'Draft');
     
     if (userRole === 'driver') {
       // Drivers can only update to "Collected" or "Collection Failed"
@@ -48,18 +51,18 @@ export default function StatusUpdateModal({
         statuses.push(JOB_STATUSES.COLLECTION_FAILED);
       }
       // Drivers cannot update status after collection - warehouse takes over
-    } else if (userRole === 'delivery_agent') {
+    } else if (normalizeRole(userRole) === 'delivery-agent') {
       if (currentStatus === 'Out for Delivery') {
         statuses.push(JOB_STATUSES.DELIVERED);
         statuses.push(JOB_STATUSES.FAILED_DELIVERY);
       }
-    } else if (userRole === 'warehouse_staff' || userRole === 'admin') {
+    } else if (normalizeRole(userRole) === 'warehouse' || userRole === 'admin') {
       // Warehouse staff can update to "At Warehouse" when status is "Collected"
       if (currentStatus === 'Collected') {
         statuses.push(JOB_STATUSES.AT_WAREHOUSE);
       }
       // Warehouse staff can handle warehouse-related statuses
-      if (currentStatus === 'At Warehouse') {
+      if (['At Warehouse', 'Arrived at Warehouse', 'At UK Warehouse', 'At Ghana Warehouse'].includes(currentStatus)) {
         statuses.push(JOB_STATUSES.BATCHED);
       }
       if (currentStatus === 'Batched') {
@@ -99,23 +102,12 @@ export default function StatusUpdateModal({
     }
   };
 
-  const handlePickImage = async () => {
+  const handlePhoto = async (getPhoto) => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets && result.assets[0]) {
-        setDocument({
-          uri: result.assets[0].uri,
-          name: `image_${Date.now()}.jpg`,
-          type: 'image/jpeg',
-        });
-      }
+      const photo = await getPhoto();
+      if (photo) setDocument(photo);
     } catch (error) {
-      Alert.alert('Error', 'Failed to pick image');
+      Alert.alert('Error', 'Failed to add photo');
     }
   };
 
@@ -129,6 +121,11 @@ export default function StatusUpdateModal({
   const handleSubmit = async () => {
     if (!status) {
       Alert.alert('Error', 'Please select a status');
+      return;
+    }
+
+    if (status === JOB_STATUSES.DELIVERED && !document?.type?.startsWith('image/')) {
+      Alert.alert('Photo needed', 'Please take a photo of the item being delivered.');
       return;
     }
 
@@ -148,7 +145,7 @@ export default function StatusUpdateModal({
       setAssignedTo(null);
       onDismiss();
     } catch (error) {
-      Alert.alert('Error', 'Failed to update status');
+      // The screen that opened this dialog has already shown what went wrong
     } finally {
       setLoading(false);
     }
@@ -163,6 +160,8 @@ export default function StatusUpdateModal({
       animationType="slide"
       transparent={true}
     >
+      {/* Menus render into the nearest Portal.Host; without one in here they open behind this dialog */}
+      <Portal.Host>
       <View style={styles.modalOverlay}>
         <Card style={styles.modalCard}>
           <Card.Content>
@@ -217,25 +216,38 @@ export default function StatusUpdateModal({
 
             <View style={styles.documentSection}>
               <Text variant="bodyMedium" style={styles.documentLabel}>
-                Attach Document (Optional)
+                {status === JOB_STATUSES.DELIVERED ? 'Photo of the item being delivered (required)' : 'Attach Document (Optional)'}
               </Text>
               <View style={styles.documentButtons}>
                 <Button
                   mode="outlined"
-                  onPress={handlePickDocument}
-                  icon="file-document"
+                  onPress={() => handlePhoto(takePhoto)}
+                  icon="camera"
+                  compact
                   style={styles.documentButton}
                 >
-                  Pick File
+                  Camera
                 </Button>
                 <Button
                   mode="outlined"
-                  onPress={handlePickImage}
+                  onPress={() => handlePhoto(choosePhoto)}
                   icon="image"
+                  compact
                   style={styles.documentButton}
                 >
-                  Pick Image
+                  Gallery
                 </Button>
+                {status !== JOB_STATUSES.DELIVERED && (
+                  <Button
+                    mode="outlined"
+                    onPress={handlePickDocument}
+                    icon="file-document"
+                    compact
+                    style={styles.documentButton}
+                  >
+                    File
+                  </Button>
+                )}
               </View>
               {document && (
                 <View style={styles.documentInfo}>
@@ -337,6 +349,7 @@ export default function StatusUpdateModal({
           </Card.Content>
         </Card>
       </View>
+      </Portal.Host>
     </Modal>
   );
 }

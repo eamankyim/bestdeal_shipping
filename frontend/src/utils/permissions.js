@@ -12,8 +12,10 @@
 export const hasPermission = (user, permission) => {
   if (!user || !user.role) return false;
 
+  const normalizedRole = user.role === 'warehouse_staff' ? 'warehouse' : user.role;
+
   // Superadmin has all permissions
-  if (['superadmin', 'customer-service'].includes(user.role)) return true;
+  if (['superadmin', 'customer-service'].includes(normalizedRole)) return true;
 
   const rolePermissions = {
     admin: [
@@ -45,6 +47,7 @@ export const hasPermission = (user, permission) => {
     
     driver: [
       'jobs:view_own',
+      'jobs:update',
       'jobs:update_status',
       'customers:view',
       'timeline:create',
@@ -54,6 +57,7 @@ export const hasPermission = (user, permission) => {
     
     warehouse: [
       'jobs:view_all',
+      'jobs:update',
       'jobs:update_status',
       'batches:view', 'batches:create', 'batches:update',
       'customers:view',
@@ -64,6 +68,7 @@ export const hasPermission = (user, permission) => {
     
     'delivery-agent': [
       'jobs:view_own',
+      'jobs:update',
       'jobs:update_status',
       'customers:view',
       'timeline:create',
@@ -84,13 +89,14 @@ export const hasPermission = (user, permission) => {
     finance: [
       'invoices:view', 'invoices:create', 'invoices:update', 'invoices:delete',
       'jobs:view_all',
+      'jobs:update',
       'customers:view',
       'reports:view_all', 'reports:financial',
       'financial:view',
     ],
   };
 
-  const permissions = rolePermissions[user.role] || [];
+  const permissions = rolePermissions[normalizedRole] || [];
   return permissions.includes(permission);
 };
 
@@ -102,7 +108,8 @@ export const hasPermission = (user, permission) => {
  */
 export const hasRole = (user, ...roles) => {
   if (!user || !user.role) return false;
-  return ['superadmin', 'customer-service'].includes(user.role) || roles.includes(user.role);
+  const effectiveRole = user.role === 'warehouse_staff' ? 'warehouse' : user.role;
+  return ['superadmin', 'customer-service'].includes(effectiveRole) || roles.includes(effectiveRole) || roles.includes(user.role);
 };
 
 /**
@@ -114,12 +121,14 @@ export const hasRole = (user, ...roles) => {
 export const canAccessRoute = (user, route) => {
   if (!user || !user.role) return false;
 
+  const normalizedRole = user.role === 'warehouse_staff' ? 'warehouse' : user.role;
+
   // Superadmin can access all routes
-  if (['superadmin', 'customer-service'].includes(user.role)) return true;
+  if (['superadmin', 'customer-service'].includes(normalizedRole)) return true;
 
   const routePermissions = {
     '/dashboard': ['superadmin', 'admin', 'driver', 'delivery-agent', 'warehouse', 'customer-service', 'finance'],
-    '/jobs': ['superadmin', 'admin', 'driver', 'delivery-agent', 'warehouse', 'customer-service'],
+    '/jobs': ['superadmin', 'admin', 'driver', 'delivery-agent', 'warehouse', 'customer-service', 'finance'],
     '/customers': ['superadmin', 'admin', 'customer-service', 'driver', 'delivery-agent', 'warehouse'],
     '/batches': ['superadmin', 'admin', 'warehouse'],
     '/invoices': ['superadmin', 'admin', 'finance', 'customer-service'],
@@ -129,7 +138,7 @@ export const canAccessRoute = (user, route) => {
   };
 
   const allowedRoles = routePermissions[route] || [];
-  return allowedRoles.includes(user.role);
+  return allowedRoles.includes(normalizedRole);
 };
 
 /**
@@ -145,6 +154,7 @@ export const getDashboardRoute = (user) => {
     admin: '/dashboard',
     driver: '/driver-dashboard',
     warehouse: '/warehouse-dashboard',
+    warehouse_staff: '/warehouse-dashboard',
     'delivery-agent': '/delivery-agent-dashboard',
     'customer-service': '/dashboard',
     finance: '/dashboard',
@@ -294,7 +304,7 @@ export const canPerformAction = (user, action, resource, resourceData = null) =>
     },
   };
 
-  const rolePerms = permissions[user.role];
+  const rolePerms = permissions[user.role === 'warehouse_staff' ? 'warehouse' : user.role];
   if (!rolePerms || !rolePerms[resource]) return false;
 
   const actionPerm = rolePerms[resource][action];
@@ -307,6 +317,39 @@ export const canPerformAction = (user, action, resource, resourceData = null) =>
   // Otherwise, return the boolean value
   return actionPerm === true;
 };
+
+// ---- Job rules (the API enforces the same ones; see backend/src/utils/jobAccess.js) ----
+
+const normalizeRole = (role) => {
+  const key = String(role || '').trim().toLowerCase().replace(/[ _]+/g, '-');
+  return key === 'warehouse-staff' ? 'warehouse' : key;
+};
+
+const FULL_ACCESS_ROLES = ['superadmin', 'admin', 'customer-service'];
+const ALL_JOBS_ROLES = [...FULL_ACCESS_ROLES, 'finance', 'warehouse'];
+const STAFF_ROLES = [...ALL_JOBS_ROLES, 'driver', 'delivery-agent'];
+
+export const hasFullAccess = (user) => FULL_ACCESS_ROLES.includes(normalizeRole(user?.role));
+
+export const isGhanaWarehouse = (user) =>
+  normalizeRole(user?.role) === 'warehouse' && user?.warehouseLocation === 'Ghana Warehouse';
+
+/** All staff can edit the jobs they can see. */
+export const canEditJobs = (user) => STAFF_ROLES.includes(normalizeRole(user?.role));
+
+/** Admin, customer service and UK-side warehouse staff create jobs. */
+export const canCreateJobs = (user) =>
+  hasFullAccess(user) || (normalizeRole(user?.role) === 'warehouse' && !isGhanaWarehouse(user));
+
+/** Drivers and delivery agents cannot change the price of a job. */
+export const canEditJobValue = (user) => ALL_JOBS_ROLES.includes(normalizeRole(user?.role));
+
+/** Dispatch happens in Ghana, so UK warehouse staff are left out. */
+export const canAssignRider = (user) =>
+  hasFullAccess(user) || (normalizeRole(user?.role) === 'warehouse' && user?.warehouseLocation !== 'UK Warehouse');
+
+/** The Ghana warehouse can view invoices and add notes, but not change them. */
+export const canManageInvoices = (user) => hasFullAccess(user) || normalizeRole(user?.role) === 'finance';
 
 const permissionsUtils = {
   hasPermission,

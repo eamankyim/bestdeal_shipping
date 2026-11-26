@@ -181,7 +181,7 @@ const PrivacyPolicyPage = () => {
                 <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
                 <br />
                 Support page:{' '}
-                <Link to="/support">https://bestdealshippingapp.com/support</Link>
+                <Link to="/support">https://bestdealghanaapp.com/support</Link>
               </Paragraph>
 
               <Divider />

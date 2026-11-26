@@ -34,6 +34,6 @@ docker inspect sabito-nginx --format='{{range .Mounts}}{{.Source}} -> {{.Destina
 
 echo ""
 echo "=== SSL Certificates ==="
-ls -la /etc/letsencrypt/live/bestdealshippingapp.com/ 2>/dev/null && echo "✓ Certificates found" || echo "✗ Certificates not found"
+ls -la /etc/letsencrypt/live/bestdealghanaapp.com/ 2>/dev/null && echo "✓ Certificates found" || echo "✗ Certificates not found"
 
 

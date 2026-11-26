@@ -833,8 +833,7 @@
   .ant-select-selector,
   .ant-picker,
   .ant-checkbox-wrapper,
-  .ant-radio-wrapper,
-  .ant-switch {
+  .ant-radio-wrapper {
     min-height: 44px;
   }
   

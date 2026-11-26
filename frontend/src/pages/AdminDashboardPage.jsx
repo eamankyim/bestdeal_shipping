@@ -38,10 +38,12 @@ import {
 } from '@ant-design/icons';
 import InviteManagement from '../components/admin/InviteManagement';
 import RoleManagement from '../components/admin/RoleManagement';
+import CustomerMessageSettings from '../components/admin/CustomerMessageSettings';
 import NotificationSettings from '../components/settings/NotificationSettings';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 import { useAuth } from '../contexts/AuthContext';
 import { authAPI } from '../utils/api';
+import { hasFullAccess } from '../utils/permissions';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -182,9 +184,11 @@ const AdminDashboardPage = () => {
     organisationForm.resetFields();
   };
 
+  const isAdminUser = hasFullAccess(currentUser);
   useEffect(() => {
+    if (!isAdminUser) return;
     api.get('/auth/organisation').then(result => organisationForm.setFieldsValue(result.data.organisation)).catch(() => message.error('Unable to load organisation settings'));
-  }, [organisationForm]);
+  }, [organisationForm, isAdminUser]);
 
   const handleUpdateOrganisation = async (values) => {
     try {
@@ -699,6 +703,11 @@ const AdminDashboardPage = () => {
       ),
     },
     {
+      key: 'customer-messages',
+      label: 'Customer Messages',
+      children: <CustomerMessageSettings />,
+    },
+    {
       key: 'invites',
       label: 'Invites',
       children: <InviteManagement />,
@@ -741,8 +750,8 @@ const AdminDashboardPage = () => {
 
   // Filter tabs based on user role
   const filteredTabItems = tabItems.filter(tab => {
-    // ADMIN/SUPERADMIN ONLY: Organisation, Invites, Roles
-    const adminOnlyTabs = ['organisation', 'invites', 'roles'];
+    // ADMIN/SUPERADMIN ONLY: Organisation, Customer Messages, Invites, Roles
+    const adminOnlyTabs = ['organisation', 'customer-messages', 'invites', 'roles'];
     
     if (adminOnlyTabs.includes(tab.key)) {
       return ['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) || currentUser?.role === 'superadmin';

@@ -35,6 +35,6 @@ docker inspect sabito-nginx | grep -A20 '"Mounts"' | grep -E "Source|Destination
 
 echo ""
 echo "=== Step 7: Check Certificate Files ==="
-ls -la /etc/letsencrypt/live/bestdealshippingapp.com/ 2>/dev/null || echo "Certificates not found"
+ls -la /etc/letsencrypt/live/bestdealghanaapp.com/ 2>/dev/null || echo "Certificates not found"
 
 

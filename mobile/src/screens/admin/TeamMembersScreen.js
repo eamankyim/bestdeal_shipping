@@ -1,3 +1,5 @@
+import useScreenRefresh from '../../hooks/useScreenRefresh';
+import { hasAdminAccess } from '../../utils/permissions';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -9,7 +11,6 @@ import {
 import {
   Card,
   Text,
-  ActivityIndicator,
   Avatar,
   Chip,
   Button,
@@ -23,6 +24,7 @@ import { authService } from '../../services/authService';
 import { standardStyles, theme, spacing, touchTargets } from '../../theme/theme';
 import logger from '../../utils/logger';
 import SearchBellHeader from '../../components/common/SearchBellHeader';
+import ThreeDotsLoader from '../../components/common/ThreeDotsLoader';
 
 export default function TeamMembersScreen({ navigation }) {
   const { user } = useAuth();
@@ -32,9 +34,7 @@ export default function TeamMembersScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    loadTeamMembers();
-  }, []);
+
 
   const loadTeamMembers = async () => {
     try {
@@ -51,6 +51,8 @@ export default function TeamMembersScreen({ navigation }) {
       setRefreshing(false);
     }
   };
+
+  useScreenRefresh(loadTeamMembers);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -79,7 +81,7 @@ export default function TeamMembersScreen({ navigation }) {
   if (loading && !refreshing) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <ThreeDotsLoader color={theme.colors.primary} />
       </View>
     );
   }
@@ -115,9 +117,9 @@ export default function TeamMembersScreen({ navigation }) {
             <TouchableOpacity
               key={member.id}
               onPress={() => {
-                // TODO: Navigate to user details/edit screen
-                if (user?.role === 'admin' || user?.role === 'superadmin') {
-                  navigation.navigate('EditUser', { userId: member.id });
+                // Open the shared account management workflow.
+                if (hasAdminAccess(user)) {
+                  navigation.navigate('EditUser', { member });
                 }
               }}
             >
@@ -169,7 +171,7 @@ export default function TeamMembersScreen({ navigation }) {
         onPress={() => navigation.navigate('InviteManagement')}
         color="#ffffff"
         customSize={56}
-        visible={user?.role === 'admin' || user?.role === 'superadmin'}
+        visible={hasAdminAccess(user)}
       />
     </View>
   );

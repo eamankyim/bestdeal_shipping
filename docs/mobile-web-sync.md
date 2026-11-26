@@ -13,7 +13,7 @@ Implemented shared workflows:
 - Organisation settings backed by the same API on both platforms.
 - Finance dashboard, report overview, tracking navigation, and corrected legacy role/status handling.
 
-Mobile refreshes the main lists/dashboard on focus, app foregrounding, and every 60 seconds while active. This is polling, not instant push synchronization. Both clients must target the same backend. Mobile production defaults to https://bestdealshippingapp.com/api; override at build time with EXPO_PUBLIC_API_URL (include /api).
+Mobile refreshes the main lists/dashboard on focus, app foregrounding, and every 60 seconds while active. This is polling, not instant push synchronization. Both clients must target the same backend. Mobile production defaults to https://bestdealghanaapp.com/api; override at build time with EXPO_PUBLIC_API_URL (include /api).
 
 ## Rollout
 

@@ -9,7 +9,7 @@ echo ""
 
 # Step 1: Check Best Deal server block
 echo "=== Step 1: Best Deal Server Block ==="
-docker exec sabito-nginx cat /etc/nginx/conf.d/sabito.conf | grep -B5 -A40 "server_name.*bestdealshippingapp.com"
+docker exec sabito-nginx cat /etc/nginx/conf.d/sabito.conf | grep -B5 -A40 "server_name.*bestdealghanaapp.com"
 
 echo ""
 

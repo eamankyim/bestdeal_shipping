@@ -90,7 +90,7 @@ const SupportPage = () => {
               </Paragraph>
               <Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 13 }}>
                 Public tracking (no login):{' '}
-                <Link to="/track">bestdealshippingapp.com/track</Link>
+                <Link to="/track">bestdealghanaapp.com/track</Link>
               </Paragraph>
             </Typography>
           </Card>

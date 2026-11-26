@@ -1,3 +1,4 @@
+import useScreenRefresh from '../../hooks/useScreenRefresh';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -9,7 +10,6 @@ import {
 import {
   Card,
   Text,
-  ActivityIndicator,
   Chip,
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,8 +18,9 @@ import { format } from 'date-fns';
 import logger from '../../utils/logger';
 import SearchBellHeader from '../../components/common/SearchBellHeader';
 import { invoiceService } from '../../services/invoiceService';
+import ThreeDotsLoader from '../../components/common/ThreeDotsLoader';
 
-export default function InvoicesScreen() {
+export default function InvoicesScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +53,8 @@ export default function InvoicesScreen() {
     loadInvoices();
   }, [statusFilter]);
 
+  useScreenRefresh(loadInvoices);
+
   const onRefresh = () => {
     setRefreshing(true);
     loadInvoices();
@@ -82,7 +85,7 @@ export default function InvoicesScreen() {
   if (loading && !refreshing) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <ThreeDotsLoader color={theme.colors.primary} />
       </View>
     );
   }
@@ -96,6 +99,8 @@ export default function InvoicesScreen() {
         onChangeText={setSearchQuery}
       />
       <View style={styles.filterContainer}>
+        <Chip selected={statusFilter === 'draft'} onPress={() => setStatusFilter('draft')}>Draft</Chip>
+        <Chip selected={statusFilter === 'cancelled'} onPress={() => setStatusFilter('cancelled')}>Cancelled</Chip>
         <Chip
           selected={statusFilter === null}
           onPress={() => setStatusFilter(null)}
@@ -144,7 +149,7 @@ export default function InvoicesScreen() {
           </Card>
         ) : (
           filteredInvoices.map((invoice) => (
-            <TouchableOpacity key={invoice.id}>
+            <TouchableOpacity key={invoice.id} onPress={() => navigation.navigate("InvoiceDetail", { invoiceId: invoice.id })}>
               <Card style={styles.card} elevation={0}>
                 <Card.Content>
                   <View style={styles.invoiceHeader}>

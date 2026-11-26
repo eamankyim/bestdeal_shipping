@@ -1,6 +1,7 @@
 const prisma = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/responseUtils');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { DELIVERY_STATUSES, normalizeStatus } = require('../utils/jobAccess');
 
 /**
  * @route   GET /api/dashboard/warehouse
@@ -336,11 +337,23 @@ exports.getGhanaWarehouseDashboard = asyncHandler(async (req, res) => {
   // Statuses for items stored at warehouse
   const storedAtWarehouseStatuses = ['At Ghana Warehouse', 'at_ghana_warehouse', 'arrived_at_warehouse'];
   
-  // Statuses for items ready for distribution
-  const readyForDistributionStatuses = ['At Ghana Warehouse', 'at_ghana_warehouse'];
+  // Statuses for items ready for distribution (new arrivals are listed separately above)
+  const readyForDistributionStatuses = [
+    'At Ghana Warehouse', 'at_ghana_warehouse',
+    'Ready for Delivery', 'ready_for_delivery',
+    'Failed Delivery', 'failed_delivery',
+  ];
   
+  // Not yet given to a rider, or brought back after a failed delivery and needing one again
+  const notWithARider = {
+    OR: [
+      { assignedDeliveryAgentId: null },
+      { status: { in: ['Failed Delivery', 'failed_delivery'] } },
+    ],
+  };
+
   // Statuses for items being distributed
-  const beingDistributedStatuses = ['Out for Delivery'];
+  const beingDistributedStatuses = ['Out for Delivery', 'out_for_delivery'];
   
   try {
     // 1. Get Job Statistics for Ghana Warehouse workflow
@@ -370,7 +383,7 @@ exports.getGhanaWarehouseDashboard = asyncHandler(async (req, res) => {
         status: {
           in: readyForDistributionStatuses,
         },
-        assignedDeliveryAgentId: null,
+        ...notWithARider,
       },
     });
 
@@ -445,7 +458,7 @@ exports.getGhanaWarehouseDashboard = asyncHandler(async (req, res) => {
         status: {
           in: readyForDistributionStatuses,
         },
-        assignedDeliveryAgentId: null, // Not yet assigned for distribution
+        ...notWithARider,
       },
       include: {
         customer: {
@@ -476,8 +489,9 @@ exports.getGhanaWarehouseDashboard = asyncHandler(async (req, res) => {
             phone: true,
           },
         },
-        assignedDriver: {
+        assignedDeliveryAgent: {
           select: {
+            id: true,
             name: true,
           },
         },
@@ -552,7 +566,7 @@ exports.getGhanaWarehouseDashboard = asyncHandler(async (req, res) => {
         status: {
           in: readyForDistributionStatuses,
         },
-        assignedDeliveryAgentId: null,
+        ...notWithARider,
       },
       _sum: {
         weight: true,
@@ -704,18 +718,10 @@ exports.getDeliveryDashboard = asyncHandler(async (req, res) => {
       role: req.user.role,
     });
 
-    const deliveryStatuses = [
-      'Ready for Delivery',
-      'ready_for_delivery',
-      'Delivery Attempted',
-      'Delivered',
-      'delivered',
-    ];
-
     // Get deliveries: assigned to this agent OR unassigned (so agent can see and claim "Ready for Delivery" jobs)
     const assignedDeliveries = await prisma.job.findMany({
       where: {
-        status: { in: deliveryStatuses },
+        status: { in: DELIVERY_STATUSES },
         OR: [
           { assignedDeliveryAgentId: agentId },
           { assignedDeliveryAgentId: null },
@@ -737,13 +743,10 @@ exports.getDeliveryDashboard = asyncHandler(async (req, res) => {
 
     const stats = {
       total: assignedDeliveries.length,
-      readyForDelivery: assignedDeliveries.filter(j =>
-        ['Ready for Delivery', 'ready_for_delivery'].includes(j.status)
-      ).length,
-      attempted: assignedDeliveries.filter(j => j.status === 'Delivery Attempted').length,
-      delivered: assignedDeliveries.filter(j =>
-        ['Delivered', 'delivered'].includes(j.status)
-      ).length,
+      readyForDelivery: assignedDeliveries.filter(j => normalizeStatus(j.status) === 'ready_for_delivery').length,
+      outForDelivery: assignedDeliveries.filter(j => normalizeStatus(j.status) === 'out_for_delivery').length,
+      attempted: assignedDeliveries.filter(j => ['delivery_attempted', 'failed_delivery'].includes(normalizeStatus(j.status))).length,
+      delivered: assignedDeliveries.filter(j => normalizeStatus(j.status) === 'delivered').length,
     };
 
     const assignedToAgentAnyStatus = await prisma.job.count({
@@ -752,7 +755,6 @@ exports.getDeliveryDashboard = asyncHandler(async (req, res) => {
     console.log('📋 GET /api/dashboard/delivery result', {
       assignedCount: assignedDeliveries.length,
       assignedToAgentAnyStatus,
-      statusesInFilter: ['Ready for Delivery', 'ready_for_delivery', 'Delivery Attempted', 'Delivered', 'delivered'],
     });
 
     return sendSuccess(res, 200, 'Delivery dashboard data retrieved successfully', {

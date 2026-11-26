@@ -43,7 +43,7 @@ import {
   ApartmentOutlined,
   CalendarOutlined
 } from '@ant-design/icons';
-import { JOB_STATUSES, BATCH_STATUSES, getBatchStatusColor, getStatusColor, formatJobStatusLabel } from '../constants/jobStatuses';
+import { JOB_STATUSES, BATCH_STATUSES, getBatchStatusColor, getStatusColor, formatJobStatusLabel, normalizeJobStatusKey } from '../constants/jobStatuses';
 import { jobAPI, batchAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import ResponsiveTable from '../components/common/ResponsiveTable';
@@ -52,6 +52,23 @@ import { hasPermission } from '../utils/permissions';
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
+
+// Row shape of the "Select Jobs" table
+const toSelectableJob = (job) => ({
+  key: job.id,
+  id: job.id,
+  jobId: job.trackingId,
+  trackingId: job.trackingId,
+  customer: job.customer?.name || 'N/A',
+  deliveryAddress: job.deliveryAddress,
+  weight: Number(job.weight) || 0,
+  value: Number(job.value) || 0,
+  priority: job.priority || 'Standard',
+});
+
+const EDITABLE_BATCH_STATUSES = [BATCH_STATUSES.IN_PREPARATION, BATCH_STATUSES.READY_TO_SHIP];
+
+const formatDate = (date) => (date ? new Date(date).toLocaleDateString() : 'Not set');
 
 const BatchManagementPage = () => {
   const { currentUser } = useAuth();
@@ -119,28 +136,16 @@ const BatchManagementPage = () => {
     try {
       console.log('📥 Fetching jobs ready for batching...');
       
-      const response = await jobAPI.getAll();
+      const response = await jobAPI.getAll({ limit: 100 });
       
       if (response.success && response.data) {
         const rawJobs = Array.isArray(response.data) ? response.data : response.data.jobs || [];
         
         // Filter jobs with status "arrived_at_warehouse" (ready for batching)
-        const readyJobs = rawJobs.filter(job => job.status === 'arrived_at_warehouse');
+        const readyJobs = rawJobs.filter(job => ['arrived_at_warehouse', 'at_warehouse'].includes(normalizeJobStatusKey(job.status)));
         
         // Transform to table format
-        const transformedJobs = readyJobs.map(job => ({
-          key: job.id,
-          id: job.id,
-          jobId: job.trackingId,
-          trackingId: job.trackingId,
-          customer: job.customer?.name || 'N/A',
-          pickupAddress: job.pickupAddress,
-          deliveryAddress: job.deliveryAddress,
-          weight: job.weight || 0,
-          value: job.value || 0,
-          description: job.description || 'N/A',
-          priority: job.priority || 'Standard',
-        }));
+        const transformedJobs = readyJobs.map(toSelectableJob);
         
         console.log('✅ Jobs ready for batching:', transformedJobs);
         setAvailableJobs(transformedJobs);
@@ -168,13 +173,20 @@ const BatchManagementPage = () => {
           key: batch.id,
           id: batch.id,
           batchId: batch.batchId,
-          name: batch.destination || 'N/A',
+          name: batch.name || batch.destination || 'N/A',
+          destination: batch.destination,
+          route: batch.route,
           status: batch.status,
           totalParcels: batch.totalJobs || 0,
           totalWeight: `${batch.totalWeight || 0} kg`,
+          totalValue: batch.totalValue || 0,
           vessel: batch.carrier || 'N/A',
-          departure: batch.estimatedShipDate ? new Date(batch.estimatedShipDate).toLocaleDateString() : 'Not set',
-          eta: batch.estimatedArrival ? new Date(batch.estimatedArrival).toLocaleDateString() : 'Not set',
+          departureDate: formatDate(batch.estimatedShipDate),
+          eta: formatDate(batch.estimatedArrival),
+          // Unformatted values, for the edit form
+          carrier: batch.carrier,
+          estimatedShipDate: batch.estimatedShipDate,
+          estimatedArrival: batch.estimatedArrival,
           progress: batch.status === 'Distributed' ? 100 : 
                    batch.status === 'Arrived' ? 80 :
                    batch.status === 'In Transit' ? 60 :
@@ -392,16 +404,20 @@ const BatchManagementPage = () => {
       return;
     }
     setSelectedBatch(batch);
-    setSelectedParcels(batch.jobs?.map(j => j.key) || []);
-    
-    // Convert dates to dayjs objects for DatePicker
-    const formValues = {
-      ...batch,
-      departureDate: batch.departureDate ? dayjs(batch.departureDate) : null,
-      eta: batch.eta ? dayjs(batch.eta) : null,
-    };
-    
-    batchForm.setFieldsValue(formValues);
+    setSelectedParcels(batch.jobs?.map(j => j.id) || []);
+
+    const isListedVessel = vesselOptions.some(option => option.value === batch.carrier);
+    batchForm.resetFields();
+    batchForm.setFieldsValue({
+      name: batch.name,
+      route: batch.route,
+      vessel: !batch.carrier ? undefined : isListedVessel ? batch.carrier : '__custom__',
+      vesselCustom: isListedVessel ? undefined : batch.carrier,
+      containerNumber: batch.trackingNumber,
+      departureDate: batch.estimatedShipDate ? dayjs(batch.estimatedShipDate) : null,
+      eta: batch.estimatedArrival ? dayjs(batch.estimatedArrival) : null,
+      notes: batch.notes,
+    });
     setBatchModalVisible(true);
   };
 
@@ -465,6 +481,7 @@ const BatchManagementPage = () => {
 
   const handleBatchSubmit = async (values) => {
     setCreatingBatch(true);
+    const isEditing = !!selectedBatch;
     
     try {
       // Validation: Check if jobs are selected
@@ -485,16 +502,17 @@ const BatchManagementPage = () => {
         jobs: selectedParcels, // Array of selected job IDs
       };
       
-      console.log('📦 Creating batch with jobs:', batchData);
+      message.loading({ content: isEditing ? 'Updating batch...' : 'Creating batch...', key: 'batchCreate' });
       
-      message.loading({ content: 'Creating batch...', key: 'batchCreate' });
-      
-      // Call API to create batch
-      const response = await batchAPI.create(batchData);
+      const response = isEditing
+        ? await batchAPI.update(selectedBatch.id, batchData)
+        : await batchAPI.create(batchData);
       
       if (response.success) {
         message.success({ 
-          content: `Batch created successfully! ${response.data.jobsUpdated} jobs updated to "Batched" status.`, 
+          content: isEditing
+            ? `Batch ${selectedBatch.batchId} updated successfully!`
+            : `Batch created successfully! ${response.data.jobsUpdated} jobs updated to "Batched" status.`, 
           key: 'batchCreate',
           duration: 3
         });
@@ -520,25 +538,25 @@ const BatchManagementPage = () => {
         // Refresh batches list
         await fetchBatches();
       } else {
-        message.error({ content: response.message || 'Failed to create batch', key: 'batchCreate', duration: 3 });
+        message.error({ content: response.message || 'Failed to save batch', key: 'batchCreate', duration: 3 });
       }
     } catch (error) {
-      console.error('❌ Failed to create batch:', error);
+      console.error('❌ Failed to save batch:', error);
       message.error({ content: error.message || 'Failed to save batch. Please try again.', key: 'batchCreate', duration: 3 });
     } finally {
       setCreatingBatch(false);
     }
   };
 
-  const calculateTotalWeight = () => {
-    const selected = availableJobs.filter(j => selectedParcels.includes(j.key));
-    return selected.reduce((sum, j) => sum + parseFloat(j.weight || 0), 0).toFixed(1);
-  };
+  // When editing, the batch's own jobs are listed first so they can be kept or taken out
+  const selectableJobs = [
+    ...(batchModalVisible && selectedBatch ? (selectedBatch.jobs || []).map(toSelectableJob) : []),
+    ...availableJobs,
+  ].filter((job, index, list) => list.findIndex(other => other.key === job.key) === index);
 
-  const calculateTotalValue = () => {
-    const selected = availableJobs.filter(j => selectedParcels.includes(j.key));
-    return selected.reduce((sum, j) => sum + (j.value || 0), 0);
-  };
+  const selectedJobs = selectableJobs.filter(j => selectedParcels.includes(j.key));
+  const calculateTotalWeight = () => selectedJobs.reduce((sum, j) => sum + j.weight, 0).toFixed(1);
+  const calculateTotalValue = () => selectedJobs.reduce((sum, j) => sum + j.value, 0);
 
   const tabItems = [
     {
@@ -633,7 +651,7 @@ const BatchManagementPage = () => {
                 <Form.Item
                   name="name"
                   label="Batch Name"
-                  rules={[{ required: true, message: 'Please enter batch name' }]}
+                  rules={[{ required: !selectedBatch, message: 'Please enter batch name' }]}
                 >
                   <Input placeholder="e.g., Accra Express Batch" />
                 </Form.Item>
@@ -642,12 +660,16 @@ const BatchManagementPage = () => {
                 <Form.Item
                   name="route"
                   label="Route"
-                  rules={[{ required: true, message: 'Please select route' }]}
+                  rules={[{ required: !selectedBatch, message: 'Please select route' }]}
                 >
                   <Select placeholder="Select route">
                     <Option value="London → Accra">London → Accra</Option>
                     <Option value="London → Accra → Kumasi">London → Accra → Kumasi</Option>
                     <Option value="London → Accra → Tamale">London → Accra → Tamale</Option>
+                    {/* A route entered in the mobile app */}
+                    {selectedBatch?.route && !['London → Accra', 'London → Accra → Kumasi', 'London → Accra → Tamale'].includes(selectedBatch.route) && (
+                      <Option value={selectedBatch.route}>{selectedBatch.route}</Option>
+                    )}
                   </Select>
                 </Form.Item>
               </Col>
@@ -661,7 +683,7 @@ const BatchManagementPage = () => {
                 <Form.Item
                   name="vessel"
                   label="Vessel/Flight"
-                  rules={[{ required: true, message: 'Please select vessel/flight' }]}
+                  rules={[{ required: !selectedBatch, message: 'Please select vessel/flight' }]}
                 >
                   <Select placeholder="Select vessel or flight">
                     {vesselOptions.map(option => (
@@ -697,7 +719,7 @@ const BatchManagementPage = () => {
                 <Form.Item
                   name="containerNumber"
                   label="Container Number / Seal"
-                  rules={[{ required: true, message: 'Please enter container/seal number!' }]}
+                  rules={[{ required: !selectedBatch, message: 'Please enter container/seal number!' }]}
                 >
                   <Input placeholder="e.g., CONT001234 or SEAL001234" />
                 </Form.Item>
@@ -757,7 +779,7 @@ const BatchManagementPage = () => {
                 }),
               }}
               columns={jobSelectionColumns}
-              dataSource={availableJobs}
+              dataSource={selectableJobs}
               loading={loading}
               pagination={false}
               scroll={{ y: 300 }}
@@ -767,6 +789,12 @@ const BatchManagementPage = () => {
               }}
             />
           </Card>
+
+          {selectedBatch && (
+            <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+              Blank fields keep their saved value. Jobs you untick go back to the warehouse; nothing is deleted.
+            </Text>
+          )}
 
           {/* Batch Notes */}
           <Card size="small" title="Additional Information" style={{ marginBottom: 16 }}>
@@ -794,9 +822,9 @@ const BatchManagementPage = () => {
                 htmlType="submit"
                 size="large"
                 loading={creatingBatch}
-                icon={!creatingBatch && <PlusOutlined />}
+                icon={!creatingBatch && (selectedBatch ? <EditOutlined /> : <PlusOutlined />)}
               >
-                {creatingBatch ? 'Creating Batch...' : (selectedBatch ? 'Update Batch' : 'Create Batch')}
+                {creatingBatch ? 'Saving...' : (selectedBatch ? 'Update Batch' : 'Create Batch')}
               </Button>
             </Space>
           </Form.Item>
@@ -816,7 +844,7 @@ const BatchManagementPage = () => {
           selectedBatch && !isGhanaWarehouse && (
             <Space>
               {/* In Preparation → Show Ship and Edit buttons */}
-              {selectedBatch.status === 'In Preparation' && (
+              {EDITABLE_BATCH_STATUSES.includes(selectedBatch.status) && (
                 <>
                   <Button 
                     key="ship"
@@ -891,9 +919,19 @@ const BatchManagementPage = () => {
                 <Text strong>{selectedBatch.batchId}</Text>
               </div>
               <div style={{ display: 'flex', padding: '8px 0' }}>
-                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Destination</Text>
+                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Batch Name</Text>
                 <Text>{selectedBatch.name}</Text>
               </div>
+              <div style={{ display: 'flex', padding: '8px 0' }}>
+                <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Destination</Text>
+                <Text>{selectedBatch.destination || 'N/A'}</Text>
+              </div>
+              {selectedBatch.notes && (
+                <div style={{ display: 'flex', padding: '8px 0' }}>
+                  <Text strong style={{ width: '140px', color: '#8c8c8c', flexShrink: 0 }}>Notes</Text>
+                  <Text style={{ whiteSpace: 'pre-wrap' }}>{selectedBatch.notes}</Text>
+                </div>
+              )}
               <div style={{ display: 'flex', padding: '8px 0' }}>
                 <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Status</Text>
                 <Tag color={

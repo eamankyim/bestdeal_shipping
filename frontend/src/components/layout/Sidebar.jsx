@@ -20,6 +20,7 @@ import {
 } from '@ant-design/icons';
 import config from '../../config/env';
 import { useAuth } from '../../contexts/AuthContext';
+import { isGhanaWarehouse } from '../../utils/permissions';
 import './Sidebar.css';
 
 const { Sider } = Layout;
@@ -73,6 +74,8 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
       key: '/driver-dashboard',
       icon: <DashboardOutlined />,
       label: 'Dashboard',
+      ownerRole: 'driver',
+      otherRoleLabel: 'Driver Dashboard',
       roles: ['driver'],
     },
     {
@@ -91,19 +94,23 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
       key: '/uk-warehouse',
       icon: <DashboardOutlined />,
       label: 'Dashboard',
+      ownerRole: 'warehouse',
+      otherRoleLabel: 'UK Warehouse',
       roles: ['warehouse', 'admin', 'superadmin'],
     },
     {
       key: '/delivery-agent',
       icon: <RocketOutlined />,
       label: 'My Deliveries',
+      ownerRole: 'delivery-agent',
+      otherRoleLabel: 'Delivery Agent Dashboard',
       roles: ['delivery-agent'],
     },
     {
       key: '/jobs',
       icon: <ShoppingOutlined />,
       label: 'Jobs',
-      roles: ['superadmin', 'admin', 'customer-service', 'warehouse', 'driver', 'delivery-agent'],
+      roles: ['superadmin', 'admin', 'customer-service', 'warehouse', 'driver', 'delivery-agent', 'finance'],
     },
     {
       key: '/customers',
@@ -121,7 +128,7 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
       key: '/invoice-management',
       icon: <DollarOutlined />,
       label: 'Invoices',
-      roles: ['superadmin', 'admin', 'finance', 'customer-service'],
+      roles: ['superadmin', 'admin', 'finance', 'customer-service', 'warehouse'], // warehouse: Ghana only
     },
     {
       key: '/reports',
@@ -160,6 +167,11 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
         return false;
       }
 
+      // Invoices - the Ghana warehouse adds notes on the state of invoices
+      if (item.key === '/invoice-management' && currentUser.role === 'warehouse') {
+        return isGhanaWarehouse(currentUser);
+      }
+
       // UK Warehouse Dashboard - show when user has UK Warehouse location
       if (item.key === '/uk-warehouse') {
         if (['admin', 'superadmin', 'customer-service'].includes(currentUser.role) || currentUser.role === 'superadmin') return true;
@@ -183,7 +195,11 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
       
       // All other menu items - just check role
       return true;
-    });
+    })
+    // Superadmin/customer-service also see other roles' dashboards; give those role-specific names.
+    .map(({ roles, ownerRole, otherRoleLabel, ...item }) => (
+      ownerRole && currentUser.role !== ownerRole ? { ...item, label: otherRoleLabel } : item
+    ));
   }, [currentUser]);
 
   return (

@@ -55,6 +55,7 @@ export const JOB_STATUSES = {
   DELIVERED: 'Delivered',
   FAILED_DELIVERY: 'Failed Delivery',
   DRAFT: 'Draft',
+  CANCELLED: 'Cancelled',
 };
 
 // User Roles
@@ -91,11 +92,11 @@ export const STORAGE_KEYS = {
 /**
  * App Store / Play Console metadata URLs.
  * Pages live in the web frontend at /privacy and /support.
- * They become public only after frontend deploy to Contabo (bestdealshippingapp.com).
+ * They become public only after frontend deploy to Contabo (bestdealghanaapp.com).
  */
 export const STORE_METADATA = {
-  PRIVACY_POLICY_URL: 'https://bestdealshippingapp.com/privacy',
-  SUPPORT_URL: 'https://bestdealshippingapp.com/support',
+  PRIVACY_POLICY_URL: 'https://bestdealghanaapp.com/privacy',
+  SUPPORT_URL: 'https://bestdealghanaapp.com/support',
   SUPPORT_EMAIL: 'support@icreationsglobal.com',
 };
 

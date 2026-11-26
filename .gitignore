@@ -39,3 +39,8 @@ docker-compose.override.yml
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Server secrets were committed here once; keep them out
+backend/.env.production
+# Local build logs
+mobile/eas-build-log.txt

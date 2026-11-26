@@ -62,11 +62,11 @@ echo ""
 echo -e "${BLUE}=== STEP 3: Check SSL Certificates ===${NC}"
 
 echo "Certificate location:"
-ls -la /etc/letsencrypt/live/bestdealshippingapp.com/ 2>/dev/null || echo "Certificate directory not found"
+ls -la /etc/letsencrypt/live/bestdealghanaapp.com/ 2>/dev/null || echo "Certificate directory not found"
 
 echo ""
 echo "Certificate files:"
-ls -la /etc/letsencrypt/live/bestdealshippingapp.com/*.pem 2>/dev/null || echo "Certificate files not found"
+ls -la /etc/letsencrypt/live/bestdealghanaapp.com/*.pem 2>/dev/null || echo "Certificate files not found"
 
 # Step 4: Check Docker Compose for Sabito
 echo ""

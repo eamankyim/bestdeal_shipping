@@ -83,7 +83,7 @@ docker logs host-nginx --tail 10
 echo ""
 echo "=== Step 8: Test Routing ==="
 echo "Testing Best Deal:"
-curl -k -I https://www.bestdealshippingapp.com 2>&1 | head -5 || echo "⚠ Still testing..."
+curl -k -I https://www.bestdealghanaapp.com 2>&1 | head -5 || echo "⚠ Still testing..."
 
 echo ""
 echo "=========================================="

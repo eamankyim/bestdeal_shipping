@@ -106,7 +106,7 @@ echo "Testing Sabito:"
 curl -k -I https://sabito.app 2>&1 | head -5
 echo ""
 echo "Testing Best Deal:"
-curl -k -I https://www.bestdealshippingapp.com 2>&1 | head -5
+curl -k -I https://www.bestdealghanaapp.com 2>&1 | head -5
 
 echo ""
 echo "=========================================="

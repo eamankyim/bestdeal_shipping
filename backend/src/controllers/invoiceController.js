@@ -1,6 +1,20 @@
 const prisma = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/responseUtils');
-const { sendInvoiceEmail } = require('../services/emailService');
+const { sendCustomerMessage } = require('../services/customerMessageService');
+const { parseImage, contentDisposition } = require('../utils/imageUpload');
+
+const MAX_NOTE_LENGTH = 5000;
+
+// Everything about a note except the image bytes, which are fetched separately
+const INVOICE_NOTE_SELECT = {
+  id: true,
+  note: true,
+  referenceNumber: true,
+  imageName: true,
+  imageSize: true,
+  createdAt: true,
+  author: { select: { name: true, role: true } },
+};
 
 /**
  * Auto-create draft invoice for delivered job
@@ -181,6 +195,11 @@ exports.getInvoiceById = async (req, res) => {
               }
             }
           }
+        },
+        invoiceNotes: {
+          select: INVOICE_NOTE_SELECT,
+          orderBy: { createdAt: 'desc' },
+          take: 100
         }
       }
     });
@@ -288,18 +307,17 @@ exports.sendInvoice = async (req, res) => {
       }
     });
 
-    let emailDelivery;
-    try {
-      emailDelivery = await sendInvoiceEmail({ invoice: sentInvoice });
-    } catch (error) {
-      console.error('Invoice email delivery failed:', error.message);
-      emailDelivery = { sent: false, reason: 'SMTP delivery failed' };
-    }
+    const { email: emailDelivery, sms: smsDelivery } = await sendCustomerMessage('invoice_sent', {
+      customer: sentInvoice.customer,
+      invoice: sentInvoice,
+      job: sentInvoice.items.find((item) => item.job)?.job,
+    });
     console.log(`📧 Invoice ${sentInvoice.invoiceNumber} email delivery: ${emailDelivery.sent ? 'sent' : 'skipped'}`);
 
     return sendSuccess(res, 200, 'Invoice sent successfully', {
       invoice: sentInvoice,
       emailDelivery,
+      smsDelivery,
     });
 
   } catch (error) {
@@ -387,7 +405,65 @@ exports.cancelInvoice = async (req, res) => {
   }
 };
 
+/**
+ * Add a note on the state of an invoice, optionally with a reference number and an image
+ * POST /api/invoices/:id/notes
+ */
+exports.addInvoiceNote = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const note = String(req.body.note ?? '').trim();
+    const referenceNumber = String(req.body.referenceNumber ?? '').trim();
 
+    if (!note) return sendError(res, 400, 'Please enter a note');
+    if (note.length > MAX_NOTE_LENGTH) return sendError(res, 400, `Notes can be up to ${MAX_NOTE_LENGTH} characters`);
+    if (referenceNumber.length > 100) return sendError(res, 400, 'Reference number can be up to 100 characters');
 
+    const image = req.body.image ? parseImage(req.body.image, 'invoice-image') : null;
+    if (req.body.image && !image) return sendError(res, 400, 'The attachment must be an image (JPEG, PNG, GIF, WebP or HEIC) under 10MB');
 
+    const invoice = await prisma.invoice.findUnique({ where: { id }, select: { id: true } });
+    if (!invoice) return sendError(res, 404, 'Invoice not found');
 
+    const invoiceNote = await prisma.invoiceNote.create({
+      data: {
+        invoiceId: id,
+        note,
+        referenceNumber: referenceNumber || null,
+        imageData: image?.buffer,
+        imageName: image?.fileName,
+        imageMimeType: image?.mimeType,
+        imageSize: image?.size,
+        createdBy: req.user.id,
+      },
+      select: INVOICE_NOTE_SELECT,
+    });
+
+    return sendSuccess(res, 201, 'Note added', { note: invoiceNote });
+  } catch (error) {
+    console.error('Error adding invoice note:', error);
+    return sendError(res, 500, 'Failed to add note', error.message);
+  }
+};
+
+/**
+ * Image attached to an invoice note
+ * GET /api/invoices/notes/:noteId/image
+ */
+exports.getInvoiceNoteImage = async (req, res) => {
+  try {
+    const note = await prisma.invoiceNote.findUnique({
+      where: { id: req.params.noteId },
+      select: { imageData: true, imageName: true, imageMimeType: true },
+    });
+
+    if (!note?.imageData) return sendError(res, 404, 'Image not found');
+
+    res.setHeader('Content-Type', note.imageMimeType);
+    res.setHeader('Content-Disposition', contentDisposition(note.imageName));
+    return res.send(note.imageData);
+  } catch (error) {
+    console.error('Error fetching invoice note image:', error);
+    return sendError(res, 500, 'Failed to fetch image', error.message);
+  }
+};

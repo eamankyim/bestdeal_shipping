@@ -776,6 +776,13 @@ exports.getUsers = asyncHandler(async (req, res) => {
  * @access  Public (one-time only)
  */
 exports.createSuperAdmin = asyncHandler(async (req, res) => {
+  // Anyone can reach this route, and on an empty database it would hand out full control,
+  // so it only works when the server has been set up for it on purpose.
+  // (Production creates its first admin with /opt/bestdeal/bin/create-admin instead.)
+  if (process.env.ALLOW_SUPERADMIN_SETUP !== '1') {
+    return sendError(res, 403, 'This endpoint is disabled.');
+  }
+
   const { email, password, name } = req.body;
 
   // Check if any admin or superadmin already exists

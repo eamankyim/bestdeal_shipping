@@ -1,3 +1,4 @@
+import { canAssignRider, canEditJobs, hasAdminAccess, isRole } from '../../utils/permissions';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -11,7 +12,6 @@ import {
   Text,
   Chip,
   Button,
-  ActivityIndicator,
   Divider,
   FAB,
 } from 'react-native-paper';
@@ -19,12 +19,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
 import { jobService } from '../../services/jobService';
 import { standardStyles, theme, spacing, touchTargets } from '../../theme/theme';
-import { formatJobStatusLabel, getJobStatusColor } from '../../utils/jobStatus';
+import { formatJobStatusLabel, getJobStatusColor, normalizeJobStatusKey } from '../../utils/jobStatus';
 import { format } from 'date-fns';
 import StatusUpdateModal from '../../components/jobs/StatusUpdateModal';
 import PaymentRecordingModal from '../../components/jobs/PaymentRecordingModal';
 import StatusRevertModal from '../../components/jobs/StatusRevertModal';
+import AssignRiderModal from '../../components/jobs/AssignRiderModal';
+import JobNotes from '../../components/jobs/JobNotes';
+import JobPhotos from '../../components/jobs/JobPhotos';
 import { authService } from '../../services/authService';
+import ThreeDotsLoader from '../../components/common/ThreeDotsLoader';
+
+// Jobs that have reached Ghana and can be handed to a dispatch rider
+const DISPATCHABLE_STATUSES = ['arrived_at_destination', 'at_ghana_warehouse', 'ready_for_delivery', 'out_for_delivery', 'failed_delivery'];
 
 export default function JobDetailScreen({ route, navigation }) {
   const { jobId } = route.params;
@@ -36,12 +43,15 @@ export default function JobDetailScreen({ route, navigation }) {
   const [statusModalVisible, setStatusModalVisible] = useState(false);
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
   const [revertStatusModalVisible, setRevertStatusModalVisible] = useState(false);
+  const [riderModalVisible, setRiderModalVisible] = useState(false);
   const [teamMembers, setTeamMembers] = useState([]);
 
   useEffect(() => {
-    loadJobDetails();
-    loadTeamMembers();
-  }, [jobId]);
+    // Only roles that can reassign jobs may list the team
+    if (hasAdminAccess(user) || isRole(user, 'warehouse')) loadTeamMembers();
+    return navigation.addListener('focus', loadJobDetails);
+  }, [jobId, navigation]);
+  useEffect(() => { loadJobDetails(); }, [jobId]);
 
   const loadTeamMembers = async () => {
     try {
@@ -50,7 +60,7 @@ export default function JobDetailScreen({ route, navigation }) {
         const users = Array.isArray(response.data) ? response.data : response.data.users || [];
         // Filter for roles that can be assigned to jobs
         const assignableUsers = users.filter(u => 
-          ['driver', 'delivery_agent', 'warehouse_staff', 'admin'].includes(u.role)
+          ['driver', 'delivery-agent', 'delivery_agent'].includes(u.role)
         );
         setTeamMembers(assignableUsers);
       }
@@ -69,7 +79,7 @@ export default function JobDetailScreen({ route, navigation }) {
 
       if (jobResponse.success) {
         const normalizedJob = jobResponse.data?.job || jobResponse.data || null;
-        setJob(normalizedJob);
+        setJob(normalizedJob ? { ...normalizedJob, receiverPhone: normalizedJob.receiverContact || normalizedJob.receiverPhone, parcelDetails: { description: normalizedJob.description, packages: normalizedJob.packages, dimensions: { length: normalizedJob.dimensionsLength, width: normalizedJob.dimensionsWidth, height: normalizedJob.dimensionsHeight } }, status: formatJobStatusLabel(normalizedJob.status) } : null);
       }
       if (timelineResponse.success) {
         const normalizedTimeline = Array.isArray(timelineResponse.data)
@@ -85,15 +95,21 @@ export default function JobDetailScreen({ route, navigation }) {
     }
   };
 
-  const handleStatusUpdate = async (newStatus, comment, document) => {
+  const handleStatusUpdate = async (newStatus, comment, document, reassignTo) => {
     try {
+      if (reassignTo) {
+        const member = teamMembers.find(item => item.id === reassignTo);
+        if (member?.role === 'driver') await jobService.assignDriver(jobId, reassignTo);
+        else await jobService.assignDeliveryAgent(jobId, reassignTo);
+      }
       const response = await jobService.updateJobStatus(jobId, newStatus, comment, document);
       if (response.success) {
         Alert.alert('Success', 'Status updated successfully');
         loadJobDetails();
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to update status');
+      Alert.alert('Error', error.response?.data?.message || 'Failed to update status');
+      throw error;
     }
   };
 
@@ -136,7 +152,7 @@ export default function JobDetailScreen({ route, navigation }) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#ff9800" />
+        <ThreeDotsLoader />
       </View>
     );
   }
@@ -150,16 +166,18 @@ export default function JobDetailScreen({ route, navigation }) {
   }
 
   const canUpdateStatus = user?.role === 'driver' || 
-                         user?.role === 'delivery_agent' || 
-                         user?.role === 'warehouse_staff' || 
-                         user?.role === 'admin';
-  const canEdit = user?.role === 'admin' || user?.role === 'warehouse_staff';
+                         isRole(user, 'delivery_agent') ||
+                         isRole(user, 'warehouse_staff') ||
+                         hasAdminAccess(user);
+  const statusKey = normalizeJobStatusKey(job.status);
+  const canEdit = canEditJobs(user) && !['delivered', 'cancelled'].includes(statusKey);
+  const canDispatch = canAssignRider(user) && DISPATCHABLE_STATUSES.includes(statusKey);
 
   return (
     <>
       <ScrollView 
         style={styles.container}
-        contentContainerStyle={{ paddingTop: insets.top }}
+        contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + 170 }} // clear of the edit button
       >
         <Card style={styles.card} elevation={0}>
           <Card.Content>
@@ -260,18 +278,16 @@ export default function JobDetailScreen({ route, navigation }) {
                 Description: {job.parcelDetails?.description || 'N/A'}
               </Text>
               
-              {job.freightType === 'Air Freight' && (
-                <Text variant="bodyMedium">Weight: {job.weight || 0} kg</Text>
+              {job.parcelDetails?.packages && Array.isArray(job.parcelDetails.packages) && job.parcelDetails.packages.length > 0 && (
+                <View style={{ marginTop: 6 }}>
+                  {job.parcelDetails.packages.map((pkg, index) => (
+                    <Text key={`${pkg.description || 'item'}-${index}`} variant="bodyMedium">
+                      Package {index + 1}: {pkg.description || 'Item'}{pkg.weight ? ` — ${pkg.weight} kg` : ''}
+                    </Text>
+                  ))}
+                </View>
               )}
-              
-              {job.freightType === 'Sea Freight' && job.parcelDetails?.dimensions && (
-                <Text variant="bodyMedium">
-                  Dimensions: {job.parcelDetails.dimensions.length} x{' '}
-                  {job.parcelDetails.dimensions.width} x{' '}
-                  {job.parcelDetails.dimensions.height} cm
-                </Text>
-              )}
-              
+
               {job.value != null &&
                 job.value !== '' &&
                 Number.isFinite(Number(job.value)) && (
@@ -312,6 +328,18 @@ export default function JobDetailScreen({ route, navigation }) {
               </>
             )}
 
+            {job.assignedDeliveryAgent && (
+              <>
+                <Divider style={styles.divider} />
+                <View style={styles.section}>
+                  <Text variant="titleMedium" style={styles.sectionTitle}>
+                    Dispatch Rider
+                  </Text>
+                  <Text variant="bodyMedium">{job.assignedDeliveryAgent.name}</Text>
+                </View>
+              </>
+            )}
+
             {/* Action Buttons */}
             {canUpdateStatus && (
               <>
@@ -340,7 +368,7 @@ export default function JobDetailScreen({ route, navigation }) {
                       </Button>
                     </>
                   )}
-                  {user?.role === 'delivery_agent' && job.status === 'Out for Delivery' && (
+                  {isRole(user, 'delivery_agent') && ['ready_for_delivery', 'out_for_delivery'].includes(statusKey) && (
                     <Button
                       mode="contained"
                       onPress={handleDeliver}
@@ -351,7 +379,7 @@ export default function JobDetailScreen({ route, navigation }) {
                     </Button>
                   )}
                   {/* Warehouse staff can update to "At Warehouse" when status is "Collected" */}
-                  {(user?.role === 'warehouse_staff' || user?.role === 'admin') && job.status === 'Collected' && (
+                  {(isRole(user, 'warehouse_staff') || hasAdminAccess(user)) && job.status === 'Collected' && (
                     <Button
                       mode="contained"
                       onPress={() => setStatusModalVisible(true)}
@@ -362,7 +390,7 @@ export default function JobDetailScreen({ route, navigation }) {
                     </Button>
                   )}
                   {/* Warehouse staff can also update other statuses */}
-                  {(user?.role === 'warehouse_staff' || user?.role === 'admin') && job.status !== 'Collected' && (
+                  {(isRole(user, 'warehouse_staff') || hasAdminAccess(user)) && job.status !== 'Collected' && (
                     <Button
                       mode="contained"
                       onPress={() => setStatusModalVisible(true)}
@@ -372,8 +400,18 @@ export default function JobDetailScreen({ route, navigation }) {
                       Update Status
                     </Button>
                   )}
+                  {canDispatch && (
+                    <Button
+                      mode="contained"
+                      onPress={() => setRiderModalVisible(true)}
+                      style={styles.actionButton}
+                      icon="moped"
+                    >
+                      {job.assignedDeliveryAgent ? 'Change Dispatch Rider' : 'Assign Dispatch Rider'}
+                    </Button>
+                  )}
                   {/* Warehouse manager can record payment */}
-                  {(user?.role === 'warehouse_staff' || user?.role === 'admin') && (
+                  {(isRole(user, 'warehouse_staff') || hasAdminAccess(user)) && (
                     <Button
                       mode="outlined"
                       onPress={() => setPaymentModalVisible(true)}
@@ -384,7 +422,7 @@ export default function JobDetailScreen({ route, navigation }) {
                     </Button>
                   )}
                   {/* Admin can revert status */}
-                  {user?.role === 'admin' && job.status !== 'Pending Collection' && job.status !== 'Draft' && (
+                  {hasAdminAccess(user) && job.status !== 'Pending Collection' && job.status !== 'Draft' && (
                     <Button
                       mode="outlined"
                       onPress={() => setRevertStatusModalVisible(true)}
@@ -400,6 +438,21 @@ export default function JobDetailScreen({ route, navigation }) {
             )}
 
             <Divider style={styles.divider} />
+
+            {hasAdminAccess(user) && <Button textColor="#c62828" onPress={() => Alert.alert('Delete job?', 'This permanently removes this job if it has no dependent records.', [{ text: 'Cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => {
+              try { await jobService.deleteJob(jobId); navigation.goBack(); }
+              catch (error) { Alert.alert('Error', error.response?.data?.message || error.message); }
+            } }])}>Delete Job</Button>}
+            {canEditJobs(user) && (
+              <View style={styles.section}>
+                <Text variant="titleMedium" style={styles.sectionTitle}>
+                  Notes
+                </Text>
+                <JobNotes jobId={jobId} notes={job.jobNotes} onAdded={loadJobDetails} />
+              </View>
+            )}
+
+            <JobPhotos documents={job.documents} />
 
             {/* Timeline */}
             <View style={styles.section}>
@@ -451,7 +504,15 @@ export default function JobDetailScreen({ route, navigation }) {
         onUpdate={handleStatusUpdate}
         userRole={user?.role}
         teamMembers={teamMembers}
-        allowReassignment={true}
+        allowReassignment={hasAdminAccess(user) || isRole(user, 'warehouse')}
+      />
+
+      <AssignRiderModal
+        visible={riderModalVisible}
+        job={job}
+        teamMembers={teamMembers}
+        onDismiss={() => setRiderModalVisible(false)}
+        onAssigned={loadJobDetails}
       />
 
       {/* Payment Recording Modal */}
@@ -459,7 +520,7 @@ export default function JobDetailScreen({ route, navigation }) {
         visible={paymentModalVisible}
         onDismiss={() => setPaymentModalVisible(false)}
         job={job}
-        invoiceAmount={Number(job?.estimatedPrice ?? job?.value ?? 0) || 0}
+        invoiceAmount={Math.max(0, Number(job?.value || 0) - Number(job?.amountPaid || 0))}
         onPaymentRecorded={loadJobDetails}
       />
 

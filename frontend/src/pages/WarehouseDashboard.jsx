@@ -18,13 +18,15 @@ import {
   ShoppingOutlined,
   BoxPlotOutlined,
   CarOutlined,
-  EyeOutlined
+  EyeOutlined,
+  PlusOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { dashboardAPI, jobAPI } from '../utils/api';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 import { useAuth } from '../contexts/AuthContext';
 import { formatJobStatusLabel, getStatusColor } from '../constants/jobStatuses';
+import { canCreateJobs } from '../utils/permissions';
 
 const { Title, Text } = Typography;
 
@@ -309,9 +311,20 @@ const WarehouseDashboard = ({ dashboardApi = null, title = 'Warehouse Dashboard'
           </Text>
         </Col>
         <Col>
-          <Button onClick={() => navigate('/jobs')}>
-            View All Jobs
-          </Button>
+          <Space wrap>
+            <Button onClick={() => navigate('/jobs')}>
+              View All Jobs
+            </Button>
+            {canCreateJobs(currentUser) && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => navigate('/jobs', { state: { openNewJobModal: true } })}
+              >
+                New Job
+              </Button>
+            )}
+          </Space>
         </Col>
       </Row>
 

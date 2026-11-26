@@ -21,7 +21,7 @@ ls -la ssl/
 
 echo ""
 echo "=== Step 3: Best Deal SSL Certificates ==="
-ls -la /etc/letsencrypt/live/bestdealshippingapp.com/*.pem
+ls -la /etc/letsencrypt/live/bestdealghanaapp.com/*.pem
 
 echo ""
 echo "=== Step 4: Backup Current Config ==="
@@ -31,11 +31,11 @@ echo "✓ Backup created"
 echo ""
 echo "=== Step 5: Copy Best Deal SSL Certificates ==="
 # Copy certificates to sabito ssl directory
-cp /etc/letsencrypt/live/bestdealshippingapp.com/fullchain.pem ssl/bestdealshippingapp.com.crt
-cp /etc/letsencrypt/live/bestdealshippingapp.com/privkey.pem ssl/bestdealshippingapp.com.key
+cp /etc/letsencrypt/live/bestdealghanaapp.com/fullchain.pem ssl/bestdealghanaapp.com.crt
+cp /etc/letsencrypt/live/bestdealghanaapp.com/privkey.pem ssl/bestdealghanaapp.com.key
 
-chmod 644 ssl/bestdealshippingapp.com.crt
-chmod 600 ssl/bestdealshippingapp.com.key
+chmod 644 ssl/bestdealghanaapp.com.crt
+chmod 600 ssl/bestdealghanaapp.com.key
 
 echo "✓ Certificates copied"
 ls -la ssl/ | grep bestdeal

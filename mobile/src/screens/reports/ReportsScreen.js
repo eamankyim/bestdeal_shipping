@@ -1,3 +1,4 @@
+import useScreenRefresh from '../../hooks/useScreenRefresh';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -8,23 +9,22 @@ import {
 import {
   Card,
   Text,
-  ActivityIndicator,
   Button,
 } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { standardStyles, theme, spacing, touchTargets } from '../../theme/theme';
 import logger from '../../utils/logger';
 import { dashboardService } from '../../services/dashboardService';
+import ThreeDotsLoader from '../../components/common/ThreeDotsLoader';
 
-export default function ReportsScreen() {
+export default function ReportsScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showPerformance, setShowPerformance] = useState(false);
   const [reportData, setReportData] = useState(null);
 
-  useEffect(() => {
-    loadReports();
-  }, []);
+
 
   const loadReports = async () => {
     try {
@@ -42,6 +42,8 @@ export default function ReportsScreen() {
     }
   };
 
+  useScreenRefresh(loadReports);
+
   const onRefresh = () => {
     setRefreshing(true);
     loadReports();
@@ -50,7 +52,7 @@ export default function ReportsScreen() {
   if (loading && !refreshing) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <ThreeDotsLoader color={theme.colors.primary} />
       </View>
     );
   }
@@ -108,7 +110,7 @@ export default function ReportsScreen() {
             <Button
               mode="outlined"
               onPress={() => {
-                // TODO: Navigate to shipment volume report
+                navigation.navigate('Jobs', { screen: 'JobsList' });
               }}
               style={styles.reportButton}
               icon="chart-line"
@@ -118,7 +120,7 @@ export default function ReportsScreen() {
             <Button
               mode="outlined"
               onPress={() => {
-                // TODO: Navigate to revenue report
+                navigation.navigate('Invoices');
               }}
               style={styles.reportButton}
               icon="currency-usd"
@@ -128,7 +130,7 @@ export default function ReportsScreen() {
             <Button
               mode="outlined"
               onPress={() => {
-                // TODO: Navigate to performance report
+                setShowPerformance(value => !value);
               }}
               style={styles.reportButton}
               icon="chart-bar"
@@ -138,6 +140,13 @@ export default function ReportsScreen() {
           </Card.Content>
         </Card>
 
+        {showPerformance && reportData && <Card style={styles.card}><Card.Content>
+          <Text variant="titleMedium">Payment Performance</Text>
+          <Text>Paid invoices: {reportData.invoiceStats?.total ? Math.round(reportData.invoiceStats.paid / reportData.invoiceStats.total * 100) : 0}%</Text>
+          <Text>This month: £{Number(reportData.monthlyRevenue?.total || 0).toFixed(2)} from {reportData.monthlyRevenue?.count || 0} payments</Text>
+          <Text>Today's payments: {reportData.todayActivity?.payments || 0}</Text>
+          <Text>Overdue invoices: {reportData.invoiceStats?.overdue || 0}</Text>
+        </Card.Content></Card>}
         {!reportData && (
           <Card style={styles.card} elevation={0}>
             <Card.Content>

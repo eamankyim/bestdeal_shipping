@@ -81,6 +81,18 @@ const authorize = (...allowedRoles) => {
 };
 
 /**
+ * Authorization middleware for rules that depend on more than the role name
+ * (for example which warehouse someone is assigned to).
+ * @param {Function} rule - (user) => boolean
+ * @param {string} message - Shown when the rule says no
+ */
+const authorizeIf = (rule, message = 'Access denied.') => (req, res, next) => {
+  if (!req.user) return sendError(res, 401, 'Authentication required.');
+  if (!rule(req.user)) return sendError(res, 403, message);
+  next();
+};
+
+/**
  * Optional authentication - User is not required but will be attached if token is valid
  */
 const optionalAuth = async (req, res, next) => {
@@ -117,6 +129,7 @@ const optionalAuth = async (req, res, next) => {
 module.exports = {
   authenticate,
   authorize,
+  authorizeIf,
   optionalAuth,
 };
 

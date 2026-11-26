@@ -1,5 +1,8 @@
 {
   "version": 2,
+  "regions": [
+    "lhr1"
+  ],
   "buildCommand": "npm run vercel-build",
   "installCommand": "npm install",
   "builds": [
@@ -22,4 +25,3 @@
     "VERCEL": "1"
   }
 }
-

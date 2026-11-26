@@ -46,7 +46,7 @@ echo "NGINX RESTARTED"
 echo "=========================================="
 echo ""
 echo "Test in browser:"
-echo "  https://www.bestdealshippingapp.com"
+echo "  https://www.bestdealghanaapp.com"
 echo ""
 
 

@@ -1,19 +1,29 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import logger from '../utils/logger';
 
 // API Configuration
 // For React Native development:
 // - Android Emulator: use 10.0.2.2 (maps to host machine's localhost)
-// - iOS Simulator: can use localhost
-// - Physical Device: use your computer's IP address (e.g., 192.168.1.100)
+// - iOS Simulator / physical device: derived from the Expo dev server's own
+//   LAN address (hostUri), so it tracks your machine's IP automatically
+//   instead of relying on a hardcoded value that goes stale.
 // You can override this with REACT_NATIVE_API_URL environment variable
 
+// e.g. Constants.expoConfig.hostUri === "192.168.100.97:8083"
+const getDevServerHost = () => {
+  const hostUri = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoClient?.hostUri;
+  return hostUri?.split(':')?.[0] || null;
+};
+
 const getApiBaseUrl = () => {
+  const publicUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (publicUrl) return publicUrl.replace(/\/$/, '');
   if (!__DEV__) {
     // Production Contabo / domain (matches frontend REACT_APP_API_URL + /api)
-    return 'https://bestdealshippingapp.com/api';
+    return 'https://bestdealghanaapp.com/api';
   }
 
   // Development - check for environment variable override
@@ -26,13 +36,18 @@ const getApiBaseUrl = () => {
   if (Platform.OS === 'android') {
     // Android emulator uses 10.0.2.2 to access host machine's localhost
     return 'http://10.0.2.2:4001/api';
-  } else {
-    // iOS simulator / physical device: Use your computer's LAN IP (not localhost)
-    // Find your IP: Mac `ipconfig getifaddr en0` | Windows: ipconfig
-    // Default: Using 192.168.0.194 (update if your Mac's LAN IP changes)
-    // For localhost, use: 'http://localhost:4001/api'
-    return 'http://192.168.0.194:4001/api';
   }
+
+  // iOS simulator / physical device: use the same LAN IP the Metro dev
+  // server is running on, so this works regardless of which network/IP
+  // your computer currently has.
+  const devHost = getDevServerHost();
+  if (devHost) {
+    return `http://${devHost}:4001/api`;
+  }
+
+  // Fallback if hostUri isn't available for some reason.
+  return 'http://localhost:4001/api';
 };
 
 const API_BASE_URL = getApiBaseUrl();

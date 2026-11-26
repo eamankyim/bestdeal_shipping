@@ -10,6 +10,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Button, Text, Card, ActivityIndicator } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { jobService } from '../../services/jobService';
+import { PHOTO_QUALITY } from '../../utils/photos';
 
 export default function CameraScreen({ route, navigation }) {
   const { jobId, type, onComplete } = route.params;
@@ -28,7 +29,7 @@ export default function CameraScreen({ route, navigation }) {
     if (cameraRef.current && permission?.granted) {
       try {
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.8,
+          quality: PHOTO_QUALITY,
         });
         setPhoto(photo.uri);
       } catch (error) {
@@ -42,7 +43,7 @@ export default function CameraScreen({ route, navigation }) {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 0.8,
+      quality: PHOTO_QUALITY,
     });
 
     if (!result.canceled) {
@@ -58,19 +59,9 @@ export default function CameraScreen({ route, navigation }) {
 
     setLoading(true);
     try {
-      // Create FormData for file upload
-      const formData = new FormData();
-      formData.append('photo', {
-        uri: photo,
-        type: 'image/jpeg',
-        name: 'proof.jpg',
-      });
-
-      // Update job status with proof
-      const newStatus =
-        type === 'collection' ? 'Collected' : 'Delivered';
-      const response = await jobService.updateJobStatus(jobId, newStatus, {
-        proofPhoto: photo,
+      const newStatus = type === 'collection' ? 'Collected' : 'Delivered';
+      const response = await jobService.updateJobStatus(jobId, newStatus, 'Proof captured in mobile app', {
+        uri: photo, type: 'image/jpeg', name: `${type}-proof.jpg`,
       });
 
       if (response.success) {
@@ -87,7 +78,7 @@ export default function CameraScreen({ route, navigation }) {
         Alert.alert('Error', 'Failed to update status');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to upload proof');
+      Alert.alert('Error', error.response?.data?.message || 'Failed to upload proof');
       console.error(error);
     } finally {
       setLoading(false);

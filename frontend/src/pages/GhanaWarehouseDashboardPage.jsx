@@ -27,6 +27,7 @@ import { useNavigate } from 'react-router-dom';
 import { dashboardAPI, jobAPI } from '../utils/api';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 import { formatJobStatusLabel, getStatusColor } from '../constants/jobStatuses';
+import AssignRiderModal from '../components/jobs/AssignRiderModal';
 
 const { Title, Text } = Typography;
 
@@ -35,6 +36,7 @@ const GhanaWarehouseDashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
   const [error, setError] = useState(null);
+  const [riderJob, setRiderJob] = useState(null);
 
   useEffect(() => {
     fetchGhanaWarehouseDashboard();
@@ -217,6 +219,36 @@ const GhanaWarehouseDashboardPage = () => {
         <Tag color={getStatusColor(status)}>{formatJobStatusLabel(status)}</Tag>
       )
     },
+    {
+      title: 'Actions',
+      key: 'actions',
+      mobile: true,
+      render: (_, record) => (
+        <Space wrap>
+          <Button
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleViewJob(record);
+            }}
+          >
+            View
+          </Button>
+          <Button
+            size="small"
+            type="primary"
+            icon={<CarOutlined />}
+            onClick={(e) => {
+              e.stopPropagation();
+              setRiderJob(record);
+            }}
+          >
+            Assign Rider
+          </Button>
+        </Space>
+      ),
+    },
   ];
 
   // Items stored/being distributed table columns
@@ -279,6 +311,32 @@ const GhanaWarehouseDashboardPage = () => {
     },
   ];
 
+  // Same as stored items, with the rider and a way to change them
+  const distributedColumns = [
+    ...storedItemsColumns.filter((column) => column.key !== 'actions'),
+    {
+      title: 'Dispatch Rider',
+      dataIndex: 'assignedDeliveryAgent',
+      key: 'assignedDeliveryAgent',
+      mobile: true,
+      render: (rider) => rider?.name || 'Unassigned',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      mobile: true,
+      render: (_, record) => (
+        <Space wrap>
+          <Button size="small" icon={<EyeOutlined />} onClick={(e) => { e.stopPropagation(); handleViewJob(record); }}>
+            View
+          </Button>
+          <Button size="small" icon={<CarOutlined />} onClick={(e) => { e.stopPropagation(); setRiderJob(record); }}>
+            {record.assignedDeliveryAgent ? 'Change Rider' : 'Assign Rider'}
+          </Button>
+        </Space>
+      ),
+    },
+  ];
 
   return (
     <div style={{ padding: '24px' }} className="dashboard-page-container">
@@ -481,7 +539,7 @@ const GhanaWarehouseDashboardPage = () => {
         <Col xs={24}>
           <Card title="Items Being Distributed">
             <ResponsiveTable
-              columns={storedItemsColumns}
+              columns={distributedColumns}
               dataSource={jobsBeingDistributed?.jobs || []}
               loading={loading}
               rowKey="id"
@@ -495,6 +553,8 @@ const GhanaWarehouseDashboardPage = () => {
           </Card>
         </Col>
       </Row>
+
+      <AssignRiderModal job={riderJob} onClose={() => setRiderJob(null)} onAssigned={fetchGhanaWarehouseDashboard} />
     </div>
   );
 };

@@ -42,7 +42,7 @@ echo "=== Step 6: Check Best Deal Nginx Config ==="
 <<<<<<< HEAD
 docker exec sabito-nginx cat /etc/nginx/conf.d/sabito.conf | grep -A30 "server_name.*shipeaseshippingapp.com" | head -35
 =======
-docker exec sabito-nginx cat /etc/nginx/conf.d/sabito.conf | grep -A30 "server_name.*bestdealshippingapp.com" | head -35
+docker exec sabito-nginx cat /etc/nginx/conf.d/sabito.conf | grep -A30 "server_name.*bestdealghanaapp.com" | head -35
 >>>>>>> origin/master
 
 echo ""

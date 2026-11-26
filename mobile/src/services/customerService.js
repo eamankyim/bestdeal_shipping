@@ -3,6 +3,8 @@ import { API_ENDPOINTS } from '../config/constants';
 import logger from '../utils/logger';
 
 export const customerService = {
+  updateCustomer: async (id, data) => (await api.put(`/customers/${id}`, data)).data,
+  deleteCustomer: async id => (await api.delete(`/customers/${id}`)).data,
   getCustomers: async (filters = {}) => {
     try {
       logger.debug('Fetching customers', { filters });
@@ -25,6 +27,21 @@ export const customerService = {
         service: 'customerService',
         method: 'getCustomers',
         filters,
+      });
+      throw error;
+    }
+  },
+
+  createCustomer: async (customerData) => {
+    try {
+      logger.debug('Creating customer', { customerData });
+      const response = await api.post(API_ENDPOINTS.CUSTOMERS.CREATE, customerData);
+      return response.data;
+    } catch (error) {
+      logger.error('Failed to create customer', error, {
+        service: 'customerService',
+        method: 'createCustomer',
+        customerData,
       });
       throw error;
     }

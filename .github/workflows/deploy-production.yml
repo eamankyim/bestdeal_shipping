@@ -1,62 +1,40 @@
 name: Deploy to Production
 
+# Every push to the production branch goes live on the BestDeal server, 213.136.94.207.
+# The SSH key in the BESTDEAL_DEPLOY_KEY secret can only run /opt/bestdeal/bin/deploy on it;
+# that script builds the code, backs up the database and swaps the containers
+# (see deploy/README.md). Secrets stay on the server in /opt/bestdeal/.env, never in this repo.
+
 on:
   push:
-    branches:
-      - production
+    branches: [production]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v0.1.8
-        env:
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
-          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS }}
-          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
-          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
-          BACKEND_PORT: ${{ secrets.BACKEND_PORT }}
-          FRONTEND_PORT: ${{ secrets.FRONTEND_PORT }}
+      - uses: actions/checkout@v4
 
-        with:
-          host: ${{ secrets.PRODUCTION_HOST }}
-          username: ${{ secrets.PRODUCTION_USERNAME }}
-          key: ${{ secrets.PRODUCTION_SSH_KEY }}
-          script_stop: true
-          command_timeout: 30m
-          envs: DB_PASSWORD,JWT_SECRET,JWT_REFRESH_SECRET,CORS_ORIGINS,PRODUCTION_URL,FRONTEND_URL,BACKEND_PORT,FRONTEND_PORT
-          script: |
-            set -e
-            cd /root/bestdeal_shipping
-            git fetch origin
-            git checkout production
-            git reset --hard origin/production
-            git clean -fd
-            : > .env
-            echo "DB_PASSWORD=$DB_PASSWORD" >> .env
-            echo "JWT_SECRET=$JWT_SECRET" >> .env
-            echo "JWT_REFRESH_SECRET=$JWT_REFRESH_SECRET" >> .env
-            echo "REACT_APP_API_URL=$PRODUCTION_URL" >> .env
-            echo "PORT=$FRONTEND_PORT" >> .env
-            echo "CORS_ORIGINS=$CORS_ORIGINS" >> .env
-            echo "PRODUCTION_URL=$PRODUCTION_URL" >> .env
-            echo "FRONTEND_URL=$FRONTEND_URL" >> .env
-            # Set frontend .env
-            mkdir -p frontend
-            echo "PORT=$FRONTEND_PORT" >> frontend/.env
-            echo "REACT_APP_API_URL=$PRODUCTION_URL" >> frontend/.env
-            echo "REACT_APP_API_BASE_PATH=/api" >> frontend/.env
-            docker-compose -f docker-compose.prod.yml down --remove-orphans || true
-            docker system prune -af || true
-            docker-compose -f docker-compose.prod.yml build --no-cache --pull
-            docker-compose -f docker-compose.prod.yml up -d
-            sleep 25
-            echo "===== backend container status ====="
-            docker-compose -f docker-compose.prod.yml ps backend
-            echo "===== backend logs (last 200 lines) ====="
-            docker-compose -f docker-compose.prod.yml logs --no-color --tail=200 backend || true
-            docker-compose -f docker-compose.prod.yml exec -T backend npx prisma db push
-            docker-compose -f docker-compose.prod.yml ps
+      - name: Send the code to the server and deploy it
+        env:
+          DEPLOY_KEY: ${{ secrets.BESTDEAL_DEPLOY_KEY }}
+          # The server's own key, so the code can only be sent to the real server
+          HOST_KEY: "213.136.94.207 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICbPx2LmfYR2QSs0xSrL+6T0T5ttFGpgzQEzn2OCaxu/"
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/bestdeal
+          chmod 600 ~/.ssh/bestdeal
+          printf '%s\n' "$HOST_KEY" > ~/.ssh/known_hosts
+          git archive --format=tar HEAD backend frontend deploy \
+            | ssh -i ~/.ssh/bestdeal -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+                root@213.136.94.207 "$GITHUB_SHA"
