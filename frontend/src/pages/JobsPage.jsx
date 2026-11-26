@@ -1,199 +1,69 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Button, 
-  Modal, 
-  Form, 
-  Input, 
-  Select, 
-  DatePicker, 
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Button,
+  Modal,
+  Form,
+  Input,
+  Select,
+  DatePicker,
   InputNumber,
   Upload,
-  Space, 
-  Tag, 
+  Space,
+  Tag,
   Typography,
   Row,
   Col,
   Card,
-  Statistic,
-  Drawer,
-  Tabs,
   Divider,
-  Timeline,
-  Dropdown,
-  Menu,
   message,
   Radio,
-  Image,
-  Spin
 } from 'antd';
-import { 
-  PlusOutlined, 
-  SearchOutlined, 
+import {
+  PlusOutlined,
+  SearchOutlined,
   EyeOutlined,
-  EditOutlined,
   UploadOutlined,
-  MoreOutlined,
   UserOutlined,
-  EnvironmentOutlined,
-  DollarOutlined,
-  MailOutlined,
-  PhoneOutlined,
-  FileTextOutlined,
-  UndoOutlined,
-  CarOutlined
 } from '@ant-design/icons';
 import { useLocation } from 'react-router-dom';
 import ResponsiveTable from '../components/common/ResponsiveTable';
-import { STATUS_GROUPS, getStatusColor, formatJobStatusLabel, normalizeJobStatusKey } from '../constants/jobStatuses';
+import { canAssignDriver, formatJobStatusLabel, getStatusColor, jobStatusList, stageList } from '../constants/jobStatuses';
 import { jobAPI, customerAPI, authAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
-import { hasPermission, canAssignRider, canCreateJobs, canEditJobs } from '../utils/permissions';
+import { canCreateJobs } from '../utils/permissions';
 import { filesToUploads } from '../utils/imageUpload';
 import DropdownWithOther from '../components/common/DropdownWithOther';
-import { FREIGHT_TYPES, PRIORITY_LEVELS } from '../utils/countryCodes';
-import StatusUpdateModal from '../components/jobs/StatusUpdateModal';
-import PaymentRecordingModal from '../components/jobs/PaymentRecordingModal';
-import StatusRevertModal from '../components/jobs/StatusRevertModal';
-import JobEditModal from '../components/jobs/JobEditModal';
-import JobEditHistory from '../components/jobs/JobEditHistory';
-import JobNotes from '../components/jobs/JobNotes';
-import JobNoteModal from '../components/jobs/JobNoteModal';
-import JobPhotos from '../components/jobs/JobPhotos';
-import DeliverJobModal from '../components/jobs/DeliverJobModal';
-import AssignRiderModal from '../components/jobs/AssignRiderModal';
-import config from '../config/env';
+import JobDrawer from '../components/jobs/JobDrawer';
 
 const { Title, Text } = Typography;
-const { Option } = Select;
-const { OptGroup } = Select;
+const { Option, OptGroup } = Select;
 const { TextArea } = Input;
-
-// Jobs that have reached Ghana and can be handed to a dispatch rider
-const DISPATCHABLE_STATUSES = ['arrived_at_destination', 'at_ghana_warehouse', 'ready_for_delivery', 'out_for_delivery', 'failed_delivery'];
-
-// Text File Viewer Component
-const TextFileViewer = ({ documentUrl, fileName, fileExtension }) => {
-  const [textContent, setTextContent] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const loadTextContent = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const response = await fetch(documentUrl);
-        if (response.ok) {
-          const text = await response.text();
-          setTextContent(text);
-        } else {
-          setError('Failed to load text content');
-        }
-      } catch (err) {
-        console.error('Error loading text file:', err);
-        setError('Failed to load text content');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (documentUrl) {
-      loadTextContent();
-    }
-  }, [documentUrl]);
-
-  if (loading) {
-    return (
-      <div style={{ 
-        height: '100%', 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center' 
-      }}>
-        <Spin size="large" />
-        <Text style={{ marginLeft: 16 }}>Loading text content...</Text>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ 
-        height: '100%', 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center' 
-      }}>
-        <Text type="danger">{error}</Text>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ 
-      height: '100%', 
-      padding: '16px',
-      backgroundColor: '#f5f5f5',
-      overflow: 'auto'
-    }}>
-      <pre style={{ 
-        margin: 0, 
-        fontSize: '14px',
-        fontFamily: 'monospace',
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-        backgroundColor: 'white',
-        padding: '16px',
-        borderRadius: '4px',
-        border: '1px solid #d9d9d9'
-      }}>
-        {textContent}
-      </pre>
-    </div>
-  );
-};
 
 const JobsPage = () => {
   const location = useLocation();
   const { currentUser } = useAuth();
-  const canViewRevenue = hasPermission(currentUser, 'financial:view');
+  // A new job can be given to a driver straight away by those who assign drivers
+  const canChooseDriver = canAssignDriver({ status: 'pending_collection' });
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
-  const [isStatusUpdateModalVisible, setIsStatusUpdateModalVisible] = useState(false);
-  const [isPaymentModalVisible, setIsPaymentModalVisible] = useState(false);
-  const [isRevertStatusModalVisible, setIsRevertStatusModalVisible] = useState(false);
-  const [selectedJob, setSelectedJob] = useState(null);
-  const [editJobId, setEditJobId] = useState(null);
-  const [noteJob, setNoteJob] = useState(null);
-  const [deliverJob, setDeliverJob] = useState(null);
-  const [riderJob, setRiderJob] = useState(null);
-  const [chosenStatus, setChosenStatus] = useState(null); // picked from the drawer menu
+  const [openJobId, setOpenJobId] = useState(null);
   const [customerType, setCustomerType] = useState('existing'); // 'existing' or 'new'
-  const [statusFilter, setStatusFilter] = useState(null); // Status filter
+  const [statusFilter, setStatusFilter] = useState(null);
+  const [search, setSearch] = useState('');
+  const [paging, setPaging] = useState({ page: 1, pageSize: 20, total: 0 });
   const [form] = Form.useForm();
 
   const [jobs, setJobs] = useState([]);
   const [customers, setCustomers] = useState([]);
-  const [teamMembers, setTeamMembers] = useState([]);
+  const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
-  const [loadingTeamMembers, setLoadingTeamMembers] = useState(false);
+  const [loadingDrivers, setLoadingDrivers] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [updatingStatus, setUpdatingStatus] = useState(false);
   const [apiError, setApiError] = useState(null);
-  const [stats, setStats] = useState([
-    { title: 'Total Jobs', value: 0, color: '#1890ff' },
-    { title: 'In Progress', value: 0, color: '#faad14' },
-    { title: 'Completed', value: 0, color: '#52c41a' },
-    { title: 'Pending', value: 0, color: '#f5222d' },
-  ]);
-
-  // Document viewer modal state
-  const [documentModalVisible, setDocumentModalVisible] = useState(false);
-  const [currentDocument, setCurrentDocument] = useState(null);
-  const [documentLoading, setDocumentLoading] = useState(false);
-  const [documentUrl, setDocumentUrl] = useState(null);
+  // The latest filters, so a refresh from another tab or the timer uses what is on screen
+  const query = useRef({ page: 1, pageSize: 20, search: '', status: null });
+  // Only the newest request's answer is shown (an older, slower one must not overwrite it)
+  const latestRequest = useRef(0);
 
   // Create broadcast channel for cross-tab communication
   useEffect(() => {
@@ -214,20 +84,11 @@ const JobsPage = () => {
     };
   }, []);
 
-  // Roles that can assign jobs and need the team members list (GET /api/auth/users is restricted to these)
-  const role = currentUser?.role ?? '';
-  const canFetchTeamMembers = ['admin', 'customer-service', 'warehouse', 'superadmin'].includes(role);
-
-  // Fetch jobs, customers, and team members on mount (team members only for roles that can assign)
   useEffect(() => {
     fetchJobs();
     fetchCustomers();
-    if (canFetchTeamMembers) {
-      fetchTeamMembers();
-    } else {
-      setLoadingTeamMembers(false);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount; canFetchTeamMembers from currentUser
+    if (canChooseDriver) fetchDrivers();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
 
   // Auto-refresh jobs every 120 seconds (2 minutes) to reduce API load
@@ -237,7 +98,6 @@ const JobsPage = () => {
     
     const interval = setInterval(() => {
       if (!apiError) { // Double-check error state before refresh
-        console.log('🔄 Auto-refreshing jobs...');
         fetchJobs(true); // Silent refresh
       }
     }, 120000); // 120 seconds (2 minutes)
@@ -248,90 +108,70 @@ const JobsPage = () => {
   // Open modal or job drawer automatically if navigated from a dashboard
   useEffect(() => {
     if (location.state?.openNewJobModal) {
-      console.log('🚀 Opening New Job modal from dashboard');
       setIsModalVisible(true);
       window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
     }
 
     if (location.state?.selectedJobId) {
-      const selectedJobId = location.state.selectedJobId;
-      console.log('🚀 Opening job drawer from dashboard:', selectedJobId);
+      setOpenJobId(location.state.selectedJobId);
       window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
-      handleViewJob({ id: selectedJobId });
     }
+
+    // "See them all" on a dashboard opens the list filtered to that status
+    if (location.state?.status) {
+      onStatusChange(location.state.status);
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- react to navigation only
   }, [location.state]);
 
-  const fetchJobs = async (silent = false) => {
-    if (!silent) {
-      setLoading(true);
-    }
-    
+  const fetchJobs = async (silent = false, changes = {}) => {
+    query.current = { ...query.current, ...changes };
+    const { page, pageSize, search: text, status } = query.current;
+    const request = latestRequest.current + 1;
+    latestRequest.current = request;
+    if (!silent) setLoading(true);
     try {
-      console.log(silent ? '🔄 Silently fetching jobs...' : '📥 Fetching jobs from backend...');
-      
-      const response = await jobAPI.getAll();
-      
-      console.log('✅ Jobs fetched:', response);
-      
-      if (response.success && response.data) {
-        const rawJobs = Array.isArray(response.data) ? response.data : response.data.jobs || [];
-        console.log('📋 Raw jobs:', rawJobs);
-        
-        // Transform backend data to match table format
-        const transformedJobs = rawJobs.map(job => ({
-          id: job.id,
-          jobId: job.trackingId,
-          customer: job.customer?.name || 'N/A',
-          customerEmail: job.customer?.email,
-          pickupAddress: job.pickupAddress,
-          deliveryAddress: job.deliveryAddress,
-          status: job.status,
-          priority: job.priority || 'Standard',
-          assignedTo: job.assignedDeliveryAgent?.name || job.assignedDriver?.name || 'Unassigned',
-          eta: job.estimatedDelivery ? new Date(job.estimatedDelivery).toLocaleDateString() : 'TBD',
-          pickupDate: job.pickupDate ? new Date(job.pickupDate).toLocaleDateString() : 'N/A',
-          createdAt: job.createdAt,
-        }));
-        
-        console.log('📋 Transformed jobs:', transformedJobs);
-        setJobs(transformedJobs);
-        
-        // Calculate statistics
-        const total = transformedJobs.length;
-        const pending = transformedJobs.filter(j => ['pending', 'pending_collection'].includes(normalizeJobStatusKey(j.status))).length;
-        const inProgress = transformedJobs.filter(j => 
-          ['assigned', 'collected', 'in_transit', 'arrived_at_warehouse', 'out_for_delivery'].includes(normalizeJobStatusKey(j.status))
-        ).length;
-        const completed = transformedJobs.filter(j => normalizeJobStatusKey(j.status) === 'delivered').length;
-        
-        setStats([
-          { title: 'Total Jobs', value: total, color: '#1890ff' },
-          { title: 'In Progress', value: inProgress, color: '#faad14' },
-          { title: 'Completed', value: completed, color: '#52c41a' },
-          { title: 'Pending', value: pending, color: '#f5222d' },
-        ]);
-        // Clear API error on successful fetch
-        setApiError(null);
-      }
+      const response = await jobAPI.getAll({ page, limit: pageSize, search: text.trim(), status });
+      if (request !== latestRequest.current) return;
+      const rawJobs = Array.isArray(response.data) ? response.data : response.data?.jobs || [];
+      setJobs(rawJobs.map((job) => ({
+        id: job.id,
+        jobId: job.trackingId,
+        customer: job.customer?.name || 'N/A',
+        pickupAddress: job.pickupAddress,
+        deliveryAddress: job.deliveryAddress,
+        status: job.status,
+        priority: job.priority || 'Standard',
+        assignedTo: job.assignedDeliveryAgent?.name || job.assignedDriver?.name || 'Unassigned',
+        eta: job.estimatedDelivery ? new Date(job.estimatedDelivery).toLocaleDateString() : 'TBD',
+        createdAt: job.createdAt,
+      })));
+      setPaging({ page, pageSize, total: response.pagination?.total ?? rawJobs.length });
+      setApiError(null);
     } catch (error) {
-      console.error('❌ Failed to fetch jobs:', error);
-      
-      // Check if it's a rate limit error
       if (error.message && error.message.includes('Too many requests')) {
         setApiError('rate_limit');
-        if (!silent) {
-          message.error('Too many requests. Please wait a moment and refresh the page.');
-        }
+        if (!silent) message.error('Too many requests. Please wait a moment and refresh the page.');
       } else {
-        setApiError(null); // Clear error for non-rate-limit issues
-        if (!silent) {
-          message.error('Failed to load jobs');
-        }
+        setApiError(null);
+        if (!silent) message.error(error.message || 'Failed to load jobs');
       }
-      setJobs([]);
     } finally {
-      setLoading(false);
+      if (request === latestRequest.current) setLoading(false);
     }
+  };
+
+  // Typing waits a moment before searching, so each key press is not a request
+  const searchTimer = useRef(null);
+  const onSearchChange = (value) => {
+    setSearch(value);
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => fetchJobs(false, { search: value, page: 1 }), 400);
+  };
+  const onStatusChange = (value) => {
+    setStatusFilter(value || null);
+    fetchJobs(false, { status: value || null, page: 1 });
   };
 
   const fetchCustomers = async () => {
@@ -354,27 +194,15 @@ const JobsPage = () => {
     }
   };
 
-  const fetchTeamMembers = async () => {
-    setLoadingTeamMembers(true);
+  const fetchDrivers = async () => {
+    setLoadingDrivers(true);
     try {
-      console.log('📥 Fetching team members for assignment dropdown...');
-      
-      const response = await authAPI.getUsers();
-      
-      if (response.success && response.data) {
-        const rawUsers = Array.isArray(response.data) ? response.data : response.data.users || [];
-        // Filter for roles that can be assigned to jobs (driver, delivery-agent, warehouse)
-        const assignableUsers = rawUsers.filter(user => 
-          ['driver', 'delivery-agent', 'warehouse', 'admin'].includes(user.role)
-        );
-        setTeamMembers(assignableUsers);
-        console.log('✅ Team members loaded for dropdown:', assignableUsers.length);
-      }
+      const response = await authAPI.getUsers({ role: 'driver', status: 'active' });
+      setDrivers(response.data?.users || []);
     } catch (error) {
-      console.error('❌ Failed to fetch team members:', error);
-      setTeamMembers([]);
+      setDrivers([]);
     } finally {
-      setLoadingTeamMembers(false);
+      setLoadingDrivers(false);
     }
   };
 
@@ -448,7 +276,7 @@ const JobsPage = () => {
         <Button 
           size="small"
           icon={<EyeOutlined />}
-          onClick={() => handleViewJob(record)}
+          onClick={() => setOpenJobId(record.id)}
         >
           View
         </Button>
@@ -493,7 +321,6 @@ const JobsPage = () => {
         specialInstructions: values.specialInstructions,
         priority: values.priority || 'Standard',
         assignedDriverId: values.assignedTo || null,
-        status: 'Pending Collection',
       };
 
       // If creating a new customer
@@ -594,367 +421,6 @@ const JobsPage = () => {
   };
 
 
-  const handleViewJob = async (job) => {
-    try {
-      console.log('🔍 Viewing job details:', job.id);
-      
-      // Fetch full job details from backend
-      const response = await jobAPI.getById(job.id);
-      
-      if (response.success && response.data) {
-        console.log('✅ Job details fetched:', response.data);
-        setSelectedJob(response.data.job);
-        setIsDetailsDrawerVisible(true);
-      } else {
-        message.error('Failed to load job details');
-      }
-    } catch (error) {
-      console.error('❌ Failed to fetch job details:', error);
-      message.error(error.message || 'Failed to load job details');
-    }
-  };
-
-  // Document viewer handler
-  const handleViewDocument = async (document) => {
-    try {
-      setDocumentLoading(true);
-      setCurrentDocument(document);
-      setDocumentModalVisible(true);
-      
-      console.log('📄 Loading document:', document.fileName);
-      
-      // Fetch document from backend
-      const token = localStorage.getItem('shipease_token');
-      const apiUrl = `${config.api.fullUrl}/jobs/documents/${document.id}`;
-      
-      console.log('📄 Fetching document from:', apiUrl);
-      
-      const response = await fetch(apiUrl, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const contentType = response.headers.get('content-type') || document.mimeType || 'application/octet-stream';
-        console.log('📄 Document Content-Type:', contentType);
-        console.log('📄 Document MIME type from DB:', document.mimeType);
-        
-        const blob = await response.blob();
-        console.log('📄 Blob created:', { type: blob.type, size: blob.size });
-        
-        // Ensure blob has correct MIME type (in case response header was wrong)
-        if (blob.type === 'application/octet-stream' && contentType !== 'application/octet-stream') {
-          // Recreate blob with correct MIME type
-          const blobWithType = new Blob([blob], { type: contentType });
-          const url = window.URL.createObjectURL(blobWithType);
-          setDocumentUrl(url);
-          console.log('✅ Document loaded with corrected MIME type:', contentType);
-        } else {
-          const url = window.URL.createObjectURL(blob);
-          setDocumentUrl(url);
-          console.log('✅ Document loaded successfully');
-        }
-      } else {
-        const errorText = await response.text();
-        console.error('❌ Failed to load document:', response.status, errorText);
-        message.error(`Failed to load document: ${response.status}`);
-        setDocumentModalVisible(false);
-      }
-    } catch (error) {
-      console.error('❌ Error loading document:', error);
-      message.error('Failed to load document');
-      setDocumentModalVisible(false);
-    } finally {
-      setDocumentLoading(false);
-    }
-  };
-
-  // Close document modal and cleanup
-  const handleCloseDocumentModal = () => {
-    setDocumentModalVisible(false);
-    setCurrentDocument(null);
-    if (documentUrl) {
-      window.URL.revokeObjectURL(documentUrl);
-      setDocumentUrl(null);
-    }
-  };
-
-  const handleUpdateJobStatus = async (status, notes = '', document = null) => {
-    if (!selectedJob) return;
-    
-    setUpdatingStatus(true);
-    const statusLabel = formatJobStatusLabel(status);
-    
-    try {
-      console.log('🔄 Updating job status to:', status);
-      
-      message.loading({ content: `Updating status to ${statusLabel}...`, key: 'statusUpdate' });
-      
-      // Prepare form data if document is provided
-      let requestData;
-      if (document) {
-        // The API has no multipart parser; it takes attached files as base64 `proofImages`
-        // (drivers must attach at least one photo when marking a job collected).
-        const data = await jobAPI.updateStatus(selectedJob.id, {
-          status,
-          notes,
-          proofImages: await filesToUploads([document]),
-        });
-        
-        if (data.success) {
-          message.success({ content: `Job marked as ${statusLabel}`, key: 'statusUpdate', duration: 2 });
-          
-          // Broadcast update to other tabs
-          const channel = new BroadcastChannel('job_updates');
-          channel.postMessage({
-            type: 'JOB_STATUS_UPDATED',
-            jobId: selectedJob.id,
-            newStatus: status,
-            timestamp: new Date().toISOString()
-          });
-          channel.close();
-          
-          // Refresh job details
-          await handleViewJob({ id: selectedJob.id });
-          
-          // Refresh jobs list
-          await fetchJobs();
-        } else {
-          message.error({ content: data.message || 'Failed to update status', key: 'statusUpdate', duration: 3 });
-        }
-      } else {
-        // Regular JSON request without document
-        const response = await jobAPI.updateStatus(selectedJob.id, { 
-          status, 
-          notes: notes || `Status updated to ${statusLabel}` 
-        });
-        
-        if (response.success) {
-          message.success({ content: `Job marked as ${statusLabel}`, key: 'statusUpdate', duration: 2 });
-          
-          // Broadcast update to other tabs
-          const channel = new BroadcastChannel('job_updates');
-          channel.postMessage({
-            type: 'JOB_STATUS_UPDATED',
-            jobId: selectedJob.id,
-            newStatus: status,
-            timestamp: new Date().toISOString()
-          });
-          channel.close();
-          
-          // Refresh job details
-          await handleViewJob({ id: selectedJob.id });
-          
-          // Refresh jobs list
-          await fetchJobs();
-        } else {
-          message.error({ content: response.message || 'Failed to update status', key: 'statusUpdate', duration: 3 });
-        }
-      }
-    } catch (error) {
-      console.error('❌ Failed to update status:', error);
-      message.error({ content: error.message || 'Failed to update job status', key: 'statusUpdate', duration: 3 });
-    } finally {
-      setUpdatingStatus(false);
-    }
-  };
-
-  const getNextStatusOptions = (currentStatus, userRole = null) => {
-    const statusFlow = {
-      'pending': ['assigned'],
-      'assigned': ['collected', 'collection_failed'], // Added collection_failed
-      'collected': ['arrived_at_warehouse'], // Only warehouse staff can update to this
-      'in_transit': ['arrived_at_warehouse'], // driver heading back to the warehouse
-      'collection_failed': ['assigned'], // Can retry collection
-      'arrived_at_warehouse': ['batched'], // Only warehouse staff can update to this
-      'batched': ['shipped'],
-      'shipped': ['arrived_at_destination', 'ready_for_delivery'],
-      'arrived_at_destination': ['ready_for_delivery'],
-      'ready_for_delivery': ['delivered', 'failed_delivery'],
-      'out_for_delivery': ['delivered', 'failed_delivery'], // legacy: allow existing jobs to move forward
-      'failed_delivery': ['ready_for_delivery'],
-      'delivered': [],
-      'cancelled': [],
-      'draft': ['pending'], // Draft can be activated
-    };
-    
-    // Stored statuses mix formats ("Pending Collection", "Assigned", "in_transit"), so look up by normalized key.
-    const STATUS_ALIASES = { pending_collection: 'pending', at_warehouse: 'arrived_at_warehouse', returning_to_warehouse: 'in_transit', en_route_to_customer: 'assigned' };
-    const statusKey = normalizeJobStatusKey(currentStatus);
-    const flowKey = STATUS_ALIASES[statusKey] || statusKey;
-    let nextStatuses = statusFlow[flowKey] || [];
-    
-    // Filter statuses based on user role
-    if (userRole) {
-      // Finance can edit jobs and add notes, but does not move them along
-      if (userRole === 'finance') return [];
-
-      // Drivers can only update to "collected" or "collection_failed"
-      // They cannot update to "arrived_at_warehouse" - that's for warehouse staff only
-      if (userRole === 'driver') {
-        // Drivers only see jobs assigned to them, so a job still awaiting pickup is theirs to collect.
-        if (['pending', 'assigned'].includes(flowKey)) {
-          nextStatuses = ['collected', 'collection_failed'];
-        }
-        nextStatuses = nextStatuses.filter(status => 
-          status !== 'arrived_at_warehouse' && 
-          status !== 'batched' && 
-          status !== 'shipped'
-        );
-      }
-      
-      // Warehouse staff can update to "arrived_at_warehouse" and "batched"
-      // But not delivery-related statuses
-      if (userRole === 'warehouse' || userRole === 'warehouse_staff') {
-        // Warehouse staff can handle warehouse-related statuses
-        // They can't update delivery statuses (that's for delivery agents)
-        nextStatuses = nextStatuses.filter(status => 
-          status !== 'out_for_delivery' && 
-          status !== 'delivered' && 
-          status !== 'failed_delivery'
-        );
-      }
-      
-      // Delivery agents can only handle delivery-related statuses
-      if (userRole === 'delivery-agent' || userRole === 'delivery_agent') {
-        nextStatuses = nextStatuses.filter(status => 
-          status !== 'arrived_at_warehouse' && 
-          status !== 'batched' && 
-          status !== 'shipped' &&
-          status !== 'collected' &&
-          status !== 'collection_failed'
-        );
-      }
-    }
-    
-    return nextStatuses;
-  };
-
-  const handleCancelJob = async () => {
-    if (!selectedJob) return;
-    
-    Modal.confirm({
-      title: 'Cancel Job?',
-      content: 'Are you sure you want to cancel this job? This action cannot be undone.',
-      okText: 'Yes, Cancel Job',
-      okType: 'danger',
-      cancelText: 'No, Keep Job',
-      onOk: async () => {
-        try {
-          console.log('🚫 Cancelling job:', selectedJob.trackingId);
-          
-          const response = await jobAPI.updateStatus(selectedJob.id, { 
-            status: 'cancelled',
-            notes: 'Job cancelled by admin'
-          });
-          
-          if (response.success) {
-            message.success('Job cancelled successfully');
-            setIsDetailsDrawerVisible(false);
-            
-            // Refresh jobs list
-            await fetchJobs();
-          } else {
-            message.error(response.message || 'Failed to cancel job');
-          }
-        } catch (error) {
-          console.error('❌ Failed to cancel job:', error);
-          message.error(error.message || 'Failed to cancel job');
-        }
-      },
-    });
-  };
-
-  const refreshSelectedJob = async () => {
-    if (selectedJob) await handleViewJob({ id: selectedJob.id });
-    await fetchJobs(true);
-  };
-
-  const handleStatusUpdate = (status) => {
-    // Delivering has its own dialog because it needs a photo of the item
-    if (status === 'delivered') {
-      setDeliverJob(selectedJob);
-      return;
-    }
-    setChosenStatus(status);
-    setIsStatusUpdateModalVisible(true);
-  };
-
-  const handleStatusUpdateOk = async (updateData) => {
-    const { status, comment, document, reassignTo } = updateData;
-    
-    // If reassignment is requested, assign the job first
-    if (reassignTo !== null && reassignTo !== undefined) {
-      try {
-        const member = teamMembers.find((item) => item.id === reassignTo);
-        if (member?.role === 'delivery-agent' || member?.role === 'delivery_agent') {
-          await jobAPI.assignDeliveryAgent(selectedJob.id, reassignTo);
-        } else {
-          await jobAPI.assignDriver(selectedJob.id, reassignTo);
-        }
-        message.success('Job reassigned successfully');
-      } catch (error) {
-        message.error('Failed to reassign job');
-        console.error('Reassignment error:', error);
-      }
-    }
-    
-    await handleUpdateJobStatus(status, comment, document);
-    setIsStatusUpdateModalVisible(false);
-  };
-
-  const handleStatusUpdateCancel = () => {
-    setIsStatusUpdateModalVisible(false);
-  };
-
-  const handleRecordPayment = async (paymentData) => {
-    try {
-      // Call API to record payment
-      const response = await jobAPI.recordPayment(selectedJob.id, paymentData);
-      
-      if (response.success) {
-        message.success('Payment recorded successfully!');
-        setIsPaymentModalVisible(false);
-        // Refresh job details
-        await handleViewJob({ id: selectedJob.id });
-        // Refresh jobs list
-        await fetchJobs();
-      } else {
-        message.error(response.message || 'Failed to record payment');
-      }
-    } catch (error) {
-      console.error('Failed to record payment:', error);
-      message.error(error.message || 'Failed to record payment');
-    }
-  };
-
-  const handleRevertStatus = async (revertData) => {
-    try {
-      const { previousStatus, comment } = revertData;
-      
-      // Call API to revert status
-      const response = await jobAPI.revertStatus(selectedJob.id, {
-        previousStatus,
-        comment,
-      });
-      
-      if (response.success) {
-        message.success('Job status reverted successfully!');
-        setIsRevertStatusModalVisible(false);
-        // Refresh job details
-        await handleViewJob({ id: selectedJob.id });
-        // Refresh jobs list
-        await fetchJobs();
-      } else {
-        message.error(response.message || 'Failed to revert status');
-      }
-    } catch (error) {
-      console.error('Failed to revert status:', error);
-      message.error(error.message || 'Failed to revert status');
-    }
-  };
-  
   return (
     <div>
       <div style={{ marginBottom: '24px' }}>
@@ -962,30 +428,18 @@ const JobsPage = () => {
         <Text type="secondary">Manage all delivery jobs and their statuses</Text>
       </div>
 
-      {/* Statistics Cards */}
-      <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-        {stats.map((stat, index) => (
-          <Col xs={12} sm={12} lg={6} key={index}>
-            <Card>
-              <Statistic
-                title={stat.title}
-                value={stat.value}
-                valueStyle={{ color: stat.color }}
-              />
-            </Card>
-          </Col>
-        ))}
-      </Row>
-
       {/* Actions Bar */}
       <Card style={{ marginBottom: '24px' }}>
         <Row justify="space-between" align="middle" className="search-filter-container" gutter={[16, 16]}>
           <Col xs={24} lg={16}>
             <Space wrap style={{ width: '100%' }} className="mobile-stack">
               <Input
-                placeholder="Search jobs..."
+                placeholder="Tracking ID, reference, customer or receiver"
                 prefix={<SearchOutlined />}
-                style={{ width: '100%', maxWidth: 250 }}
+                allowClear
+                value={search}
+                onChange={(event) => onSearchChange(event.target.value)}
+                style={{ width: '100%', maxWidth: 320 }}
                 className="mobile-full-width"
               />
               <Select
@@ -994,44 +448,24 @@ const JobsPage = () => {
                 style={{ width: '100%', maxWidth: 220 }}
                 className="mobile-full-width"
                 value={statusFilter}
-                onChange={setStatusFilter}
+                onChange={onStatusChange}
+                virtual={false}
+                listHeight={420}
               >
-                <OptGroup label={STATUS_GROUPS.COLLECTION.label}>
-                  {STATUS_GROUPS.COLLECTION.statuses.map(status => (
-                    <Option key={status} value={status}>
-                      <Tag color={getStatusColor(status)} style={{ marginRight: 8 }}>
-                        {formatJobStatusLabel(status)}
-                      </Tag>
-                    </Option>
-                  ))}
-                </OptGroup>
-                <OptGroup label={STATUS_GROUPS.WAREHOUSE.label}>
-                  {STATUS_GROUPS.WAREHOUSE.statuses.map(status => (
-                    <Option key={status} value={status}>
-                      <Tag color={getStatusColor(status)} style={{ marginRight: 8 }}>
-                        {formatJobStatusLabel(status)}
-                      </Tag>
-                    </Option>
-                  ))}
-                </OptGroup>
-                <OptGroup label={STATUS_GROUPS.SHIPPING.label}>
-                  {STATUS_GROUPS.SHIPPING.statuses.map(status => (
-                    <Option key={status} value={status}>
-                      <Tag color={getStatusColor(status)} style={{ marginRight: 8 }}>
-                        {formatJobStatusLabel(status)}
-                      </Tag>
-                    </Option>
-                  ))}
-                </OptGroup>
-                <OptGroup label={STATUS_GROUPS.DELIVERY.label}>
-                  {STATUS_GROUPS.DELIVERY.statuses.map(status => (
-                    <Option key={status} value={status}>
-                      <Tag color={getStatusColor(status)} style={{ marginRight: 8 }}>
-                        {formatJobStatusLabel(status)}
-                      </Tag>
-                    </Option>
-                  ))}
-                </OptGroup>
+                {/* Grouped by the stages of the journey, as the backend defines them */}
+                {[...stageList(), { key: null, label: 'Other' }].map((stage) => {
+                  const inStage = jobStatusList().filter((status) => status.stage === stage.key);
+                  if (inStage.length === 0) return null;
+                  return (
+                    <OptGroup key={stage.key || 'other'} label={stage.label}>
+                      {inStage.map((status) => (
+                        <Option key={status.key} value={status.key}>
+                          <Tag color={status.color}>{status.label}</Tag>
+                        </Option>
+                      ))}
+                    </OptGroup>
+                  );
+                })}
               </Select>
             </Space>
           </Col>
@@ -1067,21 +501,22 @@ const JobsPage = () => {
                   alt="No jobs"
                   style={{ width: 180, maxWidth: '70%', marginBottom: 12 }}
                 />
-                <div>No jobs yet. Click "New Job" to create your first job.</div>
+                <div>{search || statusFilter ? 'No jobs match.' : 'No jobs yet.'}</div>
               </div>
             )
           }}
           pagination={{
-            total: jobs.length,
-            pageSize: 10,
+            current: paging.page,
+            pageSize: paging.pageSize,
+            total: paging.total,
             showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total, range) =>
-              `${range[0]}-${range[1]} of ${total} jobs`,
+            pageSizeOptions: [20, 50, 100],
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} jobs`,
+            onChange: (page, pageSize) => fetchJobs(false, { page: pageSize === paging.pageSize ? page : 1, pageSize }),
           }}
           mobileCardView={true}
           mobileBreakpoint={768}
-          onCardClick={handleViewJob}
+          onCardClick={(record) => setOpenJobId(record.id)}
         />
       </Card>
 
@@ -1332,39 +767,21 @@ const JobsPage = () => {
                   />
                 </Form.Item>
               </Col>
-              <Col xs={24} sm={12}>
-                <Form.Item
-                  name="assignedTo"
-                  label="Assign To"
-                >
-                  <Select 
-                    placeholder="Select team member (optional)"
-                    showSearch
-                    allowClear
-                    loading={loadingTeamMembers}
-                    notFoundContent={loadingTeamMembers ? "Loading team members..." : "No team members available"}
-                    optionFilterProp="children"
-                    filterOption={(input, option) =>
-                      option.children.props?.children[1]?.toLowerCase().includes(input.toLowerCase())
-                    }
-                  >
-                    <Option value={null}>
-                      <Space>
-                        <UserOutlined />
-                        Unassigned
-                      </Space>
-                    </Option>
-                    {teamMembers.map(member => (
-                      <Option key={member.id} value={member.id}>
-                        <Space>
-                          <UserOutlined />
-                          {member.name} - {member.role.replace('-', ' ').toUpperCase()}
-                        </Space>
-                      </Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-              </Col>
+              {canChooseDriver && (
+                <Col xs={24} sm={12}>
+                  <Form.Item name="assignedTo" label="Driver" extra="Optional. You can also assign one later.">
+                    <Select
+                      placeholder="Choose a driver"
+                      showSearch
+                      allowClear
+                      loading={loadingDrivers}
+                      notFoundContent={loadingDrivers ? 'Loading drivers...' : 'No drivers yet. Invite one from Settings.'}
+                      optionFilterProp="label"
+                      options={drivers.map((driver) => ({ value: driver.id, label: driver.name }))}
+                    />
+                  </Form.Item>
+                </Col>
+              )}
             </Row>
           </Card>
 
@@ -1421,579 +838,7 @@ const JobsPage = () => {
       </Modal>
 
       {/* Job Details Drawer */}
-      <Drawer
-        title={`Job Details - ${selectedJob?.trackingId || ''}`}
-        placement="right"
-        onClose={() => setIsDetailsDrawerVisible(false)}
-        open={isDetailsDrawerVisible}
-        width={720}
-        className="user-details-drawer"
-        extra={
-          selectedJob && canEditJobs(currentUser) && (
-            <Dropdown
-              overlay={
-                <Menu>
-                  {getNextStatusOptions(selectedJob.status, currentUser?.role).length > 0 && (
-                    <>
-                      <Menu.ItemGroup title="Update Status">
-                        {getNextStatusOptions(selectedJob.status, currentUser?.role).map(status => (
-                          <Menu.Item
-                            key={status}
-                            onClick={() => handleStatusUpdate(status)}
-                            disabled={updatingStatus}
-                          >
-                            Mark as {formatJobStatusLabel(status)}
-                          </Menu.Item>
-                        ))}
-                      </Menu.ItemGroup>
-                      <Menu.Divider />
-                    </>
-                  )}
-                  {!['cancelled', 'delivered'].includes(normalizeJobStatusKey(selectedJob.status)) && (
-                    <Menu.Item
-                      key="edit"
-                      icon={<EditOutlined />}
-                      onClick={() => setEditJobId(selectedJob.id)}
-                    >
-                      Edit Job
-                    </Menu.Item>
-                  )}
-                  <Menu.Item
-                    key="addNote"
-                    icon={<FileTextOutlined />}
-                    onClick={() => setNoteJob(selectedJob)}
-                  >
-                    Add Note
-                  </Menu.Item>
-                  {canAssignRider(currentUser) && DISPATCHABLE_STATUSES.includes(normalizeJobStatusKey(selectedJob.status)) && (
-                    <Menu.Item
-                      key="assignRider"
-                      icon={<CarOutlined />}
-                      onClick={() => setRiderJob(selectedJob)}
-                    >
-                      {selectedJob.assignedDeliveryAgent ? 'Change Dispatch Rider' : 'Assign Dispatch Rider'}
-                    </Menu.Item>
-                  )}
-                  {/* Warehouse manager can record payment */}
-                  {(currentUser?.role === 'warehouse_staff' || currentUser?.role === 'warehouse' || ['admin', 'superadmin', 'customer-service'].includes(currentUser?.role)) && (
-                    <>
-                      <Menu.Divider />
-                      <Menu.Item
-                        key="recordPayment"
-                        icon={<DollarOutlined />}
-                        onClick={() => {
-                          setIsPaymentModalVisible(true);
-                        }}
-                      >
-                        Record Payment
-                      </Menu.Item>
-                    </>
-                  )}
-                  {/* Admin can revert status */}
-                  {['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) && normalizeJobStatusKey(selectedJob.status) !== 'pending' && normalizeJobStatusKey(selectedJob.status) !== 'draft' && (
-                    <>
-                      <Menu.Divider />
-                      <Menu.Item
-                        key="revertStatus"
-                        icon={<UndoOutlined />}
-                        onClick={() => {
-                          setIsRevertStatusModalVisible(true);
-                        }}
-                      >
-                        Revert Status
-                      </Menu.Item>
-                    </>
-                  )}
-                  {['admin', 'superadmin', 'customer-service'].includes(currentUser?.role) && normalizeJobStatusKey(selectedJob.status) !== 'cancelled' && normalizeJobStatusKey(selectedJob.status) !== 'delivered' && (
-                    <Menu.Item
-                      key="cancel"
-                      danger
-                      onClick={handleCancelJob}
-                    >
-                      Cancel Job
-                    </Menu.Item>
-                  )}
-                </Menu>
-              }
-              trigger={['click']}
-              placement="bottomRight"
-            >
-              <Button 
-                type="text" 
-                icon={<MoreOutlined style={{ fontSize: 20 }} />}
-                style={{ 
-                  border: '1px solid #d9d9d9',
-                  borderRadius: '4px'
-                }}
-              />
-            </Dropdown>
-          )
-        }
-      >
-        {selectedJob && (
-          <Tabs defaultActiveKey="details">
-            <Tabs.TabPane tab="Details" key="details">
-
-            {/* Customer Information Card */}
-            <Card 
-              size="small" 
-              title={<span className="user-info-title">Customer Information</span>}
-              className="user-info-card"
-              style={{ marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 8 }}
-            >
-              <div className="user-info-list">
-                <div className="user-info-item">
-                  <div className="user-info-label">Name</div>
-                  <div className="user-info-value">
-                <Text strong>{selectedJob.customer?.name}</Text>
-                  </div>
-              </div>
-              {selectedJob.customer?.email && (
-                  <div className="user-info-item">
-                    <div className="user-info-label">Email</div>
-                    <div className="user-info-value">
-                      <MailOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
-                  <Text>{selectedJob.customer.email}</Text>
-                    </div>
-                </div>
-              )}
-              {selectedJob.customer?.phone && (
-                  <div className="user-info-item">
-                    <div className="user-info-label">Phone</div>
-                    <div className="user-info-value">
-                      <PhoneOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
-                  <Text>{selectedJob.customer.phone}</Text>
-                    </div>
-                </div>
-              )}
-                <div className="user-info-item">
-                  <div className="user-info-label">Type</div>
-                  <div className="user-info-value">
-                <Tag color={selectedJob.customer?.customerType === 'Company' ? 'blue' : 'green'}>
-                  {selectedJob.customer?.customerType}
-                </Tag>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {/* Address Information Card */}
-            <Card 
-              size="small" 
-              title={<span className="user-info-title">Address Information</span>}
-              className="user-info-card"
-              style={{ marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 8 }}
-            >
-              <div className="user-info-list">
-                <div className="user-info-item">
-                  <div className="user-info-label">Pickup</div>
-                  <div className="user-info-value">
-                    <EnvironmentOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
-                <Text>{selectedJob.pickupAddress}</Text>
-              </div>
-                </div>
-                <div className="user-info-item">
-                  <div className="user-info-label">Delivery</div>
-                  <div className="user-info-value">
-                    <EnvironmentOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
-                <Text>{selectedJob.deliveryAddress}</Text>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {/* Receiver Information Card */}
-            {(selectedJob.receiverName || selectedJob.receiverContact || selectedJob.receiverAddress) && (
-              <Card 
-                size="small" 
-                title={<span className="user-info-title">Receiver Information</span>}
-                className="user-info-card"
-                style={{ marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 8 }}
-              >
-                <div className="user-info-list">
-                  {[['Name', selectedJob.receiverName], ['Phone', selectedJob.receiverContact], ['Address', selectedJob.receiverAddress]]
-                    .filter(([, value]) => value)
-                    .map(([label, value]) => (
-                      <div className="user-info-item" key={label}>
-                        <div className="user-info-label">{label}</div>
-                        <div className="user-info-value"><Text>{value}</Text></div>
-                      </div>
-                    ))}
-                </div>
-              </Card>
-            )}
-
-            {/* Package Details Card */}
-            <Card 
-              size="small" 
-              title={<span className="user-info-title">Package Details</span>}
-              className="user-info-card"
-              style={{ marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 8 }}
-            >
-              <div className="user-info-list">
-              {selectedJob.description && (
-                  <div className="user-info-item">
-                    <div className="user-info-label">Description</div>
-                    <div className="user-info-value">
-                  <Text>{selectedJob.description}</Text>
-                    </div>
-                </div>
-              )}
-                {canViewRevenue && selectedJob.value && (
-                  <div className="user-info-item">
-                    <div className="user-info-label">Value</div>
-                    <div className="user-info-value">
-                  <Text>£{selectedJob.value}</Text>
-                    </div>
-                </div>
-              )}
-              </div>
-            </Card>
-
-            {/* Job Information Card */}
-            <Card 
-              size="small" 
-              title={<span className="user-info-title">Job Information</span>}
-              className="user-info-card"
-              style={{ marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 8 }}
-            >
-              <div className="user-info-list">
-                {selectedJob.referenceNumber && (
-                  <div className="user-info-item">
-                    <div className="user-info-label">Reference</div>
-                    <div className="user-info-value"><Text>{selectedJob.referenceNumber}</Text></div>
-                  </div>
-                )}
-                <div className="user-info-item">
-                  <div className="user-info-label">Status</div>
-                  <div className="user-info-value">
-                <Tag color={getStatusColor(selectedJob.status)}>
-                  {formatJobStatusLabel(selectedJob.status)}
-                </Tag>
-              </div>
-                </div>
-                <div className="user-info-item">
-                  <div className="user-info-label">Priority</div>
-                  <div className="user-info-value">
-                <Tag color={selectedJob.priority === 'Urgent' ? 'red' : selectedJob.priority === 'Express' ? 'orange' : 'blue'}>
-                  {selectedJob.priority}
-                </Tag>
-              </div>
-                </div>
-                <div className="user-info-item">
-                  <div className="user-info-label">Assigned To</div>
-                  <div className="user-info-value">
-                <Text>{selectedJob.assignedDriver?.name || 'Unassigned'}</Text>
-              </div>
-                </div>
-                {selectedJob.assignedDeliveryAgent && (
-                  <div className="user-info-item">
-                    <div className="user-info-label">Dispatch Rider</div>
-                    <div className="user-info-value"><Text>{selectedJob.assignedDeliveryAgent.name}</Text></div>
-                  </div>
-                )}
-                {selectedJob.estimatedDelivery && (
-                  <div className="user-info-item">
-                    <div className="user-info-label">Expected Delivery</div>
-                    <div className="user-info-value"><Text>{new Date(selectedJob.estimatedDelivery).toLocaleDateString()}</Text></div>
-                  </div>
-                )}
-                <div className="user-info-item">
-                  <div className="user-info-label">Pickup Date</div>
-                  <div className="user-info-value">
-                <Text>{selectedJob.pickupDate ? new Date(selectedJob.pickupDate).toLocaleDateString() : 'Not set'}</Text>
-              </div>
-                </div>
-                <div className="user-info-item">
-                  <div className="user-info-label">Created</div>
-                  <div className="user-info-value">
-                <Text type="secondary">{new Date(selectedJob.createdAt).toLocaleString()}</Text>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {/* Special Instructions */}
-            {selectedJob.specialInstructions && (
-              <Card 
-                size="small" 
-                title="Special Instructions" 
-                style={{ marginBottom: 16 }}
-              >
-                <Text>{selectedJob.specialInstructions}</Text>
-              </Card>
-            )}
-
-            <JobNotes notes={selectedJob.jobNotes} onAdd={() => setNoteJob(selectedJob)} />
-
-            <JobPhotos documents={selectedJob.documents} />
-
-            {/* Documents Card */}
-            <Card size="small" title="Attached Documents">
-              {selectedJob.documents && selectedJob.documents.length > 0 ? (
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  {selectedJob.documents.map((doc, index) => (
-                    <div 
-                      key={index} 
-                      style={{ 
-                        padding: 12, 
-                        backgroundColor: '#f5f5f5', 
-                        borderRadius: 4,
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}
-                    >
-                      <div>
-                        <Text strong>{doc.fileName}</Text>
-                        <br />
-                        <Text type="secondary" style={{ fontSize: '12px' }}>
-                          {new Date(doc.uploadedAt).toLocaleString()}
-                          {doc.uploader && ` • ${doc.uploader.name}`}
-                          {doc.fileSize && ` • ${(doc.fileSize / 1024).toFixed(2)} KB`}
-                        </Text>
-                      </div>
-                      <Button
-                        type="primary"
-                        size="small"
-                        icon={<EyeOutlined />}
-                        onClick={() => handleViewDocument(doc)}
-                      >
-                        View
-                      </Button>
-                    </div>
-                  ))}
-                </Space>
-              ) : (
-                <Text type="secondary">No documents attached</Text>
-              )}
-            </Card>
-            </Tabs.TabPane>
-
-            {/* Activities Tab */}
-            <Tabs.TabPane tab="Activities" key="activities">
-              {selectedJob.timeline && selectedJob.timeline.length > 0 ? (
-                <Timeline>
-                  {selectedJob.timeline.map((entry, index) => (
-                    <Timeline.Item
-                      key={index}
-                      color={
-                        ['delivered', 'arrived_at_warehouse'].includes(entry.status) ? 'green' :
-                        ['in_transit', 'collected', 'out_for_delivery'].includes(entry.status) ? 'blue' :
-                        ['assigned', 'batched'].includes(entry.status) ? 'orange' :
-                        entry.status === 'cancelled' ? 'red' :
-                        'gray'
-                      }
-                    >
-                      <div>
-                        <Tag color={getStatusColor(entry.status)}>
-                          {formatJobStatusLabel(entry.status)}
-                        </Tag>
-                        <br />
-                        <Text type="secondary" style={{ fontSize: '12px' }}>
-                          {new Date(entry.timestamp).toLocaleString()}
-                        </Text>
-                        {entry.notes && (
-                          <>
-                            <br />
-                            <Text>{entry.notes}</Text>
-                          </>
-                        )}
-                        {entry.updater && (
-                          <>
-                            <br />
-                            <Text type="secondary" style={{ fontSize: '12px' }}>
-                              By: {entry.updater.name}
-                            </Text>
-                          </>
-                        )}
-                      </div>
-                    </Timeline.Item>
-                  ))}
-                </Timeline>
-              ) : (
-                <Text type="secondary">No activity recorded yet</Text>
-              )}
-            </Tabs.TabPane>
-
-            <Tabs.TabPane tab="Edit History" key="edit-history">
-              <JobEditHistory jobId={selectedJob.id} refreshKey={selectedJob.updatedAt} />
-            </Tabs.TabPane>
-          </Tabs>
-        )}
-      </Drawer>
-
-      {/* Document Viewer Modal */}
-      <Modal
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FileTextOutlined />
-            <span>{currentDocument?.fileName || 'Document Viewer'}</span>
-          </div>
-        }
-        open={documentModalVisible}
-        onCancel={handleCloseDocumentModal}
-        width="90%"
-        style={{ top: 20 }}
-        footer={[
-          <Button key="close" onClick={handleCloseDocumentModal}>
-            Close
-          </Button>,
-          documentUrl && (
-            <Button 
-              key="download" 
-              type="primary" 
-              onClick={() => {
-                const link = document.createElement('a');
-                link.href = documentUrl;
-                link.download = currentDocument?.fileName || 'document';
-                link.click();
-              }}
-            >
-              Download
-            </Button>
-          )
-        ]}
-        bodyStyle={{ padding: 0, height: '80vh' }}
-      >
-        {documentLoading ? (
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            height: '100%' 
-          }}>
-            <Spin size="large" />
-            <Text style={{ marginLeft: 16 }}>Loading document...</Text>
-          </div>
-        ) : documentUrl && currentDocument ? (
-          <div style={{ height: '100%', overflow: 'hidden' }}>
-            {(() => {
-              const fileExtension = currentDocument.fileName?.split('.').pop()?.toLowerCase();
-              console.log('📄 Document viewer - File extension:', fileExtension);
-              console.log('📄 Document viewer - Document URL:', documentUrl);
-              console.log('📄 Document viewer - Current document:', currentDocument);
-              
-              // Handle PDF files
-              if (fileExtension === 'pdf') {
-                return (
-                  <iframe
-                    src={documentUrl}
-                    style={{ 
-                      width: '100%', 
-                      height: '100%', 
-                      border: 'none' 
-                    }}
-                    title={currentDocument.fileName}
-                    onLoad={() => console.log('✅ PDF iframe loaded')}
-                    onError={(e) => console.error('❌ PDF iframe error:', e)}
-                  />
-                );
-              }
-              
-              // Handle image files
-              if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(fileExtension)) {
-                return (
-                  <div style={{ 
-                    height: '100%', 
-                    display: 'flex', 
-                    justifyContent: 'center', 
-                    alignItems: 'center',
-                    backgroundColor: '#f5f5f5'
-                  }}>
-                    <Image
-                      src={documentUrl}
-                      alt={currentDocument.fileName}
-                      style={{ maxHeight: '100%', maxWidth: '100%', cursor: 'pointer' }}
-                      preview={{ mask: 'View larger' }}
-                    />
-                  </div>
-                );
-              }
-              
-              // Handle text files
-              if (['txt', 'csv', 'json', 'xml', 'log'].includes(fileExtension)) {
-                return (
-                  <TextFileViewer 
-                    documentUrl={documentUrl} 
-                    fileName={currentDocument.fileName}
-                    fileExtension={fileExtension}
-                  />
-                );
-              }
-              
-              // Default fallback for other file types
-              return (
-                <div style={{ 
-                  height: '100%', 
-                  display: 'flex', 
-                  flexDirection: 'column',
-                  justifyContent: 'center', 
-                  alignItems: 'center',
-                  padding: '20px',
-                  textAlign: 'center'
-                }}>
-                  <FileTextOutlined style={{ fontSize: '64px', color: '#1890ff', marginBottom: '16px' }} />
-                  <Title level={4}>{currentDocument.fileName}</Title>
-                  <Text type="secondary" style={{ marginBottom: '20px' }}>
-                    This file type cannot be previewed in the browser.
-                  </Text>
-                  <Button 
-                    type="primary" 
-                    size="large"
-                    onClick={() => {
-                      const link = document.createElement('a');
-                      link.href = documentUrl;
-                      link.download = currentDocument.fileName;
-                      link.click();
-                    }}
-                  >
-                    Download File
-                  </Button>
-                </div>
-              );
-            })()}
-          </div>
-        ) : (
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            height: '100%' 
-          }}>
-            <Text type="secondary">Failed to load document</Text>
-          </div>
-        )}
-      </Modal>
-
-      <StatusRevertModal visible={isRevertStatusModalVisible} onCancel={() => setIsRevertStatusModalVisible(false)} onOk={handleRevertStatus} currentStatus={selectedJob?.status} jobHistory={selectedJob?.timeline || []} loading={updatingStatus} />
-      {/* Status Update Modal */}
-           <StatusUpdateModal
-        visible={isStatusUpdateModalVisible}
-        onCancel={handleStatusUpdateCancel}
-        onOk={handleStatusUpdateOk}
-        currentStatus={selectedJob?.status}
-        initialStatus={chosenStatus}
-        nextStatuses={selectedJob ? getNextStatusOptions(selectedJob.status, currentUser?.role).filter(status => status !== 'delivered') : []}
-        loading={updatingStatus}
-        teamMembers={teamMembers}
-        allowReassignment={true}
-      />
-
-      <JobEditModal jobId={editJobId} onClose={() => setEditJobId(null)} onSaved={refreshSelectedJob} />
-      <JobNoteModal job={noteJob} onClose={() => setNoteJob(null)} onAdded={refreshSelectedJob} />
-      <DeliverJobModal job={deliverJob} onClose={() => setDeliverJob(null)} onDelivered={refreshSelectedJob} />
-      <AssignRiderModal job={riderJob} onClose={() => setRiderJob(null)} onAssigned={refreshSelectedJob} />
-
-      {/* Payment Recording Modal */}
-      <PaymentRecordingModal
-        visible={isPaymentModalVisible}
-        onCancel={() => setIsPaymentModalVisible(false)}
-        onOk={handleRecordPayment}
-        job={selectedJob}
-        invoiceAmount={Math.max(0, Number(selectedJob?.value || selectedJob?.estimatedPrice || 0) - Number(selectedJob?.amountPaid || 0))}
-        loading={updatingStatus}
-      />
+      <JobDrawer jobId={openJobId} onClose={() => setOpenJobId(null)} onChanged={() => fetchJobs(true)} />
     </div>
   );
 };

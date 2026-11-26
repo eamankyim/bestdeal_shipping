@@ -1153,10 +1153,11 @@ exports.deleteUser = asyncHandler(async (req, res) => {
 
 exports.getOrganisation = asyncHandler(async (req, res) => {
   const setting = await prisma.setting.findUnique({ where: { key: 'organisation' } });
-  return sendSuccess(res, 200, 'Organisation settings', { organisation: setting?.value ? JSON.parse(setting.value) : { companyName: 'Best Deal' } });
+  return sendSuccess(res, 200, 'Organisation settings', { organisation: setting?.value ? JSON.parse(setting.value) : { companyName: 'BestDeal Shipping' } });
 });
 exports.updateOrganisation = asyncHandler(async (req, res) => {
-  const allowed = ['companyName', 'businessReg', 'vatNumber', 'address', 'industry'];
+  // supportEmail / supportPhone are shown to customers on the public tracking page
+  const allowed = ['companyName', 'businessReg', 'vatNumber', 'address', 'industry', 'supportEmail', 'supportPhone'];
   const values = Object.fromEntries(allowed.filter(key => req.body[key] !== undefined).map(key => [key, String(req.body[key]).trim()]));
   if (!values.companyName) return sendError(res, 400, 'Company name is required');
   const existing = await prisma.setting.findUnique({ where: { key: 'organisation' } });

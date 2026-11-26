@@ -1,7 +1,8 @@
 // Works out what a job edit changes. The rule: an edit can change a detail but never delete one,
 // so missing, null and blank values always keep what is already stored.
 
-const { canEditJobValue, normalizeStatus } = require('./jobAccess');
+const { canEditJobValue } = require('./jobAccess');
+const { toJobStatus } = require('./statuses');
 
 const isBlank = (value) =>
   value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
@@ -92,8 +93,8 @@ const buildJobUpdate = (existing, body, user) => {
 
   // Status moves go through PATCH /jobs/:id/status, which checks photos and permissions.
   // The one exception is finishing a draft from the edit form.
-  if (normalizeStatus(existing.status) === 'draft' && ['draft', 'pending_collection', 'pending'].includes(normalizeStatus(body.status))) {
-    proposed.status = normalizeStatus(body.status) === 'draft' ? 'Draft' : 'Pending Collection';
+  if (toJobStatus(existing.status) === 'draft' && ['draft', 'pending_collection'].includes(toJobStatus(body.status))) {
+    proposed.status = toJobStatus(body.status);
   }
 
   const data = {};

@@ -2,11 +2,10 @@ const prisma = require('../config/database');
 const { sendSuccess, sendError } = require('../utils/responseUtils');
 const { notifyBatchCreated } = require('../services/notificationService');
 const { notifyCustomersOfStatus } = require('../services/customerMessageService');
-const { isGhanaWarehouse, normalizeStatus } = require('../utils/jobAccess');
 const { isBlank } = require('../utils/jobEdit');
-
-const WAREHOUSE_STATUSES = ['arrived_at_warehouse', 'At Warehouse', 'at_warehouse', 'at_uk_warehouse', 'at_ghana_warehouse'];
-const EDITABLE_BATCH_STATUSES = ['In Preparation', 'Ready to Ship'];
+const {
+  BATCHABLE, toBatchStatus, batchStatusInfo, nextBatchStatuses, canEditBatch, canCreateBatch,
+} = require('../utils/statuses');
 
 const destinationFromRoute = (route) => route.split('→')[1]?.trim() || route;
 /** Tell the customers of these jobs that they are in a batch. */
@@ -62,7 +61,9 @@ exports.createBatch = async (req, res) => {
       jobs // Array of job IDs
     } = req.body;
 
-    // Validation
+    if (!canCreateBatch(req.user)) {
+      return sendError(res, 403, 'Only the office and the UK warehouse make batches');
+    }
     if (!name || !route || !jobs || jobs.length === 0) {
       return sendError(res, 400, 'Batch name, route, and at least one job are required');
     }
@@ -77,7 +78,7 @@ exports.createBatch = async (req, res) => {
       where: {
         id: { in: jobs },
         batchId: null,
-        status: { in: WAREHOUSE_STATUSES }
+        status: BATCHABLE
       },
       select: {
         id: true,
@@ -88,7 +89,7 @@ exports.createBatch = async (req, res) => {
     });
 
     if (jobDetails.length === 0) {
-      return sendError(res, 400, 'No valid jobs found. Jobs must have "arrived_at_warehouse" status');
+      return sendError(res, 400, 'No jobs can be batched. Only jobs at the UK warehouse can go in a batch.');
     }
 
     if (jobDetails.length !== jobs.length) {
@@ -113,7 +114,7 @@ exports.createBatch = async (req, res) => {
           totalJobs: jobDetails.length,
           totalWeight,
           totalValue,
-          status: 'In Preparation',
+          status: 'in_preparation',
           estimatedShipDate: departureDate ? new Date(departureDate) : null,
           estimatedArrival: eta ? new Date(eta) : null,
           notes,
@@ -121,16 +122,21 @@ exports.createBatch = async (req, res) => {
         }
       });
 
-      // Update all jobs to "batched" status and assign batchId
-      await tx.job.updateMany({
+      // Update all jobs to "batched" status and assign batchId (only if still waiting at the warehouse)
+      const { count } = await tx.job.updateMany({
         where: {
-          id: { in: jobs }
+          id: { in: jobs },
+          batchId: null,
+          status: BATCHABLE
         },
         data: {
           status: 'batched',
           batchId: batch.id
         }
       });
+      if (count !== jobs.length) {
+        throw Object.assign(new Error('Some jobs were changed by someone else just now. Refresh and try again.'), { statusCode: 409 });
+      }
 
       // Create timeline entries for all jobs
       const timelineEntries = jobs.map(jobId => ({
@@ -170,6 +176,7 @@ exports.createBatch = async (req, res) => {
     });
 
   } catch (error) {
+    if (error.statusCode) return sendError(res, error.statusCode, error.message);
     console.error('Error creating batch:', error);
     return sendError(res, 500, 'Failed to create batch', error.message);
   }
@@ -185,7 +192,8 @@ exports.getAllBatches = async (req, res) => {
 
     const where = {};
     if (status) {
-      where.status = status;
+      where.status = toBatchStatus(status);
+      if (!where.status) return sendError(res, 400, 'Unknown batch status');
     }
 
     const batches = await prisma.batch.findMany({
@@ -301,8 +309,8 @@ exports.updateBatch = async (req, res) => {
     const { id } = req.params;
     const { name, route, vessel, containerNumber, departureDate, eta, notes, jobs } = req.body;
 
-    if (isGhanaWarehouse(req.user)) {
-      return sendError(res, 403, 'Ghana Warehouse users can view batches but cannot edit them');
+    if (!canCreateBatch(req.user)) {
+      return sendError(res, 403, 'Only the office and the UK warehouse edit batches');
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -310,8 +318,8 @@ exports.updateBatch = async (req, res) => {
       await tx.$queryRaw`SELECT id FROM batches WHERE id = ${id} FOR UPDATE`;
       const batch = await tx.batch.findUnique({ where: { id }, include: { jobs: { select: { id: true } } } });
       if (!batch) return { error: 'Batch not found', code: 404 };
-      if (!EDITABLE_BATCH_STATUSES.includes(batch.status)) {
-        return { error: `Only batches in preparation can be edited. This batch is ${batch.status}.`, code: 400 };
+      if (!canEditBatch(req.user, batch)) {
+        return { error: `Only batches that have not shipped can be edited. This batch is ${batchStatusInfo(batch.status)?.label || batch.status}.`, code: 400 };
       }
 
       let added = [];
@@ -323,7 +331,7 @@ exports.updateBatch = async (req, res) => {
 
         if (added.length > 0) {
           const { count } = await tx.job.updateMany({
-            where: { id: { in: added }, batchId: null, status: { in: WAREHOUSE_STATUSES } },
+            where: { id: { in: added }, batchId: null, status: BATCHABLE },
             data: { status: 'batched', batchId: id },
           });
           // Throw so that the whole edit is rolled back
@@ -338,23 +346,16 @@ exports.updateBatch = async (req, res) => {
           });
         }
 
-        for (const jobId of removed) {
-          const lastWarehouseEntry = await tx.jobTimeline.findFirst({
-            where: { jobId, status: { in: WAREHOUSE_STATUSES } },
-            orderBy: { timestamp: 'desc' },
-          });
-          const status = normalizeStatus(lastWarehouseEntry?.status) || 'arrived_at_warehouse';
-          await tx.job.update({
-            where: { id: jobId },
-            data: { status: status === 'at_warehouse' ? 'arrived_at_warehouse' : status, batchId: null },
-          });
-          await tx.jobTimeline.create({
-            data: {
+        // Jobs taken out go back to waiting at the UK warehouse
+        if (removed.length > 0) {
+          await tx.job.updateMany({ where: { id: { in: removed }, batchId: id }, data: { status: BATCHABLE, batchId: null } });
+          await tx.jobTimeline.createMany({
+            data: removed.map((jobId) => ({
               jobId,
-              status: status === 'at_warehouse' ? 'arrived_at_warehouse' : status,
+              status: BATCHABLE,
               notes: `Job removed from batch ${batch.batchId}`,
               updatedBy: req.user.id,
-            },
+            })),
           });
         }
       }
@@ -420,130 +421,72 @@ exports.updateBatchStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, notes } = req.body;
+    const target = toBatchStatus(status);
 
-    const existingBatch = await prisma.batch.findUnique({ where: { id } });
-    if (!existingBatch) {
-      return sendError(res, 404, 'Batch not found');
-    }
-
-    const batch = await prisma.batch.update({
-      where: { id },
-      data: {
-        status,
-        ...(status === 'Shipped' && { shippedAt: new Date() }),
-        // Keep the notes written while the batch was being prepared
-        ...(notes && { notes: [existingBatch.notes, notes].filter(Boolean).join('\n') })
-      },
-      include: {
-        jobs: {
-          select: {
-            id: true
-          }
-        }
+    const result = await prisma.$transaction(async (tx) => {
+      // Lock the batch so it cannot be edited or moved by someone else at the same time
+      await tx.$queryRaw`SELECT id FROM batches WHERE id = ${id} FOR UPDATE`;
+      const existing = await tx.batch.findUnique({ where: { id } });
+      if (!existing) return { error: 'Batch not found', code: 404 };
+      if (!nextBatchStatuses(req.user, existing).includes(target)) {
+        const from = batchStatusInfo(existing.status)?.label || existing.status;
+        return { error: `A batch that is ${from} cannot be set to ${batchStatusInfo(target).label} by you`, code: 400 };
       }
-    });
 
-    // Update all jobs in the batch based on batch status
-    let jobStatus = null;
-    let jobStatusNotes = '';
-
-    switch (status) {
-      case 'Shipped':
-        jobStatus = 'shipped';
-        jobStatusNotes = `Batch ${batch.batchId} shipped`;
-        break;
-      case 'In Transit':
-        jobStatus = 'in_transit';
-        jobStatusNotes = `Batch ${batch.batchId} in transit`;
-        break;
-      case 'Arrived':
-        jobStatus = 'arrived_at_destination';
-        jobStatusNotes = `Batch ${batch.batchId} arrived at destination`;
-        break;
-      case 'Distributed':
-        jobStatus = 'out_for_delivery';
-        jobStatusNotes = `Batch ${batch.batchId} distributed for delivery`;
-        break;
-    }
-
-    // Update jobs if there's a corresponding job status
-    if (jobStatus) {
-      await prisma.job.updateMany({
-        where: {
-          batchId: id
-        },
+      const batch = await tx.batch.update({
+        where: { id },
         data: {
-          status: jobStatus
-        }
+          status: target,
+          ...(target === 'shipped' && { shippedAt: new Date() }),
+          // Keep the notes written while the batch was being prepared
+          ...(notes && { notes: [existing.notes, notes].filter(Boolean).join('\n') }),
+        },
       });
 
-      // Create timeline entries
-      const timelineEntries = batch.jobs.map(job => ({
-        jobId: job.id,
-        status: jobStatus,
-        notes: jobStatusNotes,
-        updatedBy: req.user.id,
-        timestamp: new Date()
-      }));
+      // Shipping and arriving move the batch's jobs along with it
+      const jobStatus = batchStatusInfo(target).jobStatus;
+      const from = { shipped: 'batched', arrived_in_ghana: 'shipped' }[jobStatus];
+      let jobIds = [];
+      if (jobStatus) {
+        jobIds = (await tx.job.findMany({ where: { batchId: id, status: from }, select: { id: true } })).map((job) => job.id);
+        await tx.job.updateMany({ where: { id: { in: jobIds } }, data: { status: jobStatus } });
+        await tx.jobTimeline.createMany({
+          data: jobIds.map((jobId) => ({
+            jobId,
+            status: jobStatus,
+            notes: `Batch ${batch.batchId} ${target === 'shipped' ? 'shipped' : 'arrived in Ghana'}`,
+            updatedBy: req.user.id,
+          })),
+        });
+      }
+      return { batch, jobIds, jobStatus };
+    }, { timeout: 20000 });
 
-      await prisma.jobTimeline.createMany({
-        data: timelineEntries
-      });
+    if (result.error) return sendError(res, result.code, result.error);
 
-      console.log(`✅ Updated ${batch.jobs.length} jobs to status: ${jobStatus}`);
-
-      // Send notifications for each job status change
+    if (result.jobIds.length > 0) {
       const { notifyJobStatusChange } = require('../services/notificationService');
       try {
-        // Fetch updated jobs with full details for notifications
-        const updatedJobs = await prisma.job.findMany({
-          where: {
-            batchId: id
-          },
-          include: {
-            customer: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                phone: true
-              }
-            }
-          }
+        const movedJobs = await prisma.job.findMany({
+          where: { id: { in: result.jobIds } },
+          include: { customer: { select: { id: true, name: true, email: true, phone: true } } },
         });
-
-        await notifyCustomersOfStatus(updatedJobs, jobStatus);
-
-        // Send notification for each job
-        for (const job of updatedJobs) {
+        await notifyCustomersOfStatus(movedJobs, result.jobStatus);
+        for (const job of movedJobs) {
           try {
-            await notifyJobStatusChange(job, jobStatus, req.user.id);
+            await notifyJobStatusChange(job, result.jobStatus, req.user.id);
           } catch (error) {
             console.error(`⚠️ Failed to send notification for job ${job.trackingId}:`, error);
           }
         }
-        console.log(`📬 Sent notifications for ${updatedJobs.length} job status changes from batch ${batch.batchId}`);
       } catch (error) {
         console.error('⚠️ Failed to send batch status change notifications:', error);
       }
     }
 
-    // Update shippedAt timestamp for Shipped status
-    if (status === 'Shipped') {
-      await prisma.batch.update({
-        where: { id },
-        data: { shippedAt: new Date() }
-      });
-    }
-
-    return sendSuccess(res, 200, 'Batch status updated successfully', { batch });
-
+    return sendSuccess(res, 200, 'Batch status updated successfully', { batch: result.batch, jobsMoved: result.jobIds.length });
   } catch (error) {
     console.error('Error updating batch status:', error);
     return sendError(res, 500, 'Failed to update batch status', error.message);
   }
 };
-
-
-
-

@@ -29,7 +29,7 @@ const SupportPage = () => {
               Support
             </Title>
             <Text style={{ color: 'rgba(255,255,255,0.85)' }}>
-              BestDeal Shipping / ShipEASE help
+              BestDeal Shipping help
             </Text>
           </div>
 

@@ -1,49 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Row, 
-  Col, 
-  Card, 
-  Table, 
-  Button, 
-  Modal, 
-  Form, 
-  Input, 
-  InputNumber,
-  Select, 
-  DatePicker, 
-  Typography, 
-  Tag, 
+import {
+  Row,
+  Col,
+  Card,
+  Table,
+  Button,
+  Modal,
+  Form,
+  Input,
+  Select,
+  DatePicker,
+  Typography,
+  Tag,
   Space,
   message,
   Progress,
   Badge,
   Drawer,
-  Divider,
   Tabs,
-  Transfer,
   Statistic,
-  Popconfirm
 } from 'antd';
 import dayjs from 'dayjs';
-import { 
+import {
   PlusOutlined,
   CarOutlined,
   RocketOutlined,
-  ContainerOutlined,
-  CheckCircleOutlined,
   ClockCircleOutlined,
   EyeOutlined,
   EditOutlined,
-  DeleteOutlined,
-  ExportOutlined,
-  ImportOutlined,
-  SendOutlined,
   InboxOutlined,
   DollarOutlined,
   ApartmentOutlined,
-  CalendarOutlined
+  CalendarOutlined,
 } from '@ant-design/icons';
-import { JOB_STATUSES, BATCH_STATUSES, getBatchStatusColor, getStatusColor, formatJobStatusLabel, normalizeJobStatusKey } from '../constants/jobStatuses';
+import {
+  batchStatusList, canCreateBatch, canEditBatch, formatBatchStatusLabel, formatJobStatusLabel, getBatchStatusColor, getStatusColor, nextBatchStatuses,
+} from '../constants/jobStatuses';
 import { jobAPI, batchAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import ResponsiveTable from '../components/common/ResponsiveTable';
@@ -66,14 +58,14 @@ const toSelectableJob = (job) => ({
   priority: job.priority || 'Standard',
 });
 
-const EDITABLE_BATCH_STATUSES = [BATCH_STATUSES.IN_PREPARATION, BATCH_STATUSES.READY_TO_SHIP];
 
 const formatDate = (date) => (date ? new Date(date).toLocaleDateString() : 'Not set');
 
 const BatchManagementPage = () => {
   const { currentUser } = useAuth();
   const canViewRevenue = hasPermission(currentUser, 'financial:view');
-  const isGhanaWarehouse = currentUser?.role === 'warehouse' && currentUser?.warehouseLocation === 'Ghana Warehouse';
+  // Making and editing batches is for the office and the UK warehouse; the Ghana warehouse marks them arrived
+  const canManage = canCreateBatch();
   const [batchModalVisible, setBatchModalVisible] = useState(false);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(null);
@@ -136,13 +128,11 @@ const BatchManagementPage = () => {
     try {
       console.log('📥 Fetching jobs ready for batching...');
       
-      const response = await jobAPI.getAll({ limit: 100 });
-      
+      const response = await jobAPI.getAll({ status: 'at_uk_warehouse', limit: 100 });
+
       if (response.success && response.data) {
         const rawJobs = Array.isArray(response.data) ? response.data : response.data.jobs || [];
-        
-        // Filter jobs with status "arrived_at_warehouse" (ready for batching)
-        const readyJobs = rawJobs.filter(job => ['arrived_at_warehouse', 'at_warehouse'].includes(normalizeJobStatusKey(job.status)));
+        const readyJobs = rawJobs.filter((job) => !job.batchId);
         
         // Transform to table format
         const transformedJobs = readyJobs.map(toSelectableJob);
@@ -187,11 +177,8 @@ const BatchManagementPage = () => {
           carrier: batch.carrier,
           estimatedShipDate: batch.estimatedShipDate,
           estimatedArrival: batch.estimatedArrival,
-          progress: batch.status === 'Distributed' ? 100 : 
-                   batch.status === 'Arrived' ? 80 :
-                   batch.status === 'In Transit' ? 60 :
-                   batch.status === 'Shipped' ? 40 :
-                   batch.status === 'Ready to Ship' ? 20 : 10,
+          // How far along the batch is, by its place in the backend's list of batch statuses
+          progress: Math.round(((batchStatusList().findIndex((item) => item.key === batch.status) + 1) / Math.max(batchStatusList().length, 1)) * 100),
           jobs: batch.jobs || [],
           trackingNumber: batch.trackingNumber,
           notes: batch.notes,
@@ -240,7 +227,7 @@ const BatchManagementPage = () => {
       mobile: true,
       render: (status) => (
         <Tag color={getBatchStatusColor(status)}>
-          {status}
+          {formatBatchStatusLabel(status)}
         </Tag>
       ),
     },
@@ -381,11 +368,7 @@ const BatchManagementPage = () => {
   ];
 
   const handleCreateBatch = () => {
-    // Prevent Ghana Warehouse users from creating batches
-    if (isGhanaWarehouse) {
-      message.warning('Ghana Warehouse users cannot create batches. This page is view-only.');
-      return;
-    }
+    if (!canManage) return;
     setSelectedBatch(null);
     setSelectedParcels([]);
     batchForm.resetFields();
@@ -398,11 +381,7 @@ const BatchManagementPage = () => {
   };
 
   const handleEditBatch = (batch) => {
-    // Prevent Ghana Warehouse users from editing batches
-    if (isGhanaWarehouse) {
-      message.warning('Ghana Warehouse users cannot edit batches. This page is view-only.');
-      return;
-    }
+    if (!canEditBatch(batch)) return;
     setSelectedBatch(batch);
     setSelectedParcels(batch.jobs?.map(j => j.id) || []);
 
@@ -421,8 +400,9 @@ const BatchManagementPage = () => {
     setBatchModalVisible(true);
   };
 
-  const handleUpdateBatchStatus = async (newStatus, statusLabel) => {
+  const handleUpdateBatchStatus = async (newStatus) => {
     if (!selectedBatch) return;
+    const statusLabel = formatBatchStatusLabel(newStatus);
     
     setShippingBatch(true);
     
@@ -474,10 +454,6 @@ const BatchManagementPage = () => {
     }
   };
 
-  const handleShipBatch = () => handleUpdateBatchStatus('Shipped', 'Shipped');
-  const handleMarkInTransit = () => handleUpdateBatchStatus('In Transit', 'In Transit');
-  const handleMarkArrived = () => handleUpdateBatchStatus('Arrived', 'Arrived');
-  const handleMarkDistributed = () => handleUpdateBatchStatus('Distributed', 'Distributed');
 
   const handleBatchSubmit = async (values) => {
     setCreatingBatch(true);
@@ -564,8 +540,7 @@ const BatchManagementPage = () => {
       label: 'Batch Management',
       children: (
         <div>
-          {/* Hide batch creation for Ghana Warehouse users */}
-          {!isGhanaWarehouse && (
+          {canManage && (
             <div style={{ marginBottom: '16px', textAlign: 'right' }} className="create-batch-button-container">
               <Button 
                 type="primary" 
@@ -578,10 +553,10 @@ const BatchManagementPage = () => {
               </Button>
             </div>
           )}
-          {isGhanaWarehouse && (
+          {!canManage && (
             <div style={{ marginBottom: '16px', padding: '12px', background: '#f0f0f0', borderRadius: '4px' }}>
               <Text type="secondary" style={{ fontSize: '14px' }}>
-                <EyeOutlined /> View-only mode: Ghana Warehouse users can view batches but cannot create or edit them.
+                <EyeOutlined /> Batches are made at the UK warehouse. Open a batch that has shipped to mark it {formatBatchStatusLabel('arrived')}.
               </Text>
             </div>
           )}
@@ -620,8 +595,8 @@ const BatchManagementPage = () => {
         />
       </Card>
 
-      {/* Create/Edit Batch Modal - Hidden for Ghana Warehouse users */}
-      {!isGhanaWarehouse && (
+      {/* Create/Edit Batch Modal - only for those who make batches */}
+      {canManage && (
         <Modal
           title={selectedBatch ? `Edit Batch - ${selectedBatch.batchId}` : 'Create New Batch'}
           open={batchModalVisible}
@@ -841,69 +816,28 @@ const BatchManagementPage = () => {
         width={800}
         className="user-details-drawer"
         extra={
-          selectedBatch && !isGhanaWarehouse && (
-            <Space>
-              {/* In Preparation → Show Ship and Edit buttons */}
-              {EDITABLE_BATCH_STATUSES.includes(selectedBatch.status) && (
-                <>
-                  <Button 
-                    key="ship"
-                    type="primary"
-                    loading={shippingBatch}
-                    onClick={handleShipBatch}
-                    style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
-                  >
-                    {shippingBatch ? 'Updating...' : 'Mark as Shipped'}
-                  </Button>
-                  <Button 
-                    key="edit"
-                    icon={<EditOutlined />}
-                    onClick={() => {
-                      setIsDetailsDrawerVisible(false);
-                      handleEditBatch(selectedBatch);
-                    }}
-                  >
-                    Edit Batch
-                  </Button>
-                </>
-              )}
-
-              {/* Shipped → Show In Transit button */}
-              {selectedBatch.status === 'Shipped' && (
-                <Button 
-                  key="in-transit"
-                  type="primary"
+          selectedBatch && (
+            <Space wrap>
+              {nextBatchStatuses(selectedBatch).map((status) => (
+                <Button
+                  key={status}
+                  type={status === 'in_preparation' ? 'default' : 'primary'}
                   loading={shippingBatch}
-                  onClick={handleMarkInTransit}
-                  style={{ backgroundColor: '#1890ff', borderColor: '#1890ff' }}
+                  onClick={() => handleUpdateBatchStatus(status)}
                 >
-                  {shippingBatch ? 'Updating...' : 'Mark as In Transit'}
+                  {status === 'in_preparation' ? 'Back to In Preparation' : `Mark as ${formatBatchStatusLabel(status)}`}
                 </Button>
-              )}
-
-              {/* In Transit → Show Arrived button */}
-              {selectedBatch.status === 'In Transit' && (
-                <Button 
-                  key="arrived"
-                  type="primary"
-                  loading={shippingBatch}
-                  onClick={handleMarkArrived}
-                  style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+              ))}
+              {canEditBatch(selectedBatch) && (
+                <Button
+                  key="edit"
+                  icon={<EditOutlined />}
+                  onClick={() => {
+                    setIsDetailsDrawerVisible(false);
+                    handleEditBatch(selectedBatch);
+                  }}
                 >
-                  {shippingBatch ? 'Updating...' : 'Mark as Arrived'}
-                </Button>
-              )}
-
-              {/* Arrived → Show Distributed button */}
-              {selectedBatch.status === 'Arrived' && (
-                <Button 
-                  key="distributed"
-                  type="primary"
-                  loading={shippingBatch}
-                  onClick={handleMarkDistributed}
-                  style={{ backgroundColor: '#722ed1', borderColor: '#722ed1' }}
-                >
-                  {shippingBatch ? 'Updating...' : 'Mark as Distributed'}
+                  Edit Batch
                 </Button>
               )}
             </Space>
@@ -934,15 +868,8 @@ const BatchManagementPage = () => {
               )}
               <div style={{ display: 'flex', padding: '8px 0' }}>
                 <Text strong style={{ width: '140px', color: '#8c8c8c' }}>Status</Text>
-                <Tag color={
-                  selectedBatch.status === 'Distributed' ? 'green' :
-                  selectedBatch.status === 'Arrived' ? 'blue' :
-                  selectedBatch.status === 'In Transit' ? 'cyan' :
-                  selectedBatch.status === 'Shipped' ? 'geekblue' :
-                  selectedBatch.status === 'Ready to Ship' ? 'orange' :
-                  'default'
-                }>
-                  {selectedBatch.status}
+                <Tag color={getBatchStatusColor(selectedBatch.status)}>
+                  {formatBatchStatusLabel(selectedBatch.status)}
                 </Tag>
               </div>
               <div style={{ display: 'flex', padding: '8px 0', alignItems: 'center' }}>

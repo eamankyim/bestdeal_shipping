@@ -1,3 +1,4 @@
+const { toJobStatus, toBatchStatus } = require('../utils/statuses');
 const { body, param, query, validationResult } = require('express-validator');
 const { sendError } = require('../utils/responseUtils');
 
@@ -139,34 +140,12 @@ const createJobValidation = [
   validate,
 ];
 
+// Any spelling is accepted and saved as its key; which moves are allowed is checked in the controller
 const updateJobStatusValidation = [
-  body('status').customSanitizer(value => {
-    const key = String(value || '').trim().toLowerCase().replace(/[ -]+/g, '_');
-    return ({ pending_collection: 'pending', at_warehouse: 'arrived_at_warehouse', returning_to_warehouse: 'in_transit', en_route_to_customer: 'in_transit' })[key] || key;
-  }),
   body('status')
+    .customSanitizer((value) => toJobStatus(value))
     .notEmpty()
-    .withMessage('Status is required')
-    .isIn([
-      'pending',
-      'assigned',
-      'collected',
-      'collection_failed',
-      'in_transit',
-      'arrived_at_hub',
-      'arrived_at_warehouse',
-      'at_uk_warehouse',
-      'at_ghana_warehouse',
-      'batched',
-      'shipped',
-      'arrived_at_destination',
-      'ready_for_delivery',
-      'out_for_delivery',
-      'delivered',
-      'failed_delivery',
-      'cancelled',
-    ])
-    .withMessage('Invalid status'),
+    .withMessage('Unknown or missing status'),
   body('notes')
     .optional()
     .trim(),
@@ -235,17 +214,9 @@ const updateBatchValidation = [
 
 const updateBatchStatusValidation = [
   body('status')
+    .customSanitizer((value) => toBatchStatus(value))
     .notEmpty()
-    .withMessage('Status is required')
-    .isIn([
-      'In Preparation',
-      'Ready to Ship',
-      'Shipped',
-      'In Transit',
-      'Arrived',
-      'Distributed',
-    ])
-    .withMessage('Invalid batch status'),
+    .withMessage('Unknown or missing batch status'),
   body('notes')
     .optional()
     .trim(),

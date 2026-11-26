@@ -31,15 +31,15 @@ const PrivacyPolicyPage = () => {
               Privacy Policy
             </Title>
             <Text style={{ color: 'rgba(255,255,255,0.85)' }}>
-              BestDeal Shipping (ShipEASE) · Last updated {LAST_UPDATED}
+              BestDeal Shipping · Last updated {LAST_UPDATED}
             </Text>
           </div>
 
           <Card style={{ borderRadius: 12 }}>
             <Typography>
               <Paragraph>
-                BestDeal Shipping (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) operates the BestDeal Shipping /
-                ShipEASE mobile application and related web services (the &quot;Service&quot;). This Privacy
+                BestDeal Shipping (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) operates the BestDeal Shipping
+                mobile application and related web services (the &quot;Service&quot;). This Privacy
                 Policy explains what information we collect, how we use it, and your choices. It is
                 provided for transparency and App Store compliance; it is not legal advice.
               </Paragraph>
@@ -187,7 +187,7 @@ const PrivacyPolicyPage = () => {
               <Divider />
               <Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 13 }}>
                 This document is a general description of our practices for users of the BestDeal
-                Shipping / ShipEASE apps and is not a substitute for legal advice.
+                Shipping apps and is not a substitute for legal advice.
               </Paragraph>
             </Typography>
           </Card>

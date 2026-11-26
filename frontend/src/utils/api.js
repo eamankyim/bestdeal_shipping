@@ -299,8 +299,13 @@ export const trackingAPI = {
   track: (trackingId) => api.get(`/tracking/${trackingId}`, { auth: false }),
 };
 
+// Every job and batch status, and the moves this user may make (see constants/jobStatuses.js)
+export const statusesAPI = {
+  get: () => api.get('/statuses'),
+};
+
 export const dashboardAPI = {
-  getWarehouse: () => api.get('/dashboard/warehouse'),
+  getOverview: () => api.get('/dashboard/overview'),
   getGhanaWarehouse: () => api.get('/dashboard/warehouse/ghana'),
   getUKWarehouse: () => api.get('/dashboard/warehouse/uk'),
   getDriver: () => api.get('/dashboard/driver'),

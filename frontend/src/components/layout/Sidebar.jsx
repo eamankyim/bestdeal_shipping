@@ -6,21 +6,16 @@ import {
   DashboardOutlined,
   ShoppingOutlined,
   UserOutlined,
-  SearchOutlined,
-  CarOutlined,
   HomeOutlined,
-  UserSwitchOutlined,
   SettingOutlined,
   BarChartOutlined,
   ContainerOutlined,
-  FileTextOutlined,
   DollarOutlined,
-  RocketOutlined,
   FlagOutlined,
 } from '@ant-design/icons';
 import config from '../../config/env';
 import { useAuth } from '../../contexts/AuthContext';
-import { isGhanaWarehouse } from '../../utils/permissions';
+import { canEditJobs, canManageInvoices, hasFullAccess, isGhanaWarehouse } from '../../utils/permissions';
 import './Sidebar.css';
 
 const { Sider } = Layout;
@@ -31,13 +26,10 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
   const previousPath = useRef(location.pathname);
   const { currentUser } = useAuth();
 
-  console.log('🎯 Sidebar render | collapsed:', collapsed, '| isMobile:', isMobile, '| role:', currentUser?.role);
-
   // Auto-hide sidebar on mobile when location ACTUALLY changes
   useEffect(() => {
     // Only close if path actually changed (not on initial render or re-renders)
     if (isMobile && onClose && previousPath.current !== location.pathname) {
-      console.log('🔄 Location changed on mobile from', previousPath.current, 'to', location.pathname, '- auto-closing sidebar');
       previousPath.current = location.pathname;
       onClose();
     } else {
@@ -46,160 +38,38 @@ const Sidebar = ({ collapsed, isMobile, onClose }) => {
   }, [location.pathname, isMobile, onClose]);
 
   const handleMenuClick = (e) => {
-    console.log('🔗 Menu item clicked:', e.key, '| isMobile:', isMobile);
     navigate(e.key);
     // Close sidebar on mobile after navigation
     if (isMobile && onClose) {
-      console.log('📱 Closing sidebar after navigation');
       onClose();
     }
   };
 
   const handleCloseClick = () => {
-    console.log('❌ Close button clicked in Sidebar');
     if (onClose) {
       onClose();
     }
   };
 
-  // Define all possible menu items with role restrictions
-  const allMenuItems = [
-    {
-      key: '/dashboard',
-      icon: <DashboardOutlined />,
-      label: 'Dashboard',
-      roles: ['superadmin', 'admin', 'customer-service', 'finance'],
-    },
-    {
-      key: '/driver-dashboard',
-      icon: <DashboardOutlined />,
-      label: 'Dashboard',
-      ownerRole: 'driver',
-      otherRoleLabel: 'Driver Dashboard',
-      roles: ['driver'],
-    },
-    {
-      key: '/warehouse',
-      icon: <HomeOutlined />,
-      label: 'Warehouse',
-      roles: ['warehouse'],
-    },
-    {
-      key: '/ghana-warehouse',
-      icon: <FlagOutlined />,
-      label: 'Ghana Warehouse',
-      roles: ['warehouse', 'admin', 'superadmin'],
-    },
-    {
-      key: '/uk-warehouse',
-      icon: <DashboardOutlined />,
-      label: 'Dashboard',
-      ownerRole: 'warehouse',
-      otherRoleLabel: 'UK Warehouse',
-      roles: ['warehouse', 'admin', 'superadmin'],
-    },
-    {
-      key: '/delivery-agent',
-      icon: <RocketOutlined />,
-      label: 'My Deliveries',
-      ownerRole: 'delivery-agent',
-      otherRoleLabel: 'Delivery Agent Dashboard',
-      roles: ['delivery-agent'],
-    },
-    {
-      key: '/jobs',
-      icon: <ShoppingOutlined />,
-      label: 'Jobs',
-      roles: ['superadmin', 'admin', 'customer-service', 'warehouse', 'driver', 'delivery-agent', 'finance'],
-    },
-    {
-      key: '/customers',
-      icon: <UserOutlined />,
-      label: 'Customers',
-      roles: ['superadmin', 'admin', 'customer-service'],
-    },
-    {
-      key: '/batch-management',
-      icon: <ContainerOutlined />,
-      label: 'Batches',
-      roles: ['superadmin', 'admin', 'warehouse'],
-    },
-    {
-      key: '/invoice-management',
-      icon: <DollarOutlined />,
-      label: 'Invoices',
-      roles: ['superadmin', 'admin', 'finance', 'customer-service', 'warehouse'], // warehouse: Ghana only
-    },
-    {
-      key: '/reports',
-      icon: <BarChartOutlined />,
-      label: 'Reports',
-      roles: ['superadmin', 'admin', 'finance', 'customer-service'],
-    },
-    {
-      key: '/track-shipment',
-      icon: <SearchOutlined />,
-      label: 'Track Shipment',
-      roles: ['superadmin', 'admin', 'customer-service', 'warehouse'],
-    },
-    {
-      key: '/admin',
-      icon: <SettingOutlined />,
-      label: 'Settings',
-      roles: ['superadmin', 'admin', 'driver', 'delivery-agent', 'warehouse', 'finance', 'customer-service', 'user'],
-    },
-  ];
-
-  // Filter menu items based on user role and warehouse location
+  // One menu for everyone; `show` decides who sees each item. The Dashboard is each role's own
+  // home page (pages/DashboardPage.jsx); the office can also open each warehouse's dashboard.
   const menuItems = useMemo(() => {
-    if (!currentUser || !currentUser.role) return [];
-    
-    return allMenuItems.filter(item => {
-      // Check if user role matches
-      if (!['superadmin', 'customer-service'].includes(currentUser.role) && !item.roles.includes(currentUser.role)) return false;
-      
-      // Special handling for Ghana Warehouse menu item
-      if (item.key === '/ghana-warehouse') {
-        if (['admin', 'superadmin', 'customer-service'].includes(currentUser.role) || currentUser.role === 'superadmin') return true;
-        if (currentUser.role === 'warehouse') {
-          return currentUser.warehouseLocation === 'Ghana Warehouse';
-        }
-        return false;
-      }
-
-      // Invoices - the Ghana warehouse adds notes on the state of invoices
-      if (item.key === '/invoice-management' && currentUser.role === 'warehouse') {
-        return isGhanaWarehouse(currentUser);
-      }
-
-      // UK Warehouse Dashboard - show when user has UK Warehouse location
-      if (item.key === '/uk-warehouse') {
-        if (['admin', 'superadmin', 'customer-service'].includes(currentUser.role) || currentUser.role === 'superadmin') return true;
-        if (currentUser.role === 'warehouse') {
-          return currentUser.warehouseLocation === 'UK Warehouse';
-        }
-        return false;
-      }
-      
-      // Regular Warehouse menu - show ONLY if user doesn't have a specific warehouse location
-      // Admin and superadmin can always see it
-      if (item.key === '/warehouse') {
-        // Admin/superadmin can always see general warehouse dashboard
-        if (['admin', 'superadmin', 'customer-service'].includes(currentUser.role) || currentUser.role === 'superadmin') return true;
-        // Warehouse users only see this if they don't have a specific location assigned
-        if (currentUser.role === 'warehouse') {
-          return !currentUser.warehouseLocation; // Only show if no specific location
-        }
-        return false;
-      }
-      
-      // All other menu items - just check role
-      return true;
-    })
-    // Superadmin/customer-service also see other roles' dashboards; give those role-specific names.
-    .map(({ roles, ownerRole, otherRoleLabel, ...item }) => (
-      ownerRole && currentUser.role !== ownerRole ? { ...item, label: otherRoleLabel } : item
-    ));
+    if (!currentUser?.role) return [];
+    const role = currentUser.role === 'warehouse_staff' ? 'warehouse' : currentUser.role;
+    const office = hasFullAccess(currentUser);
+    const items = [
+      { key: '/dashboard', icon: <DashboardOutlined />, label: role === 'driver' ? 'My Collections' : role === 'delivery-agent' ? 'My Deliveries' : 'Dashboard', show: true },
+      { key: '/uk-warehouse', icon: <HomeOutlined />, label: 'UK Warehouse', show: office },
+      { key: '/ghana-warehouse', icon: <FlagOutlined />, label: 'Ghana Warehouse', show: office },
+      { key: '/jobs', icon: <ShoppingOutlined />, label: 'Jobs', show: canEditJobs(currentUser) },
+      { key: '/customers', icon: <UserOutlined />, label: 'Customers', show: office },
+      { key: '/batch-management', icon: <ContainerOutlined />, label: 'Batches', show: office || role === 'warehouse' },
+      // The Ghana warehouse adds notes on the state of invoices
+      { key: '/invoice-management', icon: <DollarOutlined />, label: 'Invoices', show: canManageInvoices(currentUser) || isGhanaWarehouse(currentUser) },
+      { key: '/reports', icon: <BarChartOutlined />, label: 'Reports', show: office || role === 'finance' },
+      { key: '/admin', icon: <SettingOutlined />, label: 'Settings', show: true },
+    ];
+    return items.filter((item) => item.show).map(({ show, ...item }) => item);
   }, [currentUser]);
 
   return (

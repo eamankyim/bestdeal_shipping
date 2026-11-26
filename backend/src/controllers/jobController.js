@@ -4,7 +4,8 @@ const { asyncHandler } = require('../middleware/errorHandler');
 const { notifyJobCreated, notifyJobStatusChange, notifyDriverAssignment } = require('../services/notificationService');
 const { generateTrackingId } = require('../utils/trackingIdGenerator');
 const { notifyCustomerOfStatus, sendCustomerMessage } = require('../services/customerMessageService');
-const { DELIVERY_STATUSES, normalizeStatus, canAccessJob, canEditJob, canEditJobValue } = require('../utils/jobAccess');
+const { canAccessJob, canEditJob, canEditJobValue, jobScopeFor } = require('../utils/jobAccess');
+const { actorOf, toJobStatus, jobStatusLabel, checkJobMove, assignmentProblem } = require('../utils/statuses');
 const { buildJobUpdate } = require('../utils/jobEdit');
 const { decodeFile, parseImage, contentDisposition } = require('../utils/imageUpload');
 
@@ -46,70 +47,40 @@ exports.getAllJobs = asyncHandler(async (req, res) => {
     priority = '',
     startDate = '',
     endDate = '',
+    search = '',
   } = req.query;
 
   const skip = (page - 1) * limit;
+  const text = String(search).trim().slice(0, 100);
+  const matches = { contains: text, mode: 'insensitive' };
 
-  // Normalize role for consistent matching (case-insensitive, hyphen and spaces to underscore)
-  const role = typeof req.user.role === 'string'
-    ? req.user.role.toLowerCase().replace(/-/g, '_').replace(/\s+/g, '_')
-    : '';
+  // ?status= takes one status or several separated by commas
+  const statuses = String(status).split(',').filter(Boolean).map(toJobStatus);
+  if (statuses.includes(null)) return sendError(res, 400, 'Unknown status');
 
-  console.log('📋 GET /api/jobs', {
-    userId: req.user.id,
-    email: req.user.email,
-    rawRole: req.user.role,
-    normalizedRole: role,
-  });
-
-  // Build filter based on user role
+  // Each role only sees the jobs it may open; the scope comes last so it cannot be overridden
   const where = {
-    ...(status && { status }),
+    ...(statuses.length > 0 && { status: { in: statuses } }),
     ...(customerId && { customerId }),
     ...(assignedDriverId && { assignedDriverId }),
     ...(priority && { priority }),
+    // ?search= finds a job by tracking ID, reference, customer or receiver
+    ...(text && {
+      OR: [
+        { trackingId: matches },
+        { referenceNumber: matches },
+        { receiverName: matches },
+        { customer: { name: matches } },
+      ],
+    }),
     ...(startDate && endDate && {
       pickupDate: {
         gte: new Date(startDate),
         lte: new Date(endDate),
       },
     }),
+    ...jobScopeFor(req.user),
   };
-
-  // Apply role-based filtering (role normalized above)
-  switch (role) {
-    case 'driver':
-      // Drivers only see jobs assigned to them
-      where.assignedDriverId = req.user.id;
-      break;
-
-    case 'delivery_agent': {
-      // Same as delivery dashboard: jobs in delivery statuses that are assigned to this agent OR unassigned
-      where.status = { in: DELIVERY_STATUSES };
-      where.OR = [
-        { assignedDeliveryAgentId: req.user.id },
-        { assignedDeliveryAgentId: null },
-      ];
-      break;
-    }
-
-    case 'warehouse':
-      // Warehouse staff see jobs at their location or in transit
-      break;
-
-    case 'customer_service':
-    case 'finance':
-    case 'admin':
-    case 'superadmin':
-      // These roles can see all jobs
-      break;
-
-    default:
-      // Unknown role, restrict to their own created jobs
-      where.createdBy = req.user.id;
-  }
-
-  console.log('📋 GET /api/jobs filter', { role, where: JSON.stringify(where) });
 
   // Get jobs
   const [jobs, total] = await Promise.all([
@@ -166,8 +137,6 @@ exports.getAllJobs = asyncHandler(async (req, res) => {
     }),
     prisma.job.count({ where }),
   ]);
-
-  console.log('📋 GET /api/jobs result', { total, returned: jobs.length, page, limit });
 
   return sendPaginatedResponse(res, jobs, page, limit, total);
 });
@@ -295,7 +264,18 @@ exports.createJob = asyncHandler(async (req, res) => {
     ? packageList.reduce((sum, pkg) => sum + (Number(pkg.weight) || 0), 0)
     : (parcelDetails?.weight != null ? Number(parcelDetails.weight) : null);
   const packageQuantity = packageList.length > 0 ? packageList.length : (parcelDetails?.quantity || 1);
-  const requestedStatus = status || (assignedDriverId ? 'Assigned' : 'Pending Collection');
+  // A new job is a draft or booked; when a driver is chosen straight away it is assigned
+  const isDraft = toJobStatus(status) === 'draft';
+  let driverId = null;
+  if (assignedDriverId && !isDraft) {
+    if (!['uk', 'office'].includes(actorOf(req.user))) {
+      return sendError(res, 403, 'Only the office and the UK warehouse assign drivers');
+    }
+    const driver = await prisma.user.findUnique({ where: { id: assignedDriverId }, select: { role: true, active: true } });
+    if (!driver || driver.role !== 'driver' || !driver.active) return sendError(res, 400, 'Choose an active driver');
+    driverId = assignedDriverId;
+  }
+  const requestedStatus = isDraft ? 'draft' : (driverId ? 'assigned' : 'pending_collection');
 
   let finalCustomerId = customerId;
 
@@ -358,7 +338,7 @@ exports.createJob = asyncHandler(async (req, res) => {
       specialInstructions,
       priority,
       status: requestedStatus,
-      assignedDriverId: assignedDriverId || null,
+      assignedDriverId: driverId,
       createdBy: req.user.id,
     },
     include: {
@@ -378,7 +358,7 @@ exports.createJob = asyncHandler(async (req, res) => {
     data: {
       jobId: job.id,
       status: requestedStatus,
-      notes: requestedStatus === 'Draft' ? 'Job saved as draft' : (assignedDriverId ? 'Job created and assigned to driver' : 'Job created'),
+      notes: isDraft ? 'Job saved as draft' : (driverId ? 'Job created and assigned to driver' : 'Job created'),
       updatedBy: req.user.id,
     },
   });
@@ -427,8 +407,8 @@ exports.createJob = asyncHandler(async (req, res) => {
     // Don't fail the request if notifications fail
   }
 
-  if (normalizeStatus(requestedStatus) !== 'draft') {
-    await sendCustomerMessage('job_created', { customer: jobWithDocuments.customer, job: jobWithDocuments });
+  if (!isDraft) {
+    await sendCustomerMessage('pending_collection', { customer: jobWithDocuments.customer, job: jobWithDocuments });
   }
 
   return sendSuccess(res, 201, 'Job created successfully', { job: jobWithDocuments });
@@ -576,98 +556,73 @@ exports.addJobNote = asyncHandler(async (req, res) => {
 exports.updateJobStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status, notes = '', proofImages } = req.body;
+  const reason = String(notes || '').trim();
 
-  // Get current job
-  const job = await prisma.job.findUnique({
-    where: { id },
-  });
-
+  const job = await prisma.job.findUnique({ where: { id } });
   if (!job) {
     return sendError(res, 404, 'Job not found');
   }
-
   if (!canAccessJob(req.user, job)) {
     return sendError(res, 403, 'Access denied. You can only update jobs assigned to you');
   }
 
-  // When marking as collected, require 1–10 proof images from drivers
-  const normalizedStatus = normalizeStatus(status);
+  // The allowed next steps, and whether they need a reason or photos, come from utils/statuses.js
+  const target = toJobStatus(status);
+  const move = checkJobMove(req.user, job, target);
+  if (!move.ok) {
+    return sendError(res, 400, move.message);
+  }
+  if (move.reason && !reason) {
+    return sendError(res, 400, 'Please give a reason');
+  }
+
   const images = Array.isArray(proofImages) ? proofImages.filter((image) => image?.fileData) : [];
-  if (req.user.role === 'driver' && normalizedStatus === 'collected') {
-    if (images.length < 1 || images.length > MAX_PROOF_IMAGES) {
-      return sendError(res, 400, 'Collection requires between 1 and 10 proof images');
-    }
+  if (images.length > MAX_PROOF_IMAGES) {
+    return sendError(res, 400, `Please attach at most ${MAX_PROOF_IMAGES} photos`);
   }
-
-  // Whoever marks an item delivered must photograph it, so everyone can see what was handed over.
-  if (normalizedStatus === 'delivered') {
-    const photos = images.map((image, index) => parseImage(image, `delivery-photo-${index + 1}`));
-    const deliveryPhotos = photos.filter(Boolean);
-    if (deliveryPhotos.length < 1 || images.length > MAX_PROOF_IMAGES) {
-      return sendError(res, 400, 'Please attach between 1 and 10 photos of the item being delivered');
-    }
-    // Files are stored before the status moves, so a job is never "delivered" without its photo.
-    await saveJobFiles(deliveryPhotos, { jobId: id, documentType: 'proof_of_delivery', uploadedBy: req.user.id });
-    await saveJobFiles(images.filter((_, index) => !photos[index]), { jobId: id, documentType: 'attachment', uploadedBy: req.user.id });
-  } else if (images.length > 0) {
-    await saveJobFiles(
-      images.map((image, index) => ({
-        ...image,
-        fileName: image.fileName || `${normalizedStatus}-proof-${index + 1}.jpg`,
-        mimeType: image.mimeType || 'image/jpeg',
-      })),
-      { jobId: id, documentType: 'photo', uploadedBy: req.user.id }
-    );
+  const photos = images.map((image, index) => parseImage(image, `${target}-photo-${index + 1}`));
+  if (move.photos && !photos.some(Boolean)) {
+    return sendError(res, 400, target === 'delivered'
+      ? 'Please attach at least one photo of the item being delivered'
+      : 'Please attach at least one photo of the collected items');
   }
+  // Files are saved before the status moves, so a job is never collected or delivered without its photos
+  await saveJobFiles(photos.filter(Boolean), { jobId: id, documentType: target === 'delivered' ? 'proof_of_delivery' : 'photo', uploadedBy: req.user.id });
+  await saveJobFiles(images.filter((_, index) => !photos[index]), { jobId: id, documentType: 'attachment', uploadedBy: req.user.id });
 
-  // Update job status
-  const updatedJob = await prisma.job.update({
-    where: { id },
-    data: { status },
-    include: {
-      customer: true,
-      assignedDriver: {
-        select: {
-          name: true,
-          email: true,
-        },
-      },
-    },
+  // Only moves the job if nobody changed its status in the meantime
+  const { count } = await prisma.job.updateMany({
+    where: { id, status: job.status },
+    data: { status: target, ...(target === 'delivered' && { actualDelivery: new Date() }) },
   });
-
-  // Create timeline entry
+  if (count === 0) {
+    return sendError(res, 409, 'Someone else has just changed this job. Refresh and try again.');
+  }
   await prisma.jobTimeline.create({
-    data: {
-      jobId: id,
-      status,
-      notes,
-      updatedBy: req.user.id,
-    },
+    data: { jobId: id, status: target, notes: reason, updatedBy: req.user.id },
   });
 
-  // Auto-create draft invoice when job is delivered
-  if (status === 'delivered') {
+  const updatedJob = await prisma.job.findUnique({
+    where: { id },
+    include: { customer: true, assignedDriver: { select: { name: true, email: true } } },
+  });
+
+  // Every delivered job gets a draft invoice
+  if (target === 'delivered') {
     try {
       const invoiceController = require('./invoiceController');
       await invoiceController.createDraftInvoice(id, req.user.id);
-      console.log(`✅ Draft invoice auto-created for delivered job ${updatedJob.trackingId}`);
     } catch (error) {
       console.error('⚠️ Failed to auto-create invoice, but job was updated:', error.message);
-      // Don't fail the job update if invoice creation fails
     }
   }
 
-  // Send notifications for status change
   try {
-    const notificationCount = await notifyJobStatusChange(updatedJob, status, req.user.id);
-    console.log(`📬 Sent ${notificationCount} notifications for status change: ${status}`);
+    await notifyJobStatusChange(updatedJob, target, req.user.id);
   } catch (error) {
     console.error('⚠️ Failed to send status change notifications:', error);
   }
-
-  if (normalizedStatus !== normalizeStatus(job.status)) {
-    await notifyCustomerOfStatus(updatedJob, status, job.status);
-  }
+  await notifyCustomerOfStatus(updatedJob, target, job.status);
 
   return sendSuccess(res, 200, 'Job status updated successfully', { job: updatedJob });
 });
@@ -681,65 +636,45 @@ exports.assignDriver = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { driverId } = req.body;
 
-  // Check that the user exists and is a driver or delivery agent
-  const assignee = await prisma.user.findUnique({
-    where: { id: driverId },
-  });
-
-  if (!assignee) {
-    return sendError(res, 400, 'Invalid driver ID');
-  }
-  if (!['driver', 'delivery_agent', 'delivery-agent'].includes(assignee.role)) {
-    return sendError(res, 400, 'Invalid driver ID');
+  const driver = driverId ? await prisma.user.findUnique({ where: { id: driverId } }) : null;
+  if (!driver || driver.role !== 'driver' || !driver.active) {
+    return sendError(res, 400, 'Choose an active driver');
   }
 
   const existingJob = await prisma.job.findUnique({ where: { id }, select: { status: true } });
   if (!existingJob) {
     return sendError(res, 404, 'Job not found');
   }
+  const problem = assignmentProblem('driver', req.user, existingJob);
+  if (problem) {
+    return sendError(res, problem.code, problem.message);
+  }
 
-  const isDriver = assignee.role === 'driver';
-  const updateData = {
-    status: 'Assigned',
-    ...(isDriver ? { assignedDriverId: driverId } : { assignedDeliveryAgentId: driverId }),
-  };
-
-  // Update job
-  const job = await prisma.job.update({
-    where: { id },
-    data: updateData,
-    include: {
-      customer: true,
-      assignedDriver: {
-        select: {
-          name: true,
-          email: true,
-        },
-      },
-    },
+  const { count } = await prisma.job.updateMany({
+    where: { id, status: existingJob.status },
+    data: { status: 'assigned', assignedDriverId: driverId },
   });
-
-  // Create timeline entry
+  if (count === 0) {
+    return sendError(res, 409, 'Someone else has just changed this job. Refresh and try again.');
+  }
   await prisma.jobTimeline.create({
-    data: {
-      jobId: id,
-      status: 'Assigned',
-      notes: `Assigned to ${isDriver ? 'driver' : 'delivery agent'} ${assignee.name}`,
-      updatedBy: req.user.id,
-    },
+    data: { jobId: id, status: 'assigned', notes: `Assigned to driver ${driver.name}`, updatedBy: req.user.id },
   });
 
-  // Send notification to assignee
+  const job = await prisma.job.findUnique({
+    where: { id },
+    include: { customer: true, assignedDriver: { select: { id: true, name: true, email: true } } },
+  });
+
   try {
     await notifyDriverAssignment(job, driverId, req.user.id);
-    console.log(`📬 Notification sent for job ${job.trackingId}`);
   } catch (error) {
     console.error('⚠️ Failed to send driver assignment notification:', error);
   }
 
   // Swapping one driver for another is not news for the customer
-  if (normalizeStatus(existingJob.status) !== 'assigned') {
-    await notifyCustomerOfStatus(job, 'Assigned', existingJob.status);
+  if (toJobStatus(existingJob.status) !== 'assigned') {
+    await notifyCustomerOfStatus(job, 'assigned', existingJob.status);
   }
 
   return sendSuccess(res, 200, 'Driver assigned successfully', { job });
@@ -790,10 +725,9 @@ exports.deleteJob = asyncHandler(async (req, res) => {
     return sendError(res, 404, 'Job not found');
   }
 
-  const unDeletableStatuses = ['Collected', 'At Warehouse', 'Batched', 'Shipped', 'In Transit', 'Delivered'];
-  
-  if (unDeletableStatuses.includes(job.status)) {
-    return sendError(res, 400, `Cannot delete job with status: ${job.status}`);
+  // Anything that has happened to a real job stays on record; cancel it instead
+  if (!['draft', 'cancelled'].includes(toJobStatus(job.status))) {
+    return sendError(res, 400, 'Only drafts and cancelled jobs can be deleted. Cancel the job first.');
   }
 
   // Delete job (cascade will delete timeline and documents)
@@ -813,52 +747,36 @@ exports.assignDeliveryAgent = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { deliveryAgentId } = req.body;
 
-  // Check if delivery agent exists
-  const agent = deliveryAgentId
-    ? await prisma.user.findUnique({ where: { id: deliveryAgentId } })
-    : null;
-
-  if (!agent || !agent.active || (agent.role !== 'delivery-agent' && agent.role !== 'delivery_agent')) {
+  const agent = deliveryAgentId ? await prisma.user.findUnique({ where: { id: deliveryAgentId } }) : null;
+  if (!agent || !agent.active || agent.role !== 'delivery-agent') {
     return sendError(res, 400, 'Choose an active dispatch rider');
   }
 
-  const existingJob = await prisma.job.findUnique({ where: { id } });
+  const existingJob = await prisma.job.findUnique({ where: { id }, select: { status: true } });
   if (!existingJob) {
     return sendError(res, 404, 'Job not found');
   }
-  if (['delivered', 'cancelled', 'closed', 'draft'].includes(normalizeStatus(existingJob.status))) {
-    return sendError(res, 400, `This job is ${existingJob.status.toLowerCase()}, so it cannot be dispatched`);
+  const problem = assignmentProblem('rider', req.user, existingJob);
+  if (problem) {
+    return sendError(res, problem.code, problem.message);
   }
 
-  // Update job
-  const job = await prisma.job.update({
-    where: { id },
-    data: {
-      assignedDeliveryAgentId: deliveryAgentId,
-      status: 'out_for_delivery',
-    },
-    include: {
-      customer: true,
-      assignedDeliveryAgent: {
-        select: {
-          name: true,
-          email: true,
-        },
-      },
-    },
+  const { count } = await prisma.job.updateMany({
+    where: { id, status: existingJob.status },
+    data: { assignedDeliveryAgentId: deliveryAgentId, status: 'out_for_delivery' },
   });
-
-  // Create timeline entry
+  if (count === 0) {
+    return sendError(res, 409, 'Someone else has just changed this job. Refresh and try again.');
+  }
   await prisma.jobTimeline.create({
-    data: {
-      jobId: id,
-      status: 'out_for_delivery',
-      notes: `Assigned to dispatch rider ${agent.name}`,
-      updatedBy: req.user.id,
-    },
+    data: { jobId: id, status: 'out_for_delivery', notes: `Assigned to dispatch rider ${agent.name}`, updatedBy: req.user.id },
   });
 
-  // Send notification to delivery agent
+  const job = await prisma.job.findUnique({
+    where: { id },
+    include: { customer: true, assignedDeliveryAgent: { select: { id: true, name: true, email: true } } },
+  });
+
   try {
     const { createNotification } = require('../services/notificationService');
     await createNotification({
@@ -869,16 +787,16 @@ exports.assignDeliveryAgent = asyncHandler(async (req, res) => {
       relatedEntityType: 'job',
       relatedEntityId: job.id,
     });
-    console.log(`📬 Notification sent to delivery agent for job ${job.trackingId}`);
   } catch (error) {
     console.error('⚠️ Failed to send delivery agent notification:', error);
   }
 
-  if (normalizeStatus(existingJob.status) !== 'out_for_delivery') {
-    await notifyCustomerOfStatus(job, 'out_for_delivery');
+  // Swapping one rider for another is not news for the customer
+  if (toJobStatus(existingJob.status) !== 'out_for_delivery') {
+    await notifyCustomerOfStatus(job, 'out_for_delivery', existingJob.status);
   }
 
-  return sendSuccess(res, 200, 'Delivery agent assigned successfully', { job });
+  return sendSuccess(res, 200, 'Dispatch rider assigned successfully', { job });
 });
 
 /**
@@ -959,15 +877,22 @@ exports.recordPayment = asyncHandler(async (req, res) => {
 
 exports.revertStatus = asyncHandler(async (req, res) => {
   const { previousStatus, comment } = req.body;
-  if (!previousStatus || !String(comment || '').trim()) return sendError(res, 400, 'Previous status and reason are required');
+  const target = toJobStatus(previousStatus);
+  if (!target || !String(comment || '').trim()) return sendError(res, 400, 'Previous status and reason are required');
+  // These follow the job's batch or rider; setting them by hand would leave the job out of step
+  const followsSomethingElse = ['batched', 'shipped', 'arrived_in_ghana', 'out_for_delivery'];
   const result = await prisma.$transaction(async tx => {
     const job = await tx.job.findUnique({ where: { id: req.params.id }, include: { timeline: true } });
     if (!job) return { error: 'Job not found', code: 404 };
-    if (!job.timeline.some(entry => entry.status === previousStatus) || previousStatus === job.status) {
+    const current = toJobStatus(job.status);
+    if (followsSomethingElse.includes(current) || followsSomethingElse.includes(target)) {
+      return { error: 'This status follows the job\'s batch or dispatch rider. Change the batch or the rider instead.', code: 400 };
+    }
+    if (target === current || !job.timeline.some(entry => toJobStatus(entry.status) === target)) {
       return { error: 'Choose a previous status from this job history', code: 400 };
     }
-    const updated = await tx.job.update({ where: { id: job.id }, data: { status: previousStatus } });
-    await tx.jobTimeline.create({ data: { jobId: job.id, status: previousStatus, notes: `Reverted from ${job.status}: ${comment}`, updatedBy: req.user.id } });
+    const updated = await tx.job.update({ where: { id: job.id }, data: { status: target } });
+    await tx.jobTimeline.create({ data: { jobId: job.id, status: target, notes: `Reverted from ${jobStatusLabel(current)}: ${comment}`, updatedBy: req.user.id } });
     return { job: updated };
   });
   if (result.error) return sendError(res, result.code, result.error);

@@ -11,18 +11,18 @@ import {
   Timeline,
   Spin,
   Empty,
+  Steps,
+  Alert,
   message
 } from 'antd';
 import { 
   SearchOutlined, 
-  UserOutlined, 
   EnvironmentOutlined, 
   CalendarOutlined,
   InboxOutlined
 } from '@ant-design/icons';
 import config from '../config/env';
 import { trackingAPI } from '../utils/api';
-import { getStatusColor, formatJobStatusLabel } from '../constants/jobStatuses';
 
 const { Title, Text } = Typography;
 
@@ -31,8 +31,7 @@ const PublicTrackingPage = () => {
   const [trackingResult, setTrackingResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
-
-  // TODO: Remove mock data - fetch from API
+  const [support, setSupport] = useState(null);
 
   const handleSearch = async () => {
     if (!trackingId.trim()) return;
@@ -41,28 +40,22 @@ const PublicTrackingPage = () => {
     setSearched(true);
     
     try {
-      console.log('🔍 Tracking shipment:', trackingId);
-      const response = await trackingAPI.track(trackingId);
+      const response = await trackingAPI.track(trackingId.trim());
       
       if (response.success && response.data) {
-        console.log('✅ Tracking data received:', response.data);
         setTrackingResult(response.data.job);
+        setSupport(response.data.support);
         message.success('Job found!');
       } else {
         setTrackingResult(null);
         message.error('Job not found');
       }
     } catch (error) {
-      console.error('❌ Tracking error:', error);
       setTrackingResult(null);
       message.error(error.message || 'Failed to find job. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const getStatusColorLocal = (status) => {
-    return getStatusColor(status);
   };
 
   return (
@@ -99,7 +92,7 @@ const PublicTrackingPage = () => {
               <Col xs={24} md="auto" style={{ flex: 'auto' }}>
               <Input
                 size="large"
-                placeholder="Enter job ID (e.g., SHIP-20251025-VSJO5)"
+                placeholder="Tracking number (e.g. SHIP-20251025-VSJO5)"
                 value={trackingId}
                 onChange={(e) => setTrackingId(e.target.value)}
                 onPressEnter={handleSearch}
@@ -132,116 +125,78 @@ const PublicTrackingPage = () => {
                 </div>
               ) : trackingResult ? (
                 <div>
-                  {/* Package Overview */}
+                  {/* Where the parcel is. Names and labels come with the tracking answer. */}
                   <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                    <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                      <InboxOutlined style={{ fontSize: '48px', color: '#1890ff' }} />
-                      <Title level={3} style={{ margin: '8px 0 0' }}>
-                        {trackingResult.trackingId}
-                      </Title>
-                      <Tag
-                        color={getStatusColorLocal(trackingResult.status)}
-                        style={{ fontSize: '16px', padding: '8px 16px' }}
-                      >
-                        {formatJobStatusLabel(trackingResult.status)}
-                      </Tag>
-                    </div>
+                    <InboxOutlined style={{ fontSize: '48px', color: '#1890ff' }} />
+                    <Title level={3} style={{ margin: '8px 0' }}>
+                      {trackingResult.trackingId}
+                    </Title>
+                    <Tag color={trackingResult.statusColor} style={{ fontSize: '16px', padding: '8px 16px' }}>
+                      {trackingResult.statusLabel}
+                    </Tag>
+                    {trackingResult.statusDescription && (
+                      <div style={{ marginTop: 8 }}><Text type="secondary">{trackingResult.statusDescription}</Text></div>
+                    )}
                   </div>
 
-                  {/* Package Details */}
+                  {trackingResult.problem && (
+                    <Alert type="warning" showIcon style={{ marginBottom: 24 }} message="We are sorting this out" description="We will contact you to arrange a new time. You can also contact us using the details below." />
+                  )}
+                  {trackingResult.cancelled ? (
+                    <Alert type="info" showIcon style={{ marginBottom: 24 }} message="This shipment was cancelled" />
+                  ) : (
+                    <Card size="small" title="Journey" style={{ marginBottom: 24 }}>
+                      <Steps
+                        direction="vertical"
+                        size="small"
+                        current={Math.max(trackingResult.stages.findIndex((stage) => stage.current), 0)}
+                        status={trackingResult.problem ? 'error' : trackingResult.status === 'delivered' ? 'finish' : 'process'}
+                        items={trackingResult.stages.map((stage) => ({ title: stage.label }))}
+                      />
+                    </Card>
+                  )}
+
                   <Card 
                     size="small" 
                     title={<span className="user-info-title">Package Details</span>}
                     className="user-info-card"
-                    style={{ 
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                      borderRadius: 8,
-                      marginBottom: 24
-                    }}
+                    style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)', borderRadius: 8, marginBottom: 24 }}
                   >
                     <div className="user-info-list">
-                      <div className="user-info-item">
-                        <div className="user-info-label">Customer</div>
-                        <div className="user-info-value">
-                          <UserOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
-                          <Text>{trackingResult.customer?.name || 'N/A'}</Text>
+                      {[
+                        ['Service', <Tag color="blue">{trackingResult.priority || 'Standard'}</Tag>],
+                        ['Weight', trackingResult.weight ? `${Number(trackingResult.weight)} kg` : null],
+                        ['Items', trackingResult.quantity || 1],
+                        ['Booked', trackingResult.createdAt ? new Date(trackingResult.createdAt).toLocaleDateString() : null],
+                        [trackingResult.actualDelivery ? 'Delivered' : 'Expected Delivery', (trackingResult.actualDelivery || trackingResult.estimatedDelivery) && (
+                          <span><CalendarOutlined style={{ color: '#1890ff', marginRight: 8 }} />{new Date(trackingResult.actualDelivery || trackingResult.estimatedDelivery).toLocaleDateString()}</span>
+                        )],
+                      ].filter(([, value]) => value !== null && value !== undefined && value !== '').map(([label, value]) => (
+                        <div className="user-info-item" key={label}>
+                          <div className="user-info-label">{label}</div>
+                          <div className="user-info-value">{value}</div>
                         </div>
-                      </div>
-                      <div className="user-info-item">
-                        <div className="user-info-label">Service</div>
-                        <div className="user-info-value">
-                            <Tag color="blue">{trackingResult.priority || 'Standard'}</Tag>
-                        </div>
-                      </div>
-                      <div className="user-info-item">
-                        <div className="user-info-label">Weight</div>
-                        <div className="user-info-value">
-                          <InboxOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
-                          <Text>{trackingResult.weight ? `${trackingResult.weight}kg` : 'N/A'}</Text>
-                        </div>
-                      </div>
-                      {/* Value hidden on public tracking page for privacy */}
-                      <div className="user-info-item">
-                        <div className="user-info-label">Quantity</div>
-                        <div className="user-info-value">
-                          <Text>{trackingResult.quantity || 1}</Text>
-                        </div>
-                      </div>
-                      <div className="user-info-item">
-                        <div className="user-info-label">Origin</div>
-                        <div className="user-info-value">
-                          <EnvironmentOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
-                          <Text>{trackingResult.pickupAddress || 'N/A'}</Text>
-                        </div>
-                      </div>
-                      <div className="user-info-item">
-                        <div className="user-info-label">Destination</div>
-                        <div className="user-info-value">
-                          <EnvironmentOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
-                          <Text>{trackingResult.deliveryAddress || 'N/A'}</Text>
-                        </div>
-                      </div>
-                      <div className="user-info-item">
-                        <div className="user-info-label">Collection Date</div>
-                        <div className="user-info-value">
-                          <CalendarOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
-                          <Text>{trackingResult.createdAt ? new Date(trackingResult.createdAt).toLocaleDateString() : 'N/A'}</Text>
-                        </div>
-                      </div>
-                      <div className="user-info-item">
-                        <div className="user-info-label">Estimated Delivery</div>
-                        <div className="user-info-value">
-                          <CalendarOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
-                          <Text>{trackingResult.estimatedDelivery ? new Date(trackingResult.estimatedDelivery).toLocaleDateString() : 'N/A'}</Text>
-                        </div>
-                      </div>
+                      ))}
                     </div>
                   </Card>
 
-                  {/* Current Status */}
-                  <Card size="small" title="Current Status" style={{ marginBottom: '24px' }}>
-                    <Space>
-                      <EnvironmentOutlined style={{ color: '#1890ff' }} />
-                      <Text strong>{formatJobStatusLabel(trackingResult.status)}</Text>
-                    </Space>
-                  </Card>
-
-                  {/* Tracking Timeline */}
-                  <Card size="small" title="Tracking Timeline">
+                  <Card size="small" title="Tracking History">
                     <Timeline
-                      items={trackingResult.timeline.map((item, index) => ({
-                        color: item.status === 'completed' ? 'green' : 'blue',
+                      items={[...trackingResult.timeline].reverse().map((item, index) => ({
+                        key: `${item.status}-${item.timestamp}`,
+                        color: index === 0 ? 'green' : 'blue',
                         children: (
                           <div>
-                            <Text strong>{item.event}</Text>
-                            <br />
-                            <Space>
-                              <EnvironmentOutlined />
-                              <Text type="secondary">{item.location}</Text>
-                            </Space>
+                            <Text strong>{item.label}</Text>
+                            {item.location && (
+                              <>
+                                <br />
+                                <Space><EnvironmentOutlined /><Text type="secondary">{item.location}</Text></Space>
+                              </>
+                            )}
                             <br />
                             <Text type="secondary" style={{ fontSize: '12px' }}>
-                              {item.time}
+                              {new Date(item.timestamp).toLocaleString()}
                             </Text>
                           </div>
                         ),
@@ -251,7 +206,7 @@ const PublicTrackingPage = () => {
                 </div>
               ) : (
                 <Empty
-                  description={searched ? "No shipment found for this job ID" : "Enter a job ID to track your package"}
+                  description={searched ? "No shipment found for this tracking number" : "Enter a tracking number to track your package"}
                   style={{ padding: '40px' }}
                 />
               )}
@@ -259,11 +214,16 @@ const PublicTrackingPage = () => {
           )}
 
           {/* Footer */}
-          <Card style={{ marginTop: '24px', textAlign: 'center' }}>
-            <Text type="secondary">
-              Need help? Contact us at {config.support.email} or call {config.support.phone}
-            </Text>
-          </Card>
+          {/* Contact details as saved in Settings → Organisation (sent with the tracking answer) */}
+          {(support?.email || support?.phone || config.support.email || config.support.phone) && (
+            <Card style={{ marginTop: '24px', textAlign: 'center' }}>
+              <Text type="secondary">
+                Need help? Contact {support?.companyName || config.app.name}
+                {(support?.email || config.support.email) && <> at {support?.email || config.support.email}</>}
+                {(support?.phone || config.support.phone) && <> or call {support?.phone || config.support.phone}</>}
+              </Text>
+            </Card>
+          )}
         </Col>
       </Row>
     </div>

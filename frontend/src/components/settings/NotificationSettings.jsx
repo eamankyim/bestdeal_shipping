@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, Switch, Typography, Space, Button, message } from 'antd';
 import { BellOutlined, SoundOutlined } from '@ant-design/icons';
 import soundNotificationService from '../../services/soundNotificationService';

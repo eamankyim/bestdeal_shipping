@@ -65,7 +65,8 @@ const JobEditModal = ({ jobId, onClose, onSaved }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when another job is opened
   }, [jobId, form]);
 
-  const handleOk = async () => {
+  // `book`: finish a draft, so the job is booked (Pending Collection) and the customer is told
+  const handleOk = async (book = false) => {
     const values = await form.validateFields();
     setSaving(true);
     try {
@@ -76,8 +77,9 @@ const JobEditModal = ({ jobId, onClose, onSaved }) => {
         estimatedDelivery: estimatedDelivery ? estimatedDelivery.toISOString() : undefined,
         parcelDetails: { description, value: value ?? undefined },
         documents: await filesToUploads(documents),
+        ...(book && { status: 'pending_collection' }),
       });
-      message.success('Job updated successfully!');
+      message.success(book ? 'Job booked' : 'Job updated successfully!');
 
       const channel = new BroadcastChannel('job_updates');
       channel.postMessage({ type: 'JOB_STATUS_UPDATED', jobId, timestamp: new Date().toISOString() });
@@ -100,6 +102,11 @@ const JobEditModal = ({ jobId, onClose, onSaved }) => {
       onCancel={onClose}
       okText="Save Changes"
       okButtonProps={{ disabled: !job }}
+      footer={job?.status === 'draft' ? [
+        <Button key="cancel" onClick={onClose}>Cancel</Button>,
+        <Button key="draft" loading={saving} onClick={() => handleOk(false).catch(() => {})}>Save Draft</Button>,
+        <Button key="book" type="primary" loading={saving} onClick={() => handleOk(true).catch(() => {})}>Save &amp; Book</Button>,
+      ] : undefined}
       confirmLoading={saving}
       width={window.innerWidth <= 768 ? '95%' : 800}
       styles={{ body: { maxHeight: '70vh', overflowY: 'auto', paddingRight: 8 } }}

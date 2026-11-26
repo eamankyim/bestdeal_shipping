@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Badge, Dropdown, List, Typography, Empty, Button, Space, Divider } from 'antd';
-import { BellOutlined, CheckOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
+import { BellOutlined, CheckOutlined, DeleteOutlined } from '@ant-design/icons';
 import { notificationAPI } from '../../utils/api';
 import { useNavigate } from 'react-router-dom';
 import soundNotificationService from '../../services/soundNotificationService';

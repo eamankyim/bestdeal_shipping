@@ -1,3 +1,4 @@
+const { jobStatusLabel } = require('../utils/statuses');
 const prisma = require('../config/database');
 
 /**
@@ -107,10 +108,7 @@ const notifyJobCreated = async (job, creatorId) => {
 const notifyJobStatusChange = async (job, newStatus, updaterId) => {
   const notifications = [];
 
-  // Format status for display (convert snake_case or camelCase to Title Case)
-  const statusLabel = newStatus
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, l => l.toUpperCase());
+  const statusLabel = jobStatusLabel(newStatus);
 
   // Notify ALL active users (except the updater)
   const allUsers = await prisma.user.findMany({

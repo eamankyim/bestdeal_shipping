@@ -1,13 +1,5 @@
 // Single place for "who may do what with a job", shared by routes and controllers.
-
-// Statuses are stored in mixed formats ("Out for Delivery", "out_for_delivery"), so queries list both.
-const DELIVERY_STATUSES = [
-  'Ready for Delivery', 'ready_for_delivery',
-  'Out for Delivery', 'out_for_delivery',
-  'Failed Delivery', 'failed_delivery',
-  'Delivery Attempted',
-  'Delivered', 'delivered',
-];
+// Which status a job may move to is decided in ./statuses.js.
 
 const ALL_JOBS_ROLES = ['superadmin', 'admin', 'customer-service', 'finance', 'warehouse'];
 const STAFF_ROLES = [...ALL_JOBS_ROLES, 'driver', 'delivery-agent'];
@@ -18,23 +10,27 @@ const normalizeRole = (role) => {
   return key === 'warehouse-staff' ? 'warehouse' : key;
 };
 
-const normalizeStatus = (status) => String(status || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
-
 const isStaff = (user) => STAFF_ROLES.includes(normalizeRole(user?.role));
 
 const isGhanaWarehouse = (user) =>
   normalizeRole(user?.role) === 'warehouse' && user?.warehouseLocation === 'Ghana Warehouse';
 
-/** Can this user see this job? Drivers and delivery agents only see their own work. */
+/** Can this user see this job? Drivers and dispatch riders only see the jobs assigned to them. */
 const canAccessJob = (user, job) => {
   const role = normalizeRole(user?.role);
   if (ALL_JOBS_ROLES.includes(role)) return true;
   if (role === 'driver') return job.assignedDriverId === user.id;
-  if (role === 'delivery-agent') {
-    if (job.assignedDeliveryAgentId) return job.assignedDeliveryAgentId === user.id;
-    return DELIVERY_STATUSES.includes(job.status);
-  }
+  if (role === 'delivery-agent') return job.assignedDeliveryAgentId === user.id;
   return job.createdBy === user?.id;
+};
+
+/** The same rule as canAccessJob, as a database filter for job lists. */
+const jobScopeFor = (user) => {
+  const role = normalizeRole(user?.role);
+  if (ALL_JOBS_ROLES.includes(role)) return {};
+  if (role === 'driver') return { assignedDriverId: user.id };
+  if (role === 'delivery-agent') return { assignedDeliveryAgentId: user.id };
+  return { createdBy: user?.id };
 };
 
 /**
@@ -56,12 +52,11 @@ const canViewInvoices = (user) =>
   [...FULL_ACCESS_ROLES, 'finance'].includes(normalizeRole(user?.role)) || isGhanaWarehouse(user);
 
 module.exports = {
-  DELIVERY_STATUSES,
   normalizeRole,
-  normalizeStatus,
   isStaff,
   isGhanaWarehouse,
   canAccessJob,
+  jobScopeFor,
   canEditJob,
   canCreateJob,
   canEditJobValue,

@@ -163,20 +163,8 @@ const options = {
             },
             status: {
               type: 'string',
-              enum: [
-                'Pending Collection',
-                'Assigned',
-                'En Route to Customer',
-                'Collected',
-                'Returning to Warehouse',
-                'At Warehouse',
-                'Batched',
-                'Shipped',
-                'In Transit',
-                'Arrived at Destination',
-                'Out for Delivery',
-                'Delivered',
-              ],
+              description: 'A job status key. The full list, with names and allowed moves, is at GET /api/statuses.',
+              example: 'pending_collection',
             },
             priority: {
               type: 'string',

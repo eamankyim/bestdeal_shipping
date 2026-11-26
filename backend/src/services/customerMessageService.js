@@ -4,6 +4,7 @@
 const prisma = require('../config/database');
 const { sendEmail } = require('./emailService');
 const { getSmsSetup, sendSms } = require('./smsService');
+const { toJobStatus, jobStatusLabel } = require('../utils/statuses');
 
 const SETTING_KEY = 'customer_messages';
 const MAX_SUBJECT = 200;
@@ -14,9 +15,11 @@ const signOff = '\n\nThank you,\n{{companyName}}';
 
 // Only the invoice email existed before this feature, so it is the only message that is on by default.
 // Admins switch the others on when they are happy with the wording (and, for SMS, the cost).
-const defineMessage = (key, label, { subject, body, sms, enabled = false }) => ({
+// A job message has the key of the status it is sent for, and that status's name as its label.
+const defineMessage = (key, when, { subject, body, sms, enabled = false, label = jobStatusLabel(key) }) => ({
   key,
   label,
+  when,
   enabled,
   subject,
   body: body.startsWith('Hello') ? body : `Hello {{customerName}},\n\n${body}${signOff}`,
@@ -25,77 +28,73 @@ const defineMessage = (key, label, { subject, body, sms, enabled = false }) => (
 });
 
 const CUSTOMER_MESSAGES = [
-  defineMessage('job_created', 'Job created', {
+  defineMessage('pending_collection', 'When a job is booked', {
     subject: 'Your shipment {{trackingId}} has been booked',
     body: 'Your shipment has been booked. Your tracking ID is {{trackingId}}.\n\nTrack it here: {{trackingLink}}',
     sms: 'Hi {{customerName}}, your shipment {{trackingId}} is booked. Track it at {{trackingLink}} - {{companyName}}',
   }),
-  defineMessage('assigned', 'Driver assigned', {
+  defineMessage('assigned', 'When a driver is assigned', {
     subject: 'A driver has been assigned to {{trackingId}}',
     body: 'A driver has been assigned to collect your shipment {{trackingId}}.',
     sms: 'Hi {{customerName}}, a driver has been assigned to collect your shipment {{trackingId}}. - {{companyName}}',
   }),
-  defineMessage('collected', 'Collected', {
+  defineMessage('collected', 'When the driver collects it', {
     subject: 'We have collected your shipment {{trackingId}}',
     body: 'Your shipment {{trackingId}} has been collected and is on its way to our warehouse.',
     sms: 'Hi {{customerName}}, we have collected your shipment {{trackingId}}. - {{companyName}}',
   }),
-  defineMessage('collection_failed', 'Collection failed', {
+  defineMessage('collection_failed', 'When the driver could not collect it', {
     subject: 'We could not collect your shipment {{trackingId}}',
     body: 'We tried to collect your shipment {{trackingId}} but could not. We will contact you to arrange another time.',
     sms: 'Hi {{customerName}}, we could not collect your shipment {{trackingId}}. We will contact you to rearrange. - {{companyName}}',
   }),
-  defineMessage('arrived_at_warehouse', 'Arrived at warehouse', {
-    subject: 'Your shipment {{trackingId}} is at our warehouse',
-    body: 'Your shipment {{trackingId}} has arrived at our warehouse.',
-    sms: 'Hi {{customerName}}, your shipment {{trackingId}} has arrived at our warehouse. - {{companyName}}',
+  defineMessage('at_uk_warehouse', 'When it arrives at the UK warehouse', {
+    subject: 'Your shipment {{trackingId}} is at our UK warehouse',
+    body: 'Your shipment {{trackingId}} has arrived at our UK warehouse and will go in the next batch to Ghana.',
+    sms: 'Hi {{customerName}}, your shipment {{trackingId}} is at our UK warehouse. - {{companyName}}',
   }),
-  defineMessage('batched', 'Batched', {
+  defineMessage('batched', 'When it is put in a batch', {
     subject: 'Your shipment {{trackingId}} is being prepared for shipping',
     body: 'Your shipment {{trackingId}} is being prepared for shipping.',
     sms: 'Hi {{customerName}}, your shipment {{trackingId}} is being prepared for shipping. - {{companyName}}',
   }),
-  defineMessage('shipped', 'Shipped', {
+  defineMessage('shipped', 'When its batch ships', {
     subject: 'Your shipment {{trackingId}} has been shipped',
     body: 'Your shipment {{trackingId}} has been shipped.\n\nTrack it here: {{trackingLink}}',
     sms: 'Hi {{customerName}}, your shipment {{trackingId}} has been shipped. Track it at {{trackingLink}} - {{companyName}}',
   }),
-  defineMessage('in_transit', 'In transit', {
-    subject: 'Your shipment {{trackingId}} is in transit',
-    body: 'Your shipment {{trackingId}} is in transit.',
-    sms: 'Hi {{customerName}}, your shipment {{trackingId}} is in transit. - {{companyName}}',
+  defineMessage('arrived_in_ghana', 'When its batch arrives in Ghana', {
+    subject: 'Your shipment {{trackingId}} has arrived in Ghana',
+    body: 'Your shipment {{trackingId}} has arrived at our Ghana warehouse.',
+    sms: 'Hi {{customerName}}, your shipment {{trackingId}} has arrived in Ghana. - {{companyName}}',
   }),
-  defineMessage('arrived_at_destination', 'Arrived at destination', {
-    subject: 'Your shipment {{trackingId}} has arrived',
-    body: 'Your shipment {{trackingId}} has arrived at its destination warehouse.',
-    sms: 'Hi {{customerName}}, your shipment {{trackingId}} has arrived at its destination. - {{companyName}}',
-  }),
-  defineMessage('ready_for_delivery', 'Ready for delivery', {
+  defineMessage('ready_for_delivery', 'When the Ghana warehouse has checked it', {
     subject: 'Your shipment {{trackingId}} is ready for delivery',
     body: 'Your shipment {{trackingId}} is ready for delivery to {{deliveryAddress}}.',
     sms: 'Hi {{customerName}}, your shipment {{trackingId}} is ready for delivery. - {{companyName}}',
   }),
-  defineMessage('out_for_delivery', 'Out for delivery', {
+  defineMessage('out_for_delivery', 'When a dispatch rider takes it', {
     subject: 'Your shipment {{trackingId}} is out for delivery',
     body: 'Your shipment {{trackingId}} is out for delivery to {{deliveryAddress}}.',
     sms: 'Hi {{customerName}}, your shipment {{trackingId}} is out for delivery. - {{companyName}}',
   }),
-  defineMessage('delivered', 'Delivered', {
+  defineMessage('delivered', 'When it is delivered', {
     subject: 'Your shipment {{trackingId}} has been delivered',
     body: 'Your shipment {{trackingId}} has been delivered.',
     sms: 'Hi {{customerName}}, your shipment {{trackingId}} has been delivered. Thank you. - {{companyName}}',
   }),
-  defineMessage('failed_delivery', 'Delivery failed', {
+  defineMessage('failed_delivery', 'When the rider could not deliver it', {
     subject: 'We could not deliver your shipment {{trackingId}}',
     body: 'We tried to deliver your shipment {{trackingId}} but could not. We will contact you to arrange another delivery.',
     sms: 'Hi {{customerName}}, we could not deliver your shipment {{trackingId}}. We will contact you to rearrange. - {{companyName}}',
   }),
-  defineMessage('cancelled', 'Cancelled', {
+  defineMessage('cancelled', 'When the job is cancelled', {
     subject: 'Your shipment {{trackingId}} has been cancelled',
     body: 'Your shipment {{trackingId}} has been cancelled. Please contact us if you have any questions.',
     sms: 'Hi {{customerName}}, your shipment {{trackingId}} has been cancelled. Please contact us with any questions. - {{companyName}}',
   }),
-  defineMessage('invoice_sent', 'Invoice sent', {
+  defineMessage('invoice_sent', 'When an invoice is sent', {
+    label: 'Invoice Sent',
     enabled: true,
     subject: 'Invoice {{invoiceNumber}} from {{companyName}}',
     body: 'Hello {{customerName}},\n\nInvoice {{invoiceNumber}} is ready.\nTotal: {{invoiceTotal}}\nDue date: {{dueDate}}\n\nPlease contact {{companyName}} if you have any questions.',
@@ -117,20 +116,10 @@ const PLACEHOLDERS = [
   { key: 'dueDate', label: 'Invoice due date (invoice message only)', sample: 'Fri Dec 25 2026' },
 ];
 
-const STATUS_ALIASES = {
-  at_warehouse: 'arrived_at_warehouse',
-  at_uk_warehouse: 'arrived_at_warehouse',
-  arrived_at_hub: 'arrived_at_warehouse',
-  at_ghana_warehouse: 'arrived_at_destination',
-  returning_to_warehouse: 'in_transit',
-  en_route_to_customer: 'in_transit',
-};
-
-/** Which message, if any, belongs to a job status in either spelling. */
+/** Which message, if any, belongs to a job status in any spelling. */
 const messageKeyForStatus = (status) => {
-  const key = String(status || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
-  const resolved = STATUS_ALIASES[key] || key;
-  return CUSTOMER_MESSAGES.some((message) => message.key === resolved) ? resolved : null;
+  const key = toJobStatus(status);
+  return CUSTOMER_MESSAGES.some((message) => message.key === key) ? key : null;
 };
 
 const render = (template, values) =>
@@ -297,12 +286,9 @@ const sendCustomerMessage = async (key, { customer, job, invoice } = {}, context
 
 /** Tell a job's customer about a status change. Jobs must include their customer. */
 const notifyCustomerOfStatus = (job, status, previousStatus) => {
-  const keyFor = (value) => String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
-  // Finishing a draft is when the job is really booked
-  if (keyFor(previousStatus) === 'draft' && ['pending', 'pending_collection'].includes(keyFor(status))) {
-    return sendCustomerMessage('job_created', { customer: job?.customer, job });
-  }
-  return sendCustomerMessage(messageKeyForStatus(status), { customer: job?.customer, job });
+  // Staying in the same status (a new driver, say) is not news
+  const key = toJobStatus(previousStatus) === toJobStatus(status) ? null : messageKeyForStatus(status);
+  return sendCustomerMessage(key, { customer: job?.customer, job });
 };
 
 /** Same, for a whole batch: settings are read once and messages go out a few at a time. */

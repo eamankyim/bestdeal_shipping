@@ -1,16 +1,15 @@
 import api from '../utils/api';
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, 
-  Button, 
-  Table, 
-  Modal, 
-  Form, 
-  Input, 
-  Select, 
-  message, 
-  Space, 
-  Tag, 
+import {
+  Card,
+  Button,
+  Modal,
+  Form,
+  Input,
+  Select,
+  message,
+  Space,
+  Tag,
   Typography,
   Row,
   Col,
@@ -19,22 +18,18 @@ import {
   Drawer,
   Descriptions,
   Divider,
-  InputNumber,
-  Switch,
-  Upload
+  Upload,
 } from 'antd';
-import { 
-  UserOutlined, 
-  MailOutlined, 
+import {
+  UserOutlined,
+  MailOutlined,
   PhoneOutlined,
   EditOutlined,
   EyeOutlined,
-  SettingOutlined,
   TeamOutlined,
-  MailOutlined as MailIcon,
   CameraOutlined,
   LockOutlined,
-  LoadingOutlined
+  LoadingOutlined,
 } from '@ant-design/icons';
 import InviteManagement from '../components/admin/InviteManagement';
 import RoleManagement from '../components/admin/RoleManagement';
@@ -607,7 +602,7 @@ const AdminDashboardPage = () => {
               layout="vertical"
               onFinish={handleUpdateOrganisation}
               initialValues={{
-                companyName: 'ShipEASE',
+                companyName: 'BestDeal Shipping',
                 industry: 'logistics'
               }}
             >
@@ -615,7 +610,7 @@ const AdminDashboardPage = () => {
                 <Col xs={24} md={12}>
                   <Form.Item label="Company Name" name="companyName">
                     <Input 
-                      placeholder="ShipEASE Ltd" 
+                      placeholder="BestDeal Shipping Ltd" 
                       size="large"
                       disabled={!isEditingOrganisation}
                     />
@@ -652,6 +647,18 @@ const AdminDashboardPage = () => {
                       <Option value="ecommerce">E-commerce</Option>
                       <Option value="retail">Retail</Option>
                     </Select>
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col xs={24} md={12}>
+                  <Form.Item label="Customer Support Email" name="supportEmail" extra="Shown to customers on the tracking page" rules={[{ type: 'email', message: 'Enter a valid email' }]}>
+                    <Input placeholder="help@yourcompany.com" size="large" disabled={!isEditingOrganisation} />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} md={12}>
+                  <Form.Item label="Customer Support Phone" name="supportPhone" extra="Shown to customers on the tracking page">
+                    <Input placeholder="+233 ..." size="large" disabled={!isEditingOrganisation} />
                   </Form.Item>
                 </Col>
               </Row>

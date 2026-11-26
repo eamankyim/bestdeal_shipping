@@ -1,36 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Table, 
-  Button, 
-  Modal, 
-  Form, 
-  Input, 
-  Select, 
-  DatePicker, 
-  Space, 
-  Tag, 
+import {
+  Button,
+  Modal,
+  Form,
+  Input,
+  Select,
+  Space,
+  Tag,
   Typography,
   Row,
   Col,
   Card,
   Statistic,
-  Descriptions,
   Divider,
   Avatar,
   message,
-  Drawer
+  Drawer,
 } from 'antd';
-import { 
-  PlusOutlined, 
-  SearchOutlined, 
+import {
+  PlusOutlined,
+  SearchOutlined,
   FilterOutlined,
   EyeOutlined,
   EditOutlined,
-  DeleteOutlined,
   UserOutlined,
   PhoneOutlined,
   MailOutlined,
-  EnvironmentOutlined
+  EnvironmentOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { customerAPI } from '../utils/api';

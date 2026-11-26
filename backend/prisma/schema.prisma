@@ -139,7 +139,7 @@ model Job {
   pickupDate            DateTime? @map("pickup_date")
   estimatedDelivery     DateTime? @map("estimated_delivery")
   actualDelivery        DateTime? @map("actual_delivery")
-  status                String    @default("Pending Collection")
+  status                String    @default("pending_collection") // a key from src/utils/statuses.js
   priority              String    @default("Standard") // 'Standard', 'Express', 'Urgent'
   
   // Assignment
@@ -254,7 +254,7 @@ model Batch {
   totalValue         Decimal   @default(0) @map("total_value") @db.Decimal(10, 2)
   
   // Dates & Status
-  status             String    @default("In Preparation")
+  status             String    @default("in_preparation") // a key from src/utils/statuses.js
   estimatedShipDate  DateTime? @map("estimated_ship_date")
   actualShipDate     DateTime? @map("actual_ship_date")
   estimatedArrival   DateTime? @map("estimated_arrival")

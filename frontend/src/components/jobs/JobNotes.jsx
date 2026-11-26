@@ -10,7 +10,7 @@ const JobNotes = ({ notes = [], onAdd }) => (
     size="small"
     title="Notes"
     style={{ marginBottom: 16 }}
-    extra={<Button size="small" icon={<PlusOutlined />} onClick={onAdd}>Add Note</Button>}
+    extra={onAdd && <Button size="small" icon={<PlusOutlined />} onClick={onAdd}>Add Note</Button>}
   >
     {notes.length === 0 ? (
       <Text type="secondary">No notes yet</Text>

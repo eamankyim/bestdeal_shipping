@@ -33,6 +33,7 @@ import {
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { authAPI } from '../../utils/api';
+import config from '../../config/env';
 import { showAlertToast, showError } from '../../utils/toast';
 
 const { Title, Text } = Typography;
@@ -284,8 +285,8 @@ const InviteManagement = () => {
   // Share link using Web Share API or fallback
   const shareLink = async (link, email) => {
     const shareData = {
-      title: 'ShipEASE App Invitation',
-      text: `You have been invited to join ShipEASE App. Please click the link to create your account.`,
+      title: `${config.app.name} Invitation`,
+      text: `You have been invited to join ${config.app.name}. Please click the link to create your account.`,
       url: link,
     };
 
@@ -306,9 +307,9 @@ const InviteManagement = () => {
       copyToClipboard(link);
       
       // Create email template
-      const subject = encodeURIComponent('ShipEASE App Invitation');
+      const subject = encodeURIComponent(`${config.app.name} Invitation`);
       const body = encodeURIComponent(
-        `You have been invited to join ShipEASE App!\n\n` +
+        `You have been invited to join ${config.app.name}!\n\n` +
         `Click the link below to create your account:\n${link}\n\n` +
         `This link expires in 7 days.`
       );

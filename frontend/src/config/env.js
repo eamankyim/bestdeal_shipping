@@ -13,7 +13,7 @@ const runtimeOrigin =
 const config = {
   // Application Info
   app: {
-    name: process.env.REACT_APP_NAME || 'ShipEASE App',
+    name: process.env.REACT_APP_NAME || 'BestDeal Shipping',
     logoPath: process.env.REACT_APP_LOGO_PATH || '/AppLogo.png',
   },
 
@@ -29,8 +29,9 @@ const config = {
 
   // Support Contact
   support: {
-    email: process.env.REACT_APP_SUPPORT_EMAIL || 'support@shipease.com',
-    phone: process.env.REACT_APP_SUPPORT_PHONE || '+44 20 1234 5678',
+    // Left empty unless set: the public pages show the contact details saved in Settings → Organisation
+    email: process.env.REACT_APP_SUPPORT_EMAIL || '',
+    phone: process.env.REACT_APP_SUPPORT_PHONE || '',
   },
 
   // Storage Keys

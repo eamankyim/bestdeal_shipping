@@ -128,6 +128,7 @@ const PaymentRecordingModal = ({
       onOk={handleOk}
       onCancel={handleCancel}
       confirmLoading={loading}
+      zIndex={1100} // above the job details drawer it is opened from
       okText="Record Payment"
       cancelText="Cancel"
       width={600}

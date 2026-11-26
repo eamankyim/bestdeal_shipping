@@ -25,7 +25,8 @@ test('all staff can edit the jobs they can see, and nobody else can', () => {
   assert.equal(canEditJob({ id: 'other', role: 'driver' }, job), false);
   assert.equal(canEditJob(rider, job), false);
   assert.equal(canEditJob(rider, { ...job, assignedDeliveryAgentId: 'rider' }), true);
-  assert.equal(canEditJob(rider, { ...job, status: 'ready_for_delivery' }), true);
+  // Riders only reach the jobs the Ghana warehouse has given them
+  assert.equal(canEditJob(rider, { ...job, status: 'ready_for_delivery' }), false);
   assert.equal(canEditJob(rider, { ...job, status: 'ready_for_delivery', assignedDeliveryAgentId: 'someone-else' }), false);
   // Anyone can self-register as "user", so it must never be enough to edit or read other people's jobs.
   assert.equal(canEditJob({ id: 'public', role: 'user' }, { ...job, createdBy: 'public' }), false);
@@ -73,7 +74,7 @@ test('drivers and riders cannot change the price, and edits cannot move the stat
   assert.deepEqual(buildJobUpdate(job, { parcelDetails: { value: 1 }, status: 'delivered' }, driver).data, {});
   assert.deepEqual(buildJobUpdate(job, { parcelDetails: { value: 1 } }, rider).data, {});
   assert.deepEqual(buildJobUpdate(job, { parcelDetails: { value: 150 }, status: 'Draft' }, admin).data, { value: 150 });
-  assert.deepEqual(buildJobUpdate({ ...job, status: 'Draft' }, { status: 'Pending Collection' }, admin).data, { status: 'Pending Collection' });
+  assert.deepEqual(buildJobUpdate({ ...job, status: 'Draft' }, { status: 'Pending Collection' }, admin).data, { status: 'pending_collection' });
 });
 
 const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(32)]).toString('base64');

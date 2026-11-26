@@ -21,6 +21,7 @@ const invoiceRoutes = require('./routes/invoiceRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
+const statusRoutes = require('./routes/statusRoutes');
 
 // Import swagger annotations
 require('./docs/swagger-annotations');
@@ -141,6 +142,7 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/statuses', statusRoutes);
 
 // Swagger Documentation (Multiple paths for convenience)
 const swaggerOptions = {

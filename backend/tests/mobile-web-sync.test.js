@@ -36,6 +36,7 @@ function controller(tx) {
     '../services/notificationService': {}, '../utils/trackingIdGenerator': {},
     '../services/customerMessageService': {},
     '../utils/jobAccess': require('../src/utils/jobAccess'),
+    '../utils/statuses': require('../src/utils/statuses'),
     '../utils/jobEdit': require('../src/utils/jobEdit'),
     '../utils/imageUpload': require('../src/utils/imageUpload'),
   });
@@ -53,14 +54,18 @@ test('partial payments preserve earlier receipts and reject overpayment', async 
   }
 });
 test('status revert requires actual history and records who reverted it', async () => {
-  let job = { id: 'job', status: 'shipped', timeline: [{ status: 'collected' }] };
+  let job = { id: 'job', status: 'collection_failed', timeline: [{ status: 'Assigned' }] };
   let entry;
   const tx = { job: { findUnique: async () => job, update: async ({ data }) => (job = { ...job, ...data }) }, jobTimeline: { create: async ({ data }) => { entry = data; } } };
   const api = controller(tx);
   const request = { params: { id: 'job' }, user: { id: 'staff' }, body: { previousStatus: 'invented', comment: 'Correct mistaken shipment' } };
   const denied = res(); await api.revertStatus(request, denied); assert.equal(denied.code, 400);
-  const ok = res(); await api.revertStatus({ ...request, body: { ...request.body, previousStatus: 'collected' } }, ok);
-  assert.equal(ok.code, 200); assert.equal(job.status, 'collected'); assert.equal(entry.updatedBy, 'staff');
+  const ok = res(); await api.revertStatus({ ...request, body: { ...request.body, previousStatus: 'assigned' } }, ok);
+  assert.equal(ok.code, 200); assert.equal(job.status, 'assigned'); assert.equal(entry.updatedBy, 'staff');
+  // Statuses that follow a batch or a rider cannot be set by hand
+  job = { id: 'job', status: 'shipped', timeline: [{ status: 'at_uk_warehouse' }] };
+  const locked = res(); await api.revertStatus({ ...request, body: { ...request.body, previousStatus: 'at_uk_warehouse' } }, locked);
+  assert.equal(locked.code, 400); assert.equal(job.status, 'shipped');
 });
 const { updateJobStatusValidation, registerValidation } = require('../src/middleware/validation');
 async function validate(chain, body) {

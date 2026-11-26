@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, 
-  Row, 
-  Col, 
-  Statistic, 
-  Table, 
-  Tag, 
+import {
+  Card,
+  Row,
+  Col,
+  Statistic,
+  Tag,
   Typography,
   Space,
   Button,
   Empty,
   Spin,
-  Progress
+  Progress,
 } from 'antd';
 import { 
   DollarOutlined,

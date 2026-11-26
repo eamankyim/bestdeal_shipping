@@ -14,12 +14,8 @@ import DashboardPage from './pages/DashboardPage';
 import JobsPage from './pages/JobsPage';
 import CustomersPage from './pages/CustomersPage';
 import ReportsPage from './pages/ReportsPage';
-import ShipmentTrackingPage from './pages/ShipmentTrackingPage';
-import DriverDashboardPage from './pages/DriverDashboardPage';
-import WarehouseDashboardPage from './pages/WarehouseDashboardPage';
+import WarehouseDashboard from './pages/WarehouseDashboard';
 import GhanaWarehouseDashboardPage from './pages/GhanaWarehouseDashboardPage';
-import UKWarehouseDashboardPage from './pages/UKWarehouseDashboardPage';
-import DeliveryAgentDashboardPage from './pages/DeliveryAgentDashboardPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import BatchManagementPage from './pages/BatchManagementPage';
 import InvoiceManagementPage from './pages/InvoiceManagementPage';
@@ -29,6 +25,7 @@ import SupportPage from './pages/SupportPage';
 
 // Auth Components
 import { AuthProvider } from './contexts/AuthContext';
+import { StatusProvider } from './contexts/StatusContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 const { defaultAlgorithm } = theme;
@@ -97,30 +94,25 @@ function App() {
               {/* Protected Routes */}
               <Route path="/" element={
                 <ProtectedRoute>
-                  <MainLayout />
+                  <StatusProvider>
+                    <MainLayout />
+                  </StatusProvider>
                 </ProtectedRoute>
               }>
                 <Route index element={<Navigate to="/dashboard" replace />} />
+                {/* Everyone's home: each role sees its own dashboard (pages/DashboardPage.jsx) */}
                 <Route path="dashboard" element={<DashboardPage />} />
+                {/* The office can also open each warehouse's dashboard */}
+                <Route path="uk-warehouse" element={<WarehouseDashboard />} />
+                <Route path="ghana-warehouse" element={<GhanaWarehouseDashboardPage />} />
                 <Route path="jobs" element={<JobsPage />} />
                 <Route path="customers" element={<CustomersPage />} />
-                <Route path="reports" element={<ReportsPage />} />
-                <Route path="track-shipment" element={<ShipmentTrackingPage />} />
-                <Route path="driver" element={<DriverDashboardPage />} />
-                <Route path="driver-dashboard" element={<DriverDashboardPage />} />
-                <Route path="warehouse" element={<WarehouseDashboardPage />} />
-                <Route path="warehouse-dashboard" element={<WarehouseDashboardPage />} />
-                <Route path="ghana-warehouse" element={<GhanaWarehouseDashboardPage />} />
-                <Route path="ghana-warehouse-dashboard" element={<GhanaWarehouseDashboardPage />} />
-                <Route path="uk-warehouse" element={<UKWarehouseDashboardPage />} />
-                <Route path="uk-warehouse-dashboard" element={<UKWarehouseDashboardPage />} />
                 <Route path="batch-management" element={<BatchManagementPage />} />
                 <Route path="invoice-management" element={<InvoiceManagementPage />} />
-                <Route path="delivery-agent" element={<DeliveryAgentDashboardPage />} />
-                <Route path="delivery-agent-dashboard" element={<DeliveryAgentDashboardPage />} />
+                <Route path="reports" element={<ReportsPage />} />
                 <Route path="admin" element={<AdminDashboardPage />} />
               </Route>
-              
+
               {/* Catch all route - redirect to dashboard */}
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>

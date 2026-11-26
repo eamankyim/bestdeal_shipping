@@ -35,6 +35,12 @@ router.use(authenticate);
  *           default: 20
  *       - in: query
  *         name: status
+ *         description: One status key, or several separated by commas
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: search
+ *         description: Part of a tracking ID, reference, customer name or receiver name
  *         schema:
  *           type: string
  *     responses:
@@ -215,13 +221,20 @@ router.delete('/:id', authorize('admin'), uuidValidation, jobController.deleteJo
  *             properties:
  *               status:
  *                 type: string
- *                 enum: [Pending Collection, Assigned, En Route to Customer, Collected, Returning to Warehouse, At Warehouse, Batched, Shipped, In Transit, Arrived at Destination, Out for Delivery, Delivered]
+ *                 description: The status key to move to. GET /api/statuses lists the moves the signed-in user may make, and which need a reason (notes) or photos (proofImages).
+ *                 example: collected
+ *               notes:
+ *                 type: string
+ *               proofImages:
+ *                 type: array
+ *                 items:
+ *                   type: object
  *     responses:
  *       200:
  *         description: Status updated successfully
  */
-// Drivers, delivery agents, warehouse staff, and admins can update job status
-router.patch('/:id/status', authorize('admin', 'driver', 'delivery-agent', 'delivery_agent', 'warehouse'), uuidValidation, updateJobStatusValidation, jobController.updateJobStatus);
+// Which role may make which move is checked in the controller (utils/statuses.js)
+router.patch('/:id/status', authorize('admin', 'driver', 'delivery-agent', 'warehouse'), uuidValidation, updateJobStatusValidation, jobController.updateJobStatus);
 
 /**
  * @swagger

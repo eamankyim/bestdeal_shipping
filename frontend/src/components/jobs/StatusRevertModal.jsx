@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Modal, Form, Input, Select, message } from 'antd';
 import { UndoOutlined } from '@ant-design/icons';
+import { formatJobStatusLabel } from '../../constants/jobStatuses';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -62,13 +63,14 @@ const StatusRevertModal = ({
       title={
         <span>
           <UndoOutlined style={{ marginRight: 8 }} />
-          Revert Job Status
+          Undo a Status Change
         </span>
       }
       open={visible}
       onOk={handleOk}
       onCancel={handleCancel}
       confirmLoading={loading}
+      zIndex={1100} // above the job details drawer it is opened from
       okText="Revert Status"
       cancelText="Cancel"
       okButtonProps={{ danger: true }}
@@ -80,7 +82,7 @@ const StatusRevertModal = ({
       >
         <div style={{ marginBottom: 16, padding: 12, backgroundColor: '#fff7e6', borderRadius: 4, border: '1px solid #ffd591' }}>
           <strong>Current Status: </strong>
-          <span style={{ color: '#d46b08' }}>{currentStatus}</span>
+          <span style={{ color: '#d46b08' }}>{formatJobStatusLabel(currentStatus)}</span>
         </div>
 
         <Form.Item
@@ -91,7 +93,7 @@ const StatusRevertModal = ({
           <Select placeholder="Select previous status">
             {previousStatuses.map(status => (
               <Option key={status} value={status}>
-                {status}
+                {formatJobStatusLabel(status)}
               </Option>
             ))}
           </Select>

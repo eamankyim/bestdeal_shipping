@@ -128,6 +128,7 @@ const CustomerMessageStages = ({ active, onOpenSetup }) => {
           label: (
             <Space wrap size={[8, 0]}>
               <span>{item.label}</span>
+              {item.when && <Text type="secondary" style={{ fontSize: 12 }}>{item.when}</Text>}
               {dirty.includes(item.key) && <Tag color="orange">Not saved</Tag>}
             </Space>
           ),
