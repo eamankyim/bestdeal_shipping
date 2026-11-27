@@ -8,25 +8,19 @@ import './styles/input-focus.css';
 
 // Layout and Pages
 import MainLayout from './components/layout/MainLayout';
-import LoginPage from './pages/LoginPage';
-import AcceptInvitePage from './pages/AcceptInvitePage';
-import DashboardPage from './pages/DashboardPage';
-import JobsPage from './pages/JobsPage';
-import CustomersPage from './pages/CustomersPage';
-import ReportsPage from './pages/ReportsPage';
-import WarehouseDashboard from './pages/WarehouseDashboard';
-import GhanaWarehouseDashboardPage from './pages/GhanaWarehouseDashboardPage';
-import AdminDashboardPage from './pages/AdminDashboardPage';
-import BatchManagementPage from './pages/BatchManagementPage';
-import InvoiceManagementPage from './pages/InvoiceManagementPage';
-import PublicTrackingPage from './pages/PublicTrackingPage';
-import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
-import SupportPage from './pages/SupportPage';
 
 // Auth Components
 import { AuthProvider } from './contexts/AuthContext';
 import { StatusProvider } from './contexts/StatusContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+
+// The sign-in page is part of the first download: it is the first thing a new visitor sees.
+// Every other page is downloaded the first time it is opened (pages/lazyPages.js).
+import LoginPage from './pages/LoginPage';
+import {
+  AcceptInvitePage, AdminDashboardPage, BatchManagementPage, CustomersPage, DashboardPage, GhanaWarehouseDashboardPage,
+  InvoiceManagementPage, JobsPage, PrivacyPolicyPage, PublicTrackingPage, ReportsPage, SupportPage, WarehouseDashboard,
+} from './pages/lazyPages';
 
 const { defaultAlgorithm } = theme;
 

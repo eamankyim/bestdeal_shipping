@@ -1,25 +1,38 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Button, Spin } from 'antd';
+import { useAuth } from '../../contexts/AuthContext';
+import { fromEarly } from '../../utils/earlyData';
+
+// The numbers each dashboard last showed in this tab, so going back to one shows them at once
+// while fresh ones load. Kept in memory only, and only for the same person.
+const lastShown = new Map();
 
 /**
  * Loads a dashboard endpoint and keeps it fresh: every two minutes, and straight away when a job
  * is changed in another tab. Returns { data, error, reload }.
  */
 export const useDashboard = (fetcher) => {
-  const [data, setData] = useState(null);
+  const { currentUser } = useAuth();
+  const userId = currentUser?.id;
+  const [data, setData] = useState(() => {
+    const saved = lastShown.get(fetcher);
+    return saved && saved.userId === userId ? saved.data : null;
+  });
   const [error, setError] = useState(null);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
   const reload = useCallback(async () => {
     try {
-      const response = await fetcherRef.current();
+      // The first load is usually already on its way (utils/homeDashboard.js warmUp)
+      const response = await fromEarly(fetcherRef.current);
+      lastShown.set(fetcherRef.current, { userId, data: response.data });
       setData(response.data);
       setError(null);
     } catch (err) {
       setError(err.message || 'Failed to load the dashboard');
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     reload();

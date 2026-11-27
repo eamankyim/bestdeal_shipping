@@ -4,6 +4,7 @@ const { notifyBatchCreated } = require('../services/notificationService');
 const { notifyCustomersOfStatus } = require('../services/customerMessageService');
 const { isBlank } = require('../utils/jobEdit');
 const { splitJob } = require('../services/jobSplit');
+const { runLater } = require('../utils/background');
 const {
   BATCHABLE, toBatchStatus, batchStatusInfo, nextBatchStatuses, canEditBatch, canCreateBatch,
 } = require('../utils/statuses');
@@ -146,16 +147,9 @@ exports.createBatch = async (req, res) => {
       return { batch, parts, jobsUpdated: jobDetails.length };
     }, { timeout: 30000 });
 
-    try {
-      await notifyBatchCreated(result.batch, req.user.id);
-    } catch (error) {
-      console.error('⚠️ Failed to send batch notifications:', error);
-    }
-    try {
-      await notifyBatched(jobs);
-    } catch (error) {
-      console.error('⚠️ Failed to message customers about the batch:', error);
-    }
+    // Staff and customers are told after the answer is sent
+    runLater('batch notifications', () => notifyBatchCreated(result.batch, req.user.id));
+    runLater('batch customer messages', () => notifyBatched(jobs));
 
     return sendSuccess(res, 201, 'Batch created successfully', {
       batch: mapBatchForClient(result.batch),
@@ -396,11 +390,7 @@ exports.updateBatch = async (req, res) => {
 
     if (result.error) return sendError(res, result.code, result.error);
 
-    try {
-      await notifyBatched(result.added);
-    } catch (error) {
-      console.error('⚠️ Failed to message customers about the batch:', error);
-    }
+    runLater('batch customer messages', () => notifyBatched(result.added));
     return sendSuccess(res, 200, 'Batch updated successfully', {
       batch: mapBatchForClient(result.batch),
       parts: (result.parts || []).map((part) => ({ id: part.id, trackingId: part.trackingId, description: part.description })),
@@ -463,9 +453,10 @@ exports.updateBatchStatus = async (req, res) => {
 
     if (result.error) return sendError(res, result.code, result.error);
 
+    // Customers and staff are told after the answer is sent: a big batch does not keep anyone waiting
     if (result.jobIds.length > 0) {
       const { notifyJobStatusChange } = require('../services/notificationService');
-      try {
+      runLater('batch status messages', async () => {
         const movedJobs = await prisma.job.findMany({
           where: { id: { in: result.jobIds } },
           include: { customer: { select: { id: true, name: true, email: true, phone: true } } },
@@ -478,9 +469,7 @@ exports.updateBatchStatus = async (req, res) => {
             console.error(`⚠️ Failed to send notification for job ${job.trackingId}:`, error);
           }
         }
-      } catch (error) {
-        console.error('⚠️ Failed to send batch status change notifications:', error);
-      }
+      });
     }
 
     return sendSuccess(res, 200, 'Batch status updated successfully', { batch: result.batch, jobsMoved: result.jobIds.length });

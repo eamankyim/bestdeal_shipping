@@ -23,7 +23,7 @@ const PROVIDERS = {
       {
         key: 'sender',
         label: 'Sender ID (optional)',
-        help: "Must be approved by Lynk first, up to 11 characters. Leave blank to use Lynk's own sender name",
+        help: "Must be approved on BestDeal's own Lynk account first, up to 11 characters. Leave blank to send as Lynk",
         pattern: ALPHANUMERIC_SENDER,
       },
     ],

@@ -6,7 +6,6 @@ import {
   Input,
   Select,
   DatePicker,
-  InputNumber,
   Upload,
   Space,
   Tag,
@@ -28,12 +27,13 @@ import {
 import { useLocation } from 'react-router-dom';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 import { canAssignDriver, formatJobStatusLabel, getStatusColor, jobStatusList, stageList } from '../constants/jobStatuses';
-import { jobAPI, customerAPI, authAPI } from '../utils/api';
+import { jobAPI, authAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { canCreateJobs, canEditJobValue } from '../utils/permissions';
 import { filesToUploads } from '../utils/imageUpload';
 import DropdownWithOther from '../components/common/DropdownWithOther';
-import JobDrawer from '../components/jobs/JobDrawer';
+import JobDrawer from '../components/jobs/LazyJobDrawer';
+import CustomerSelect from '../components/customers/CustomerSelect';
 import PackageLines from '../components/jobs/PackageLines';
 
 const { Title, Text } = Typography;
@@ -54,10 +54,9 @@ const JobsPage = () => {
   const [form] = Form.useForm();
 
   const [jobs, setJobs] = useState([]);
-  const [customers, setCustomers] = useState([]);
   const [drivers, setDrivers] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  // Loading until the first list arrives, so "no jobs" never flashes up first
+  const [loading, setLoading] = useState(true);
   const [loadingDrivers, setLoadingDrivers] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState(null);
@@ -87,10 +86,14 @@ const JobsPage = () => {
 
   useEffect(() => {
     fetchJobs();
-    fetchCustomers();
-    if (canChooseDriver) fetchDrivers();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
+
+  // The driver list is only needed in the New Job form, so it is fetched when the form first opens
+  useEffect(() => {
+    if (isModalVisible && canChooseDriver && drivers.length === 0 && !loadingDrivers) fetchDrivers();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- when the form opens
+  }, [isModalVisible]);
 
   // Auto-refresh jobs every 120 seconds (2 minutes) to reduce API load
   useEffect(() => {
@@ -174,26 +177,6 @@ const JobsPage = () => {
   const onStatusChange = (value) => {
     setStatusFilter(value || null);
     fetchJobs(false, { status: value || null, page: 1 });
-  };
-
-  const fetchCustomers = async () => {
-    setLoadingCustomers(true);
-    try {
-      console.log('📥 Fetching customers for dropdown...');
-      
-      const response = await customerAPI.getAll();
-      
-      if (response.success && response.data) {
-        const rawCustomers = Array.isArray(response.data) ? response.data : response.data.customers || [];
-        setCustomers(rawCustomers);
-        console.log('✅ Customers loaded for dropdown:', rawCustomers.length);
-      }
-    } catch (error) {
-      console.error('❌ Failed to fetch customers:', error);
-      setCustomers([]);
-    } finally {
-      setLoadingCustomers(false);
-    }
   };
 
   const fetchDrivers = async () => {
@@ -374,11 +357,6 @@ const JobsPage = () => {
         
         // Refresh jobs list
         await fetchJobs();
-        
-        // Refresh customers if new one was created
-        if (customerType === 'new') {
-          await fetchCustomers();
-        }
       } else {
         message.error(response.message || 'Failed to create job');
       }
@@ -547,7 +525,7 @@ const JobsPage = () => {
             insurance: false,
             customerCountry: 'United Kingdom',
             packages: [{ quantity: 1 }],
-            // The UK warehouse books parcels customers bring in; the office usually books collections
+            // The UK warehouse books parcels customers bring in; everyone else books collections
             atWarehouse: currentUser?.role === 'warehouse',
           }}
         >
@@ -566,25 +544,8 @@ const JobsPage = () => {
                 label="Select Customer"
                 rules={[{ required: true, message: 'Please select a customer!' }]}
               >
-                <Select 
-                  placeholder="Choose a customer"
-                  showSearch
-                  loading={loadingCustomers}
-                  notFoundContent={loadingCustomers ? "Loading customers..." : "No customers found. Create a customer first."}
-                  optionFilterProp="children"
-                  filterOption={(input, option) =>
-                    option.children.props.children[1].toLowerCase().includes(input.toLowerCase())
-                  }
-                >
-                  {customers.map(customer => (
-                    <Option key={customer.id} value={customer.id}>
-                      <Space>
-                        <UserOutlined />
-                        {customer.name} - {customer.email || 'No email'}
-                      </Space>
-                    </Option>
-                  ))}
-                </Select>
+                {/* Searches every customer on the server as you type */}
+                <CustomerSelect placeholder="Type the customer's name, email or phone" />
               </Form.Item>
             ) : (
               <>
@@ -686,14 +647,17 @@ const JobsPage = () => {
                 </Form.Item>
               </Col>
             </Row>
-            <Form.Item name="atWarehouse" label="Where is it now?">
-              <Radio.Group>
-                <Space direction="vertical">
-                  <Radio value>At the UK warehouse (the customer brought it in)</Radio>
-                  <Radio value={false}>With the customer (a driver collects it)</Radio>
-                </Space>
-              </Radio.Group>
-            </Form.Item>
+            {/* Only the UK warehouse books parcels customers bring in; everyone else books collections */}
+            {currentUser?.role === 'warehouse' && (
+              <Form.Item name="atWarehouse" label="Where is it now?">
+                <Radio.Group>
+                  <Space direction="vertical">
+                    <Radio value>At the UK warehouse (the customer brought it in)</Radio>
+                    <Radio value={false}>With the customer (a driver collects it)</Radio>
+                  </Space>
+                </Radio.Group>
+              </Form.Item>
+            )}
             <Row gutter={16}>
               <Form.Item noStyle shouldUpdate={(prev, curr) => prev.atWarehouse !== curr.atWarehouse}>
                 {({ getFieldValue }) => !getFieldValue('atWarehouse') && (

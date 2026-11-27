@@ -11,6 +11,8 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import Sidebar from './Sidebar';
 import NotificationBell from '../notifications/NotificationBell';
+import { whenIdle } from '../../utils/lazyPage';
+import { JobsPage } from '../../pages/lazyPages';
 import './MainLayout.css';
 
 const { Header, Content } = Layout;
@@ -21,6 +23,11 @@ const MainLayout = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+
+  // The Jobs page, opened most after the home page, downloads once the browser is idle
+  useEffect(() => {
+    whenIdle(() => JobsPage.preload().catch(() => {}));
+  }, []);
 
   // Detect mobile devices and handle resize
   useEffect(() => {
@@ -159,6 +166,7 @@ const MainLayout = () => {
         </Header>
         
         <Content className="main-content">
+          {/* Pages download on first use (utils/lazyPage.js); the menu stays on screen meanwhile */}
           <Outlet />
         </Content>
       </Layout>

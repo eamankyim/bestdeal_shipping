@@ -3,6 +3,7 @@ const { asyncHandler } = require('../middleware/errorHandler');
 const { isEmailReady, sendTestEmail } = require('../services/emailService');
 const { CUSTOMER_MESSAGES, getMessages, getPlaceholders, saveMessages } = require('../services/customerMessageService');
 const { getSmsSettings, saveSmsSettings, sendTestSms, getSmsHistory } = require('../services/smsService');
+const messagingPlan = require('../services/messagingPlanService');
 
 /**
  * @route   GET /api/settings/customer-messages
@@ -86,3 +87,47 @@ exports.getSmsHistory = asyncHandler(async (req, res) => {
     messages: history.messages.map((message) => ({ ...message, eventLabel: labels[message.event] || 'Test message' })),
   });
 });
+
+// ==================== Messaging plan (BestDeal's Lynk sub-account) ====================
+
+const planAnswer = (handler) => asyncHandler(async (req, res) => {
+  try {
+    return await handler(req, res);
+  } catch (error) {
+    if (error instanceof messagingPlan.PlanError) return sendError(res, error.status, error.message);
+    throw error;
+  }
+});
+const caller = (req) => ({ origin: req.get('origin'), ip: req.ip });
+
+/**
+ * @route   GET /api/settings/messaging-plan
+ * @desc    Texts and emails left this month, the plan and its renewal, the balance, and the plans on offer
+ * @access  Admin (and customer service, who can see but not pay)
+ */
+exports.getMessagingPlan = planAnswer(async (req, res) =>
+  sendSuccess(res, 200, 'Messaging plan retrieved successfully', await messagingPlan.getPlan(req.user)));
+
+/**
+ * @route   POST /api/settings/messaging-plan/choose
+ * @desc    Choose a monthly plan. May answer with Lynk's payment page when the balance is short
+ * @access  Administrators only
+ */
+exports.chooseMessagingPlan = planAnswer(async (req, res) =>
+  sendSuccess(res, 200, 'Plan chosen', await messagingPlan.choosePlan(req.user, req.body, caller(req))));
+
+/**
+ * @route   POST /api/settings/messaging-plan/top-ups
+ * @desc    Pay ahead onto the Lynk balance: answers with Lynk's payment page
+ * @access  Administrators only
+ */
+exports.payAheadForMessaging = planAnswer(async (req, res) =>
+  sendSuccess(res, 200, 'Payment started', await messagingPlan.payAhead(req.user, req.body, caller(req))));
+
+/**
+ * @route   GET /api/settings/messaging-plan/top-ups/:id
+ * @desc    Whether a payment made on Lynk's page went through
+ * @access  Administrators only
+ */
+exports.checkMessagingPayment = planAnswer(async (req, res) =>
+  sendSuccess(res, 200, 'Payment checked', await messagingPlan.checkPayment(req.user, req.params.id)));

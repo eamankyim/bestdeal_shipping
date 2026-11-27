@@ -22,6 +22,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { dashboardAPI } from '../utils/api';
+import { fromEarly } from '../utils/earlyData';
 import ResponsiveTable from '../components/common/ResponsiveTable';
 
 const { Title, Text } = Typography;
@@ -53,7 +54,8 @@ const FinanceDashboard = () => {
     try {
       setLoading(true);
       setError(null); // Clear previous errors
-      const response = await dashboardAPI.getFinance();
+      // The first load is usually already on its way (utils/homeDashboard.js warmUp)
+      const response = await fromEarly(dashboardAPI.getFinance);
 
       if (response.success) {
         setDashboardData(response.data);

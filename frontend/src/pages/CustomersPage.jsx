@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Button,
   Modal,
@@ -43,7 +43,14 @@ const CustomersPage = () => {
   const [isDetailsModalVisible, setIsDetailsModalVisible] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customers, setCustomers] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // Loading until the first page arrives, so "no customers" never flashes up first
+  const [loading, setLoading] = useState(true);
+  const [paging, setPaging] = useState({ page: 1, pageSize: 10, total: 0 });
+  const [search, setSearch] = useState('');
+  // The page and search on screen, and only the newest request's answer is shown
+  const query = useRef({ page: 1, pageSize: 10, search: '' });
+  const latestRequest = useRef(0);
+  const searchTimer = useRef(null);
   const [submitting, setSubmitting] = useState(false);
   const [stats, setStats] = useState([
     { title: 'Total Customers', value: 0, color: '#1890ff' },
@@ -54,68 +61,79 @@ const CustomersPage = () => {
   const [form] = Form.useForm();
   const navigate = useNavigate();
 
-  // Fetch customers on mount
   useEffect(() => {
     fetchCustomers();
+    fetchStats();
+    return () => clearTimeout(searchTimer.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
 
-  const fetchCustomers = async () => {
+  /**
+   * One page of customers from the server, searched there by name, email or phone, so the page
+   * stays quick and every customer can be found however many there are.
+   */
+  const fetchCustomers = async (changes = {}) => {
+    query.current = { ...query.current, ...changes };
+    const { page, pageSize, search: text } = query.current;
+    const request = latestRequest.current + 1;
+    latestRequest.current = request;
     setLoading(true);
     try {
-      console.log('📥 Fetching customers from backend...');
-      
-      const response = await customerAPI.getAll();
-      
-      console.log('✅ Customers fetched:', response);
-      
-      if (response.success && response.data) {
-        const rawCustomers = Array.isArray(response.data) ? response.data : response.data.customers || [];
-        console.log('📋 Raw customers:', rawCustomers);
-        
-        // Transform backend data to match table format
-        const transformedCustomers = rawCustomers.map(customer => ({
-          id: customer.id,
-          customerId: customer.id.substring(0, 8).toUpperCase(),
-          name: customer.name,
-          email: customer.email || 'N/A',
-          phone: customer.phone || 'N/A',
-          address: customer.address || 'N/A',
-          customerType: customer.customerType,
-          status: 'Active', // TODO: Add status field to backend
-          registrationDate: new Date(customer.createdAt).toLocaleDateString(),
-          lastJob: 'N/A', // TODO: Calculate from jobs
-          totalJobs: 0, // TODO: Calculate from jobs
-          notes: customer.notes || '',
-          totalSpent: 0, // TODO: Calculate from invoices
-        }));
-        
-        console.log('📋 Transformed customers:', transformedCustomers);
-        setCustomers(transformedCustomers);
-        
-        // Calculate statistics
-        const total = transformedCustomers.length;
-        const individual = transformedCustomers.filter(c => c.customerType === 'Individual').length;
-        const company = transformedCustomers.filter(c => c.customerType === 'Company').length;
-        
-        setStats([
-          { title: 'Total Customers', value: total, color: '#1890ff' },
-          { title: 'Active Customers', value: total, color: '#52c41a' },
-          { title: 'Individual Customers', value: individual, color: '#52c41a' },
-          { title: 'Company Customers', value: company, color: '#1890ff' },
-        ]);
-      }
+      const response = await customerAPI.getAll({ page, limit: pageSize, search: text.trim() });
+      if (request !== latestRequest.current) return;
+      const rawCustomers = Array.isArray(response.data) ? response.data : response.data?.customers || [];
+      setCustomers(rawCustomers.map((customer) => ({
+        id: customer.id,
+        customerId: customer.id.substring(0, 8).toUpperCase(),
+        name: customer.name,
+        email: customer.email || 'N/A',
+        phone: customer.phone || 'N/A',
+        address: customer.address || 'N/A',
+        customerType: customer.customerType,
+        status: 'Active', // TODO: Add status field to backend
+        registrationDate: new Date(customer.createdAt).toLocaleDateString(),
+        lastJob: 'N/A', // TODO: Calculate from jobs
+        totalJobs: customer._count?.jobs ?? 0,
+        notes: customer.notes || '',
+        totalSpent: 0, // TODO: Calculate from invoices
+      })));
+      setPaging({ page, pageSize, total: response.pagination?.total ?? rawCustomers.length });
     } catch (error) {
+      if (request !== latestRequest.current) return;
       console.error('❌ Failed to fetch customers:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response,
-        stack: error.stack
-      });
       message.error('Failed to load customers');
       setCustomers([]);
     } finally {
-      setLoading(false);
+      if (request === latestRequest.current) setLoading(false);
     }
+  };
+
+  // The totals at the top count every customer, not only the page on screen
+  const fetchStats = async () => {
+    try {
+      const [all, individual, company] = await Promise.all([
+        customerAPI.getAll({ limit: 1 }),
+        customerAPI.getAll({ limit: 1, customerType: 'Individual' }),
+        customerAPI.getAll({ limit: 1, customerType: 'Company' }),
+      ]);
+      const total = all.pagination?.total ?? 0;
+      setStats([
+        { title: 'Total Customers', value: total, color: '#1890ff' },
+        { title: 'Active Customers', value: total, color: '#52c41a' },
+        { title: 'Individual Customers', value: individual.pagination?.total ?? 0, color: '#52c41a' },
+        { title: 'Company Customers', value: company.pagination?.total ?? 0, color: '#1890ff' },
+      ]);
+    } catch (error) {
+      // The list works without the totals
+      console.error('❌ Failed to fetch customer totals:', error);
+    }
+  };
+
+  // Typing waits a moment before searching, so each key press is not a request
+  const onSearchChange = (value) => {
+    setSearch(value);
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => fetchCustomers({ search: value, page: 1 }), 400);
   };
 
   const columns = [
@@ -208,8 +226,9 @@ const CustomersPage = () => {
         setIsModalVisible(false);
         form.resetFields();
         
-        // Refresh customer list
-        await fetchCustomers();
+        // Show the new customer at the top of the first page, and the new totals
+        fetchStats();
+        await fetchCustomers({ page: 1 });
       } else {
         message.error(response.message || 'Failed to create customer');
       }
@@ -280,8 +299,11 @@ const CustomersPage = () => {
           <Col xs={24} lg={16}>
             <Space wrap style={{ width: '100%' }} className="mobile-stack">
               <Input
-                placeholder="Search customers..."
+                placeholder="Search by name, email or phone"
                 prefix={<SearchOutlined />}
+                allowClear
+                value={search}
+                onChange={(event) => onSearchChange(event.target.value)}
                 style={{ width: '100%', maxWidth: 300 }}
                 className="mobile-full-width"
               />
@@ -322,13 +344,15 @@ const CustomersPage = () => {
                   alt="No customers"
                   style={{ width: 180, maxWidth: '70%', marginBottom: 12 }}
                 />
-                <div>No customers yet. Click "New Customer" to add your first customer.</div>
+                <div>{search.trim() ? 'No customer matches your search.' : 'No customers yet. Click "New Customer" to add your first customer.'}</div>
               </div>
             )
           }}
           pagination={{
-            total: customers.length,
-            pageSize: 10,
+            current: paging.page,
+            pageSize: paging.pageSize,
+            total: paging.total,
+            onChange: (page, pageSize) => fetchCustomers({ page: pageSize === paging.pageSize ? page : 1, pageSize }),
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total, range) =>

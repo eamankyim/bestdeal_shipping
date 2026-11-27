@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { dashboardAPI } from '../utils/api';
 import JobQueue, { StatCards } from '../components/dashboard/JobQueue';
 import { DashboardLoading, useDashboard } from '../components/dashboard/useDashboard';
-import JobDrawer from '../components/jobs/JobDrawer';
+import JobDrawer from '../components/jobs/LazyJobDrawer';
 
 const { Title, Text } = Typography;
 

@@ -8,7 +8,7 @@ import { formatBatchStatusLabel, getBatchStatusColor, nextBatchStatuses } from '
 import JobQueue, { StatCards } from '../components/dashboard/JobQueue';
 import { DashboardLoading, useDashboard } from '../components/dashboard/useDashboard';
 import ResponsiveTable from '../components/common/ResponsiveTable';
-import JobDrawer from '../components/jobs/JobDrawer';
+import JobDrawer from '../components/jobs/LazyJobDrawer';
 
 const { Title, Text } = Typography;
 const date = (value) => (value ? new Date(value).toLocaleDateString() : '—');

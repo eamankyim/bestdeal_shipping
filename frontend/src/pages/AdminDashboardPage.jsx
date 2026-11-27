@@ -46,7 +46,9 @@ const { TextArea } = Input;
 
 const AdminDashboardPage = () => {
   const { currentUser, refreshUser } = useAuth();
-  const [activeTab, setActiveTab] = useState('profile');
+  // Coming back from Lynk's payment page (?lynk_payment=1) opens the messaging plan
+  const returningFromPayment = new URLSearchParams(window.location.search).has('lynk_payment');
+  const [activeTab, setActiveTab] = useState(returningFromPayment ? 'customer-messages' : 'profile');
   const [userModalVisible, setUserModalVisible] = useState(false);
   const [isDetailsDrawerVisible, setIsDetailsDrawerVisible] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -712,7 +714,7 @@ const AdminDashboardPage = () => {
     {
       key: 'customer-messages',
       label: 'Customer Messages',
-      children: <CustomerMessageSettings />,
+      children: <CustomerMessageSettings initialTab={returningFromPayment ? 'plan' : 'stages'} />,
     },
     {
       key: 'invites',
@@ -792,7 +794,7 @@ const AdminDashboardPage = () => {
       {/* Main Content Tabs */}
       <Card>
         <Tabs
-          defaultActiveKey="profile"
+          activeKey={filteredTabItems.some((tab) => tab.key === activeTab) ? activeTab : 'profile'}
           items={filteredTabItems}
           onChange={setActiveTab}
         />

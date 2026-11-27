@@ -1,4 +1,5 @@
-import imageCompression from 'browser-image-compression';
+// The compressor is only downloaded the first time someone attaches a large photo
+const loadCompressor = () => import('browser-image-compression').then((module) => module.default);
 
 /**
  * Compress a file to ensure it's under the maximum size
@@ -17,6 +18,7 @@ export const compressFile = async (file, maxSizeMB = 5) => {
   // Check if file is an image (can be compressed)
   if (file.type.startsWith('image/')) {
     try {
+      const imageCompression = await loadCompressor();
       // Preserve original file name and type
       const originalFileName = file.name;
       const originalFileType = file.type;

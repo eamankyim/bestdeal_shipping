@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import config from '../config/env';
 import { authAPI } from '../utils/api';
+import { clearEarly } from '../utils/earlyData';
+import { warmUp } from '../utils/homeDashboard';
 
 const AuthContext = createContext();
 
@@ -26,6 +28,8 @@ export const AuthProvider = ({ children }) => {
         const user = JSON.parse(savedUser);
         setCurrentUser(user);
         setIsAuthenticated(true);
+        // Ask for the opening page's data now, while its code is still downloading
+        warmUp(user);
       } catch (error) {
         console.error('Error parsing saved user:', error);
         localStorage.removeItem(config.storage.userKey);
@@ -58,6 +62,10 @@ export const AuthProvider = ({ children }) => {
         if (refreshToken) {
           localStorage.setItem('shipease_refresh_token', refreshToken);
         }
+
+        // The status list and the home page's numbers are asked for at once, side by side with
+        // the home page's code (fetched while the person was typing, see LoginPage)
+        warmUp(user, '/dashboard');
         
         console.log('💾 User data and tokens stored in localStorage');
         
@@ -88,6 +96,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem(config.storage.userKey);
       localStorage.removeItem(config.storage.tokenKey);
       localStorage.removeItem('shipease_refresh_token');
+      clearEarly();
     }
   };
 

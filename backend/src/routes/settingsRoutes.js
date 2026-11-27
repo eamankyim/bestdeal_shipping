@@ -18,4 +18,10 @@ router.post('/sms/test', settingsController.sendTestSms);
 router.get('/sms/history', settingsController.getSmsHistory);
 router.post('/email/test', body('email').isEmail().withMessage('Please enter a valid email address'), validate, settingsController.sendTestEmail);
 
+// BestDeal's Lynk messaging plan: see it (admin, customer service); choose and pay (administrators only)
+router.get('/messaging-plan', settingsController.getMessagingPlan);
+router.post('/messaging-plan/choose', settingsController.chooseMessagingPlan);
+router.post('/messaging-plan/top-ups', settingsController.payAheadForMessaging);
+router.get('/messaging-plan/top-ups/:id', settingsController.checkMessagingPayment);
+
 module.exports = router;

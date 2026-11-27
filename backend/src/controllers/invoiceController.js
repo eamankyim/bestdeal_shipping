@@ -461,6 +461,8 @@ exports.getInvoiceNoteImage = async (req, res) => {
 
     res.setHeader('Content-Type', note.imageMimeType);
     res.setHeader('Content-Disposition', contentDisposition(note.imageName));
+    // A saved image never changes, so this browser can keep it
+    res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
     return res.send(note.imageData);
   } catch (error) {
     console.error('Error fetching invoice note image:', error);

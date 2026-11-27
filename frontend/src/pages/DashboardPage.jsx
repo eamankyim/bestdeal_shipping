@@ -6,11 +6,14 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { dashboardAPI } from '../utils/api';
-import { canCreateJobs, hasFullAccess, isGhanaWarehouse } from '../utils/permissions';
+import { canCreateJobs } from '../utils/permissions';
+import { homeDashboard } from '../utils/homeDashboard';
 import { jobStatusList, stageList } from '../constants/jobStatuses';
 import JobQueue, { StatCards } from '../components/dashboard/JobQueue';
 import { DashboardLoading, useDashboard } from '../components/dashboard/useDashboard';
-import JobDrawer from '../components/jobs/JobDrawer';
+import JobDrawer from '../components/jobs/LazyJobDrawer';
+// The role dashboards are small and share almost all their code, so they come in the same download:
+// splitting them would add a second download, one after the other, before anyone's home page shows
 import FinanceDashboard from './FinanceDashboard';
 import WarehouseDashboard from './WarehouseDashboard';
 import GhanaWarehouseDashboardPage from './GhanaWarehouseDashboardPage';
@@ -47,8 +50,6 @@ const OfficeOverview = () => {
         </Col>
         <Col>
           <Space wrap>
-            <Button onClick={() => navigate('/uk-warehouse')}>UK Warehouse</Button>
-            <Button onClick={() => navigate('/ghana-warehouse')}>Ghana Warehouse</Button>
             {canCreateJobs(currentUser) && (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/jobs', { state: { openNewJobModal: true } })}>New Job</Button>
             )}
@@ -117,13 +118,14 @@ const OfficeOverview = () => {
 /** Everyone's home page: each role sees its own dashboard. */
 const DashboardPage = () => {
   const { currentUser } = useAuth();
-  const role = currentUser?.role === 'warehouse_staff' ? 'warehouse' : currentUser?.role;
+  const dashboard = homeDashboard(currentUser);
 
-  if (role === 'finance') return <FinanceDashboard />;
-  if (role === 'warehouse') return isGhanaWarehouse(currentUser) ? <GhanaWarehouseDashboardPage /> : <WarehouseDashboard />;
-  if (role === 'driver') return <DriverDashboardPage />;
-  if (role === 'delivery-agent') return <DeliveryDashboard />;
-  if (hasFullAccess(currentUser)) return <OfficeOverview />;
+  if (dashboard === 'finance') return <FinanceDashboard />;
+  if (dashboard === 'uk') return <WarehouseDashboard />;
+  if (dashboard === 'ghana') return <GhanaWarehouseDashboardPage />;
+  if (dashboard === 'driver') return <DriverDashboardPage />;
+  if (dashboard === 'rider') return <DeliveryDashboard />;
+  if (dashboard === 'office') return <OfficeOverview />;
   return (
     <Result
       status="info"

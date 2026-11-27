@@ -39,6 +39,7 @@ function controller(tx) {
     '../utils/statuses': require('../src/utils/statuses'),
     '../utils/packages': require('../src/utils/packages'),
     '../services/jobSplit': {},
+    '../utils/background': require('../src/utils/background'),
     '../utils/jobEdit': require('../src/utils/jobEdit'),
     '../utils/imageUpload': require('../src/utils/imageUpload'),
   });

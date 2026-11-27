@@ -2,12 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Button, Col, DatePicker, Form, Input, Modal, Row, Select, Spin, Typography, Upload, message } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { customerAPI, jobAPI } from '../../utils/api';
+import { jobAPI } from '../../utils/api';
 import { filesToUploads } from '../../utils/imageUpload';
 import { FREIGHT_TYPES } from '../../utils/countryCodes';
 import { canEditJobValue } from '../../utils/permissions';
 import { linesOf } from '../../utils/packages';
 import PackageLines from './PackageLines';
+import CustomerSelect from '../customers/CustomerSelect';
 import { useAuth } from '../../contexts/AuthContext';
 
 const { TextArea } = Input;
@@ -19,7 +20,6 @@ const JobEditModal = ({ jobId, onClose, onSaved }) => {
   const { currentUser } = useAuth();
   const [form] = Form.useForm();
   const [job, setJob] = useState(null);
-  const [customers, setCustomers] = useState([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -28,17 +28,10 @@ const JobEditModal = ({ jobId, onClose, onSaved }) => {
     setJob(null);
     form.resetFields();
 
-    Promise.all([
-      jobAPI.getById(jobId),
-      // The customer list is only needed to move the job to another customer
-      customerAPI.getAll({ limit: 100 }).catch(() => ({ data: [] })),
-    ])
-      .then(([jobResponse, customerResponse]) => {
+    jobAPI.getById(jobId)
+      .then((jobResponse) => {
         if (cancelled) return;
         const loaded = jobResponse.data.job;
-        const list = Array.isArray(customerResponse.data) ? customerResponse.data : customerResponse.data?.customers || [];
-        const hasCurrent = list.some((customer) => customer.id === loaded.customerId);
-        setCustomers(hasCurrent || !loaded.customer ? list : [loaded.customer, ...list]);
         setJob(loaded);
         form.setFieldsValue({
           referenceNumber: loaded.referenceNumber,
@@ -127,11 +120,8 @@ const JobEditModal = ({ jobId, onClose, onSaved }) => {
           <Col xs={24} sm={12}><Form.Item name="referenceNumber" label="Reference Number"><Input /></Form.Item></Col>
           <Col xs={24} sm={12}>
             <Form.Item name="customerId" label="Customer">
-              <Select
-                showSearch
-                optionFilterProp="label"
-                options={customers.map((customer) => ({ value: customer.id, label: customer.email ? `${customer.name} - ${customer.email}` : customer.name }))}
-              />
+              {/* Moving the job to another customer: every customer can be searched */}
+              <CustomerSelect initial={job?.customer} allowClear={false} />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12}><Form.Item name="pickupAddress" label="Pickup Address"><TextArea rows={2} /></Form.Item></Col>

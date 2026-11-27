@@ -3,11 +3,18 @@ import { Button, Card, Space, Tag, Typography } from 'antd';
 import { EyeOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import ResponsiveTable from '../common/ResponsiveTable';
-import StatusChangeModal from '../jobs/StatusChangeModal';
 import AssignPersonModal from '../jobs/AssignPersonModal';
+import { lazyPage } from '../../utils/lazyPage';
 import {
   actionLabel, canAssignDriver, canAssignRider, formatJobStatusLabel, getStatusColor, nextJobStatuses,
 } from '../../constants/jobStatuses';
+
+// The status dialog (with photo upload) is fetched once the page has shown, or when first opened
+const StatusChangeModal = lazyPage(() => import('../jobs/StatusChangeModal'), {
+  fallback: null,
+  idle: true,
+  isOpen: (props) => Boolean(props.job),
+});
 
 const { Text } = Typography;
 const date = (value) => (value ? new Date(value).toLocaleDateString() : '—');

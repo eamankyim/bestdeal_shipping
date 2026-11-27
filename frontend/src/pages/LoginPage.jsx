@@ -18,6 +18,8 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import config from '../config/env';
+import { whenIdle } from '../utils/lazyPage';
+import { DashboardPage } from './lazyPages';
 
 const { Title, Text } = Typography;
 
@@ -33,6 +35,11 @@ const LoginPage = () => {
   // Get the page user was trying to access
   const from = location.state?.from?.pathname || '/dashboard';
 
+  // The home page's code downloads while the person types, so it is ready when they sign in
+  React.useEffect(() => {
+    whenIdle(() => DashboardPage.preload().catch(() => {}));
+  }, []);
+
   // Show success message if redirected from somewhere
   React.useEffect(() => {
     if (location.state?.message) {
@@ -46,6 +53,8 @@ const LoginPage = () => {
     
     try {
       console.log('🔑 Login form submitted');
+      // In case it has not finished downloading yet
+      DashboardPage.preload().catch(() => {});
       const userData = await login(values.email, values.password);
       
       // Show success message
@@ -67,18 +76,10 @@ const LoginPage = () => {
           dashboardPath = '/ghana-warehouse';
         } else if (warehouseLocation === 'UK Warehouse') {
           dashboardPath = '/uk-warehouse';
-        } else {
-          dashboardPath = '/warehouse-dashboard';
         }
       } else {
-        const roleDashboards = {
-          'admin': '/dashboard',
-          'driver': '/driver-dashboard',
-          'delivery-agent': '/delivery-agent-dashboard',
-          'customer-service': '/dashboard',
-          'finance': '/dashboard',
-        };
-        dashboardPath = roleDashboards[userRole] || '/dashboard';
+        // Every other role's own dashboard is on the home page (pages/DashboardPage.jsx)
+        dashboardPath = '/dashboard';
       }
       
       console.log('🎯 Redirecting to:', dashboardPath, 'for role:', userRole, 'warehouseLocation:', warehouseLocation);

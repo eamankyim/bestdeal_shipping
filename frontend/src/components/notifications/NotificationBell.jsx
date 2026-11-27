@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Badge, Dropdown, List, Typography, Empty, Button, Space, Divider } from 'antd';
+import { Badge, Dropdown, Typography, Empty, Button, Space, Divider, Spin } from 'antd';
 import { BellOutlined, CheckOutlined, DeleteOutlined } from '@ant-design/icons';
 import { notificationAPI } from '../../utils/api';
 import { useNavigate } from 'react-router-dom';
@@ -199,16 +199,20 @@ const NotificationBell = () => {
             </Button>
           </Empty>
         ) : notifications.length > 0 ? (
-          <List
-            dataSource={notifications}
-            loading={loading}
-            renderItem={(item) => (
-              <List.Item
+          // Plain rows rather than antd's List, which brings paging code into every page
+          <Spin spinning={loading}>
+            {notifications.map((item) => (
+              <div
+                key={item.id}
+                role="button"
+                tabIndex={0}
                 className={`notification-item ${!item.isRead ? 'unread' : ''}`}
                 onClick={() => handleNotificationClick(item)}
+                onKeyDown={(event) => event.key === 'Enter' && handleNotificationClick(item)}
                 style={{
                   cursor: 'pointer',
                   padding: '12px 16px',
+                  borderBottom: '1px solid #f0f0f0',
                   backgroundColor: !item.isRead ? '#f0f9ff' : 'transparent',
                 }}
               >
@@ -227,9 +231,9 @@ const NotificationBell = () => {
                     {new Date(item.createdAt).toLocaleString()}
                   </Text>
                 </Space>
-              </List.Item>
-            )}
-          />
+              </div>
+            ))}
+          </Spin>
         ) : (
           <Empty 
             image={<img src="/no-notifications.png" alt="No notifications" style={{ width: 160 }} />}

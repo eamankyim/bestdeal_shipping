@@ -295,6 +295,11 @@ export const settingsAPI = {
   sendTestSms: (phone) => api.post('/settings/sms/test', { phone }),
   sendTestEmail: (email) => api.post('/settings/email/test', { email }),
   getSmsHistory: (params) => api.get('/settings/sms/history', { params }),
+  // BestDeal's Lynk messaging plan; the server makes every Lynk call
+  getMessagingPlan: () => api.get('/settings/messaging-plan'),
+  chooseMessagingPlan: (plan, requestId) => api.post('/settings/messaging-plan/choose', { plan, requestId }),
+  payAheadForMessaging: (amountCents) => api.post('/settings/messaging-plan/top-ups', { amountCents }),
+  checkMessagingPayment: (id) => api.get(`/settings/messaging-plan/top-ups/${encodeURIComponent(id)}`),
 };
 
 export const trackingAPI = {

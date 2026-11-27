@@ -8,6 +8,7 @@ const { canAccessJob, canEditJob, canEditJobValue, jobScopeFor } = require('../u
 const { actorOf, toJobStatus, jobStatusLabel, checkJobMove, assignmentProblem } = require('../utils/statuses');
 const { normalizeLines, lineTotals } = require('../utils/packages');
 const { splitJob } = require('../services/jobSplit');
+const { runLater } = require('../utils/background');
 const { buildJobUpdate } = require('../utils/jobEdit');
 const { decodeFile, parseImage, contentDisposition } = require('../utils/imageUpload');
 
@@ -84,56 +85,17 @@ exports.getAllJobs = asyncHandler(async (req, res) => {
     ...jobScopeFor(req.user),
   };
 
-  // Get jobs
+  // Lists only need who and where; a job's history, documents and notes come with GET /jobs/:id
   const [jobs, total] = await Promise.all([
     prisma.job.findMany({
       where,
       skip: parseInt(skip),
       take: parseInt(limit),
       include: {
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            customerType: true,
-          },
-        },
-        assignedDriver: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        assignedDeliveryAgent: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        batch: {
-          select: {
-            id: true,
-            batchId: true,
-            destination: true,
-          },
-        },
-        timeline: {
-          include: {
-            updater: {
-              select: {
-                id: true,
-                name: true,
-                email: true
-              }
-            }
-          },
-          orderBy: {
-            timestamp: 'asc'
-          }
-        },
+        customer: { select: { id: true, name: true, email: true, phone: true, customerType: true } },
+        assignedDriver: { select: { id: true, name: true } },
+        assignedDeliveryAgent: { select: { id: true, name: true } },
+        batch: { select: { id: true, batchId: true, name: true, destination: true } },
       },
       orderBy: { createdAt: 'desc' },
     }),
@@ -288,10 +250,9 @@ exports.createJob = asyncHandler(async (req, res) => {
     driverId = assignedDriverId;
   }
   // A job the UK warehouse books is already there (the customer brought it in), unless a driver is
-  // sent to collect it. The office chooses with `atWarehouse`; the UK warehouse can too.
-  const actor = actorOf(req.user);
-  const atWarehouse = !isDraft && !driverId && ['uk', 'office'].includes(actor)
-    && (req.body.atWarehouse === undefined ? actor === 'uk' : req.body.atWarehouse === true);
+  // sent to collect it or they say it is still with the customer (`atWarehouse: false`).
+  // Everyone else books collections.
+  const atWarehouse = !isDraft && !driverId && actorOf(req.user) === 'uk' && req.body.atWarehouse !== false;
   if (!isDraft && !atWarehouse && !String(pickupAddress || '').trim()) {
     return sendError(res, 400, 'Pickup address is required for a job that has to be collected');
   }
@@ -418,17 +379,10 @@ exports.createJob = asyncHandler(async (req, res) => {
     },
   });
 
-  // Send notifications
-  try {
-    const notificationCount = await notifyJobCreated(jobWithDocuments, req.user.id);
-    console.log(`📬 Sent ${notificationCount} notifications for job ${jobWithDocuments.trackingId}`);
-  } catch (error) {
-    console.error('⚠️ Failed to send notifications:', error);
-    // Don't fail the request if notifications fail
-  }
-
+  // Staff and the customer are told after the answer is sent, so creating a job never waits for them
+  runLater('new job notifications', () => notifyJobCreated(jobWithDocuments, req.user.id));
   if (!isDraft) {
-    await sendCustomerMessage('pending_collection', { customer: jobWithDocuments.customer, job: jobWithDocuments });
+    runLater('booking message', () => sendCustomerMessage('pending_collection', { customer: jobWithDocuments.customer, job: jobWithDocuments }));
   }
 
   return sendSuccess(res, 201, 'Job created successfully', { job: jobWithDocuments });
@@ -490,7 +444,7 @@ exports.updateJob = asyncHandler(async (req, res) => {
   }
 
   // The only status an edit can change is a draft being finished
-  if (data.status) await notifyCustomerOfStatus(job, data.status, existingJob.status);
+  if (data.status) runLater('booking message', () => notifyCustomerOfStatus(job, data.status, existingJob.status));
 
   return sendSuccess(res, 200, 'Job updated successfully', { job });
 });
@@ -637,12 +591,9 @@ exports.updateJobStatus = asyncHandler(async (req, res) => {
     }
   }
 
-  try {
-    await notifyJobStatusChange(updatedJob, target, req.user.id);
-  } catch (error) {
-    console.error('⚠️ Failed to send status change notifications:', error);
-  }
-  await notifyCustomerOfStatus(updatedJob, target, job.status);
+  // Staff and the customer are told after the answer is sent
+  runLater('status notifications', () => notifyJobStatusChange(updatedJob, target, req.user.id));
+  runLater('customer status message', () => notifyCustomerOfStatus(updatedJob, target, job.status));
 
   return sendSuccess(res, 200, 'Job status updated successfully', { job: updatedJob });
 });
@@ -703,15 +654,10 @@ exports.assignDriver = asyncHandler(async (req, res) => {
     include: { customer: true, assignedDriver: { select: { id: true, name: true, email: true } } },
   });
 
-  try {
-    await notifyDriverAssignment(job, driverId, req.user.id);
-  } catch (error) {
-    console.error('⚠️ Failed to send driver assignment notification:', error);
-  }
-
+  runLater('driver notification', () => notifyDriverAssignment(job, driverId, req.user.id));
   // Swapping one driver for another is not news for the customer
   if (toJobStatus(existingJob.status) !== 'assigned') {
-    await notifyCustomerOfStatus(job, 'assigned', existingJob.status);
+    runLater('customer status message', () => notifyCustomerOfStatus(job, 'assigned', existingJob.status));
   }
 
   return sendSuccess(res, 200, 'Driver assigned successfully', { job });
@@ -814,23 +760,18 @@ exports.assignDeliveryAgent = asyncHandler(async (req, res) => {
     include: { customer: true, assignedDeliveryAgent: { select: { id: true, name: true, email: true } } },
   });
 
-  try {
-    const { createNotification } = require('../services/notificationService');
-    await createNotification({
+  const { createNotification } = require('../services/notificationService');
+  runLater('rider notification', () => createNotification({
       userId: deliveryAgentId,
       type: 'assignment',
       title: 'New Delivery Assignment',
       message: `You have been assigned to deliver job ${job.trackingId}`,
       relatedEntityType: 'job',
       relatedEntityId: job.id,
-    });
-  } catch (error) {
-    console.error('⚠️ Failed to send delivery agent notification:', error);
-  }
-
+    }));
   // Swapping one rider for another is not news for the customer
   if (toJobStatus(existingJob.status) !== 'out_for_delivery') {
-    await notifyCustomerOfStatus(job, 'out_for_delivery', existingJob.status);
+    runLater('customer status message', () => notifyCustomerOfStatus(job, 'out_for_delivery', existingJob.status));
   }
 
   return sendSuccess(res, 200, 'Dispatch rider assigned successfully', { job });
@@ -875,6 +816,8 @@ exports.getDocument = asyncHandler(async (req, res) => {
   res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
   res.setHeader('Content-Disposition', contentDisposition(document.fileName));
   res.setHeader('Content-Length', document.fileData.length);
+  // A saved file never changes, so this browser can keep it (only this user's browser: "private")
+  res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
 
   // Send the file
   return res.send(document.fileData);

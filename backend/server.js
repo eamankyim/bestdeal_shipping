@@ -31,6 +31,8 @@ if (process.env.VERCEL) {
     
     server.close(async () => {
       console.log('✅ HTTP server closed');
+      // Texts and emails already started are sent before the database connection closes
+      await require('./src/utils/background').drain();
       
       await prisma.$disconnect();
       console.log('✅ Database connection closed');

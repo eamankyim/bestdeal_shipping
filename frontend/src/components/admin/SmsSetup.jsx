@@ -6,7 +6,8 @@ import { settingsAPI } from '../../utils/api';
 const { Text } = Typography;
 
 /** Choose the SMS provider, enter its keys, test it, and switch SMS (and email through Lynk) on or off. */
-const SmsSetup = () => {
+/** `onSaved`: called after saving, e.g. so the messaging plan is read again with a new Lynk key. */
+const SmsSetup = ({ onSaved }) => {
   const [form] = Form.useForm();
   const [sms, setSms] = useState(null);
   const [error, setError] = useState(null);
@@ -53,6 +54,7 @@ const SmsSetup = () => {
       });
       show(response.data.sms);
       message.success('Settings saved');
+      onSaved?.();
     } catch (err) {
       message.error(err.message || 'Failed to save the settings');
     } finally {
